@@ -1,0 +1,18 @@
+{
+  "records": [
+    {
+      "consumable_type": "Example Coating Antibody 1mg/mL",
+      "found_in": [{ "document": "example_method.docx", "page": null, "section": "6.2" }],
+      "serial_dilution_level": false,
+      "fields": {
+        "consumable_class": { "value": "Purchased", "status": "found" },
+        "storage_condition": {
+          "status": "conflicting",
+          "alternatives": ["-20C", "4C"]
+        },
+        "manufacturer": { "value": null, "status": "not_found" }
+      }
+    }
+  ],
+  "excluded_items": ["Plate sealer"]
+}

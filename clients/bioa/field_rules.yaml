@@ -1,0 +1,238 @@
+# Field rules for the BAL Consumable Type DFD loader.
+# Owner: developers. Changes go through review and a version bump.
+# Order of fields here = column order in the export file.
+#
+# Source of truth: "BAL Consumable Type Import Example.xlsx", filled out by BioA.
+#   Its two definition sheets are in source/BAL_Consumable_Type_Definitions.xlsx
+#   (the example-records sheet is left out: real BioA data). A test checks this file against it.
+#   - Field list, order, requirement, type, character limits, defaults: "Data info" sheet.
+#   - Allowed values: "List Values" sheet, copied into lookup_lists.xlsx.
+#   If something there needs to change, the workbook is edited and this file follows it.
+#   Settings marked "design" are design decisions where the workbook says nothing.
+#
+# Roles:
+#   extracted       LLM extracts it from the documents.
+#   blank_for_now   Not filled by the tool. Exported blank and not validated. The UI shows the
+#                   placeholder value below so it is easy to spot. Never sent to the LLM.
+#   system          "System Generated" in Data info. Exported blank. Never sent to the LLM.
+#
+# Requirement: required | conditional | optional.
+#   "conditional" fields belong to a condition group (bottom of this file).
+#
+# Extraction copies every value exactly as written in the document (no formatting).
+#   Transformation (code) then: matches list fields to the lookup list, ignoring
+#   case, spaces and the degree sign; reads numbers out of text; joins catalog numbers.
+#   No list match means a red NOT_IN_LOOKUP issue; the user picks the value.
+#   Boolean fields (Data info "Boolean") accept Y or N.
+#   The LLM never infers a value: a value not written in the documents is not_found.
+#
+# extraction_guidance is sent to the LLM in the extraction prompt, one line per field.
+
+version: "0.2"
+
+placeholder_value: "TEST VALUE"     # UI display only for blank_for_now fields; never exported (design)
+
+fields:
+  - key: consumable_type
+    column: Consumable Type
+    role: extracted
+    requirement: required
+    type: text
+    max_length: 40
+    disallowed_characters: [greek_letters, control_characters]   # SOP v1.0 section 7.1
+    notes: "Primary key in LabVantage. Must be unique. Copied as written; no naming convention applied."
+    extraction_guidance: "The material's name exactly as written. Do not shorten it or apply a naming convention."
+
+  - key: description
+    column: Description
+    role: extracted
+    requirement: optional
+    type: text
+    max_length: 255
+    extraction_guidance: "A description of the material if the document gives one, such as the vendor's product name. Copy as written."
+
+  - key: version
+    column: Version
+    role: system
+    requirement: optional
+    type: text
+    max_length: 40
+
+  - key: consumable_class
+    column: Consumable Class
+    role: extracted
+    requirement: optional
+    type: text
+    max_length: 80
+    lookup_sheet: Consumable Class
+    extraction_guidance: "The class only if the document states it, copied as written. Otherwise not_found."
+
+  - key: storage_condition
+    column: Storage Condition
+    role: extracted
+    requirement: optional
+    type: text
+    max_length: 40
+    lookup_sheet: Storage Condition
+    extraction_guidance: "The storage temperature or condition as written, e.g. \"-20 °C\" or \"2–8 °C\"."
+
+  - key: critical
+    column: Critical
+    role: extracted
+    requirement: optional
+    type: text
+    max_length: 1
+    lookup_sheet: Critical
+    extraction_guidance: "Only if the document states whether the material is critical, copied as written. Otherwise not_found."
+
+  - key: expected_amount
+    column: Expected Amount
+    role: extracted
+    requirement: conditional        # condition group: amount_or_containers
+    type: decimal
+    extraction_guidance: "The quantity per container, number only, as written (\"1 mL vial\" gives \"1\"). For a prepared reagent, the volume made per batch."
+
+  - key: expected_amount_unit
+    column: Expected Amount Unit
+    role: extracted
+    requirement: conditional        # condition group: amount_or_containers
+    type: text
+    max_length: 40
+    lookup_sheet: Expected Amount Unit
+    extraction_guidance: "The unit of the expected amount as written (\"1 mL vial\" gives \"mL\")."
+
+  - key: expected_no_of_containers
+    column: Expected No of Containers
+    role: extracted
+    requirement: conditional        # condition group: amount_or_containers
+    type: integer
+    extraction_guidance: "The number of containers per lot, only when stated."
+
+  - key: container_tracking_method
+    column: Container Tracking Method
+    role: extracted
+    requirement: optional
+    type: text
+    max_length: 1                    # Data info. Note: the default "Individual" is longer than this
+    lookup_sheet: Container Tracking Method
+    default: Individual              # Data info: Default = Individual. Applied when not found.
+    extraction_guidance: "Only if the document says how containers are tracked. Usually not_found."
+
+  - key: manage_container_inventory_flag
+    column: Manage Container Inventory Flag
+    role: extracted
+    requirement: optional
+    type: boolean                    # Data info: Boolean
+    max_length: 1
+    default: "Y"                     # Data info: Default = Y. Applied when not found.
+    extraction_guidance: "Y or N, only if the document says whether container inventory is managed. Usually not_found."
+
+  - key: container_type
+    column: Container Type
+    role: extracted
+    requirement: optional
+    type: text
+    max_length: 40
+    lookup_sheet: Container Type
+    extraction_guidance: "The kind of container as written, e.g. \"vial\" or \"15 mL conical tube\"."
+
+  - key: container_type_size
+    column: Container Type Size
+    role: extracted
+    requirement: optional
+    type: decimal
+    extraction_guidance: "The container's size, number only, as written (\"15 mL conical tube\" gives \"15\")."
+
+  - key: container_type_unit
+    column: Container Type Unit
+    role: extracted
+    requirement: optional
+    type: text
+    max_length: 40
+    lookup_sheet: Container Type Unit
+    extraction_guidance: "The unit of the container size as written (\"15 mL conical tube\" gives \"mL\")."
+
+  - key: manufacturer
+    column: Manufacturer
+    role: extracted
+    requirement: optional
+    type: text
+    max_length: 40
+    lookup_sheet: Manufacturer
+    extraction_guidance: "The company that makes the material, as written. If only one vendor is named, put it in both manufacturer and supplier."
+
+  - key: supplier
+    column: Supplier
+    role: extracted
+    requirement: optional
+    type: text
+    max_length: 40
+    lookup_sheet: Supplier
+    notes: "Kept separate from Manufacturer on purpose (design)."
+    extraction_guidance: "The company it is bought from, as written. If only one vendor is named, put it in both manufacturer and supplier."
+
+  - key: catalog_no
+    column: Catalog No
+    role: extracted
+    requirement: optional
+    type: text                       # always text: keeps leading zeros
+    multi_value: true                # LLM returns a list; code joins with the separator
+    separator: ", "                  # design (the workbook does not say)
+    notes: "Several catalog numbers for one item are allowed in one cell. Not a conflict."
+    extraction_guidance: "Every catalog number for this material, one entry each, as written."
+
+  - key: target_concentration
+    column: Target Concentration
+    role: extracted
+    requirement: optional
+    type: decimal
+    notes: "Decimal (Data info). Code reads the number from the text (1e4 cps/uL -> 10000). The text as written is kept in the audit file."
+    extraction_guidance: "The concentration as written, with its unit, e.g. \"100 uM\" or \"1e4 cps/uL\"."
+
+  - key: approval_type
+    column: Approval Type
+    role: blank_for_now
+    requirement: optional
+    type: text
+    max_length: 40
+    lookup_sheet: Approval Type
+
+  - key: consumable_params
+    column: Consumable Params
+    role: blank_for_now
+    requirement: optional
+    type: text
+    max_length: 40
+    lookup_sheet: Consumable Params
+
+  - key: worksheet_template
+    column: Worksheet Template
+    role: blank_for_now
+    requirement: optional
+    type: text
+    max_length: 40
+    lookup_sheet: Worksheet Template
+
+  - key: status
+    column: Status
+    role: system
+    requirement: optional
+    type: text
+    max_length: 20
+    lookup_sheet: Status
+
+# Cross-field conditions from BioA's own Data info sheet.
+# These are the only cross-field checks.
+condition_groups:
+  amount_or_containers:
+    source: "Data info sheet: Expected Amount + Unit, or Expected No of Containers, is mandatory"
+    rule: one_of
+    options:
+      - [expected_amount, expected_amount_unit]
+      - [expected_no_of_containers]
+    issue_code: CONDITION_UNMET
+  amount_with_unit:
+    source: "Design: an amount without its unit (or a unit without an amount) is meaningless"
+    rule: both_or_neither
+    fields: [expected_amount, expected_amount_unit]
+    issue_code: PAIR_INCOMPLETE

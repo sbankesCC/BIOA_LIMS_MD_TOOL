@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup: Admin: lookup lists</title>
+<!-- Static reference mockup with placeholder values. docs/UI_SPEC.md wins where they differ. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#035599}a:hover{color:#0b3d6f}
+</style>
+</head>
+<body>
+<div style="min-height: 1180px; background: #f4f6f8; color: #26292e; font-family: 'Proxima Nova', 'Franklin Gothic Book', 'Franklin Gothic', 'Libre Franklin', sans-serif; font-size: 15px; line-height: 1.5">
+
+<header style="background: #035599; color: #ffffff">
+<div style="max-width: 1280px; margin: 0 auto; padding: 0 32px; min-height: 64px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
+<div style="display: flex; align-items: center; gap: 28px; flex-wrap: wrap">
+<a href="1_start_run.html" style="color: #ffffff; text-decoration: none; font-family: 'Futura PT', 'Franklin Gothic Medium', 'Franklin Gothic', 'Libre Franklin', sans-serif; font-weight: 700; font-size: 19px; letter-spacing: 0.01em">Consumable Type Extractor</a>
+<nav aria-label="Main" style="display: flex; gap: 20px">
+<a href="1_start_run.html" style="color: #ffffff; text-decoration: none; padding: 20px 0">New run</a>
+<a href="3_review_and_resolve.html" style="color: #ffffff; text-decoration: none; padding: 20px 0">Runs</a>
+</nav>
+</div>
+<div style="display: flex; align-items: center; gap: 12px">
+<button type="button" style="background: transparent; color: #ffffff; border: none; font: inherit; display: flex; align-items: center; gap: 6px; padding: 10px 8px; cursor: pointer">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .8c0 1.8-2.5 2.2-2.5 3.8"></path><path d="M12 17h.01"></path></svg>
+How it works</button>
+<a href="4_admin_lookup_lists.html" aria-current="page" style="color: #035599; background: #ffffff; text-decoration: none; border: 1px solid #ffffff; border-radius: 8px; padding: 9px 16px; font-weight: 700">Admin</a>
+</div>
+</div>
+</header>
+
+<main style="max-width: 1280px; margin: 0 auto; padding: 36px 32px 64px; display: flex; flex-direction: column; gap: 24px">
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="font-family: 'Futura PT', 'Franklin Gothic Medium', 'Franklin Gothic', 'Libre Franklin', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 0.2em; color: #035599">ADMIN</div>
+<h1 style="margin: 0; font-family: 'Futura PT', 'Franklin Gothic Medium', 'Franklin Gothic', 'Libre Franklin', sans-serif; font-weight: 700; font-size: 32px; line-height: 1.15">Lookup lists</h1>
+<nav aria-label="Admin sections" style="display: flex; gap: 8px; margin-top: 10px">
+<a href="4_admin_lookup_lists.html" aria-current="page" style="text-decoration: none; font-weight: 700; color: #ffffff; background: #035599; border-radius: 999px; padding: 8px 16px">Lookup lists</a>
+<a href="#reference" style="text-decoration: none; font-weight: 600; color: #035599; background: #ffffff; border: 1px solid #035599; border-radius: 999px; padding: 7px 16px">Reference data</a>
+</nav>
+</div>
+
+<section aria-labelledby="active-h" style="background: #ffffff; border: 1px solid #e5e9ee; border-radius: 18px; padding: 26px 30px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<h2 id="active-h" style="margin: 0; font-family: 'Futura PT', 'Franklin Gothic Medium', 'Franklin Gothic', 'Libre Franklin', sans-serif; font-weight: 700; font-size: 20px">Current version: v12</h2>
+<div style="color: #555b63">Uploaded by [admin name] · [date] · [n] lists · [n] values</div>
+</div>
+<button type="button" style="font: inherit; font-weight: 700; color: #ffffff; background: #035599; border: none; border-radius: 10px; padding: 12px 20px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"></path><path d="M7.5 10.5 12 15l4.5-4.5"></path><path d="M4 18h16"></path></svg>
+Download current workbook</button>
+</section>
+
+<section aria-labelledby="upload-h" style="background: #ffffff; border: 1px solid #e5e9ee; border-radius: 18px; padding: 26px 30px; display: flex; flex-direction: column; gap: 20px">
+<h2 id="upload-h" style="margin: 0; font-family: 'Futura PT', 'Franklin Gothic Medium', 'Franklin Gothic', 'Libre Franklin', sans-serif; font-weight: 700; font-size: 20px">Upload a new version</h2>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; border: 1px solid #dde2e7; border-radius: 10px; padding: 12px 16px">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#035599" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path></svg>
+<div style="flex: 1 1 auto; min-width: 200px"><div style="font-weight: 600">Lookup_lists_v12_edited.xlsx</div><div style="font-size: 13px; color: #555b63">Checked just now</div></div>
+<button type="button" style="font: inherit; font-weight: 600; color: #035599; background: #ffffff; border: 1px solid #035599; border-radius: 8px; padding: 9px 16px; cursor: pointer">Upload a different file</button>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+
+<div style="flex: 1 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<h3 style="margin: 0; font-size: 16px">Checks</h3>
+<div style="display: flex; gap: 10px; align-items: center; color: #0b5f56; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Based on the current version (v12)</div>
+<div style="display: flex; gap: 10px; align-items: center; color: #0b5f56; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>All expected sheets and headers present</div>
+<div style="border: 1px solid #e3b4ae; background: #fdf5f4; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; gap: 8px; align-items: center; color: #8c1f18; font-weight: 700"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M15 9l-6 6M9 9l6 6"></path></svg>3 problems to fix before activating</div>
+<ul style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px">
+<li><strong>Manufacturer</strong>, row 118: “ Vendor D” starts with a space</li>
+<li><strong>Storage Condition</strong>, row 9: “room temperature” duplicates “Room Temperature” (differs only by capitalization)</li>
+<li><strong>Supplier</strong>, row 40: 46 characters; the limit is 40</li>
+</ul>
+</div>
+</div>
+
+<div style="flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<h3 style="margin: 0; font-size: 16px">Changes from v12</h3>
+<div style="overflow-x: auto">
+<table style="width: 100%; border-collapse: collapse; font-size: 14px">
+<thead>
+<tr style="text-align: left; color: #555b63; font-size: 13px">
+<th scope="col" style="padding: 8px 10px; border-bottom: 1px solid #dde2e7; font-weight: 600">List</th>
+<th scope="col" style="padding: 8px 10px; border-bottom: 1px solid #dde2e7; font-weight: 600">Added</th>
+<th scope="col" style="padding: 8px 10px; border-bottom: 1px solid #dde2e7; font-weight: 600">Removed</th>
+</tr>
+</thead>
+<tbody>
+<tr><td style="padding: 9px 10px; border-bottom: 1px solid #edf0f3">Manufacturer</td><td style="padding: 9px 10px; border-bottom: 1px solid #edf0f3">3</td><td style="padding: 9px 10px; border-bottom: 1px solid #edf0f3">0</td></tr>
+<tr><td style="padding: 9px 10px; border-bottom: 1px solid #edf0f3">Supplier</td><td style="padding: 9px 10px; border-bottom: 1px solid #edf0f3">2</td><td style="padding: 9px 10px; border-bottom: 1px solid #edf0f3">1</td></tr>
+<tr><td style="padding: 9px 10px; border-bottom: 1px solid #edf0f3">Storage Condition</td><td style="padding: 9px 10px; border-bottom: 1px solid #edf0f3">1</td><td style="padding: 9px 10px; border-bottom: 1px solid #edf0f3">0</td></tr>
+<tr><td style="padding: 9px 10px">All other lists</td><td style="padding: 9px 10px">0</td><td style="padding: 9px 10px">0</td></tr>
+</tbody>
+</table>
+</div>
+<a href="#all-changes" style="font-weight: 600">View every added and removed value</a>
+</div>
+
+</div>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px; border-top: 1px solid #e5e9ee; padding-top: 18px">
+<span id="activate-why" style="font-size: 14px; color: #8c1f18; font-weight: 600">Fix the 3 problems and upload again to apply these updates</span>
+<button type="button" disabled="disabled" aria-describedby="activate-why" style="font: inherit; font-weight: 700; color: #6b7076; background: #e3e7eb; border: none; border-radius: 10px; padding: 12px 22px; cursor: not-allowed">Apply updates as v13</button>
+</div>
+</section>
+
+<section aria-labelledby="hist-h" style="background: #ffffff; border: 1px solid #e5e9ee; border-radius: 18px; padding: 26px 30px; display: flex; flex-direction: column; gap: 14px">
+<h2 id="hist-h" style="margin: 0; font-family: 'Futura PT', 'Franklin Gothic Medium', 'Franklin Gothic', 'Libre Franklin', sans-serif; font-weight: 700; font-size: 20px">Version history</h2>
+<div style="overflow-x: auto">
+<table style="width: 100%; border-collapse: collapse; min-width: 720px; font-size: 14px">
+<thead>
+<tr style="text-align: left; color: #555b63; font-size: 13px">
+<th scope="col" style="padding: 10px 12px; border-bottom: 1px solid #dde2e7; font-weight: 600">Version</th>
+<th scope="col" style="padding: 10px 12px; border-bottom: 1px solid #dde2e7; font-weight: 600">Uploaded by</th>
+<th scope="col" style="padding: 10px 12px; border-bottom: 1px solid #dde2e7; font-weight: 600">Date</th>
+<th scope="col" style="padding: 10px 12px; border-bottom: 1px solid #dde2e7; font-weight: 600">Changes</th>
+<th scope="col" style="padding: 10px 12px; border-bottom: 1px solid #dde2e7; font-weight: 600">Status</th>
+<th scope="col" style="padding: 10px 12px; border-bottom: 1px solid #dde2e7; font-weight: 600"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Actions</span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding: 12px; border-bottom: 1px solid #edf0f3; font-weight: 600">v12</td>
+<td style="padding: 12px; border-bottom: 1px solid #edf0f3">[admin name]</td>
+<td style="padding: 12px; border-bottom: 1px solid #edf0f3">[date]</td>
+<td style="padding: 12px; border-bottom: 1px solid #edf0f3">+4 values, −0</td>
+<td style="padding: 12px; border-bottom: 1px solid #edf0f3"><span style="background: #e1f3f0; color: #0b5f56; border-radius: 999px; padding: 3px 10px; font-size: 13px; font-weight: 600">Current</span></td>
+<td style="padding: 12px; border-bottom: 1px solid #edf0f3"><a href="#download-v12">Download</a></td>
+</tr>
+<tr>
+<td style="padding: 12px; border-bottom: 1px solid #edf0f3; font-weight: 600">v11</td>
+<td style="padding: 12px; border-bottom: 1px solid #edf0f3">[admin name]</td>
+<td style="padding: 12px; border-bottom: 1px solid #edf0f3">[date]</td>
+<td style="padding: 12px; border-bottom: 1px solid #edf0f3">+12 values, −2</td>
+<td style="padding: 12px; border-bottom: 1px solid #edf0f3"><span style="background: #eef0f2; color: #4a4f56; border-radius: 999px; padding: 3px 10px; font-size: 13px; font-weight: 600">Superseded</span></td>
+<td style="padding: 12px; border-bottom: 1px solid #edf0f3; display: flex; gap: 14px"><a href="#download-v11">Download</a><button type="button" style="font: inherit; color: #035599; background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline">Restore v11</button></td>
+</tr>
+<tr>
+<td style="padding: 12px; font-weight: 600">v10</td>
+<td style="padding: 12px">[admin name]</td>
+<td style="padding: 12px">[date]</td>
+<td style="padding: 12px">Initial load</td>
+<td style="padding: 12px"><span style="background: #eef0f2; color: #4a4f56; border-radius: 999px; padding: 3px 10px; font-size: 13px; font-weight: 600">Superseded</span></td>
+<td style="padding: 12px; display: flex; gap: 14px"><a href="#download-v10">Download</a><button type="button" style="font: inherit; color: #035599; background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline">Restore v10</button></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "notes": "Planted mistakes for testing extraction verification. Optional.",
+  "errors": [
+    {
+      "record": "Example Coating Antibody 1mg/mL",
+      "field": "critical",
+      "planted_value": "No",
+      "expected_verdict": "contradicted"
+    }
+  ]
+}

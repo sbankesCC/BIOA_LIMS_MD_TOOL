@@ -1,0 +1,125 @@
+# Issue catalogue: every issue the tool can raise.
+# Severity: error (red, "Fix"), warning (yellow, "Check"), info (grey).
+# Messages are shown to users. Keep them short and say what to do.
+# Message wording is a draft for review.
+# {field} and {value} are filled in by code.
+#
+# Severity rule of thumb:
+#   red    = import would fail, or the value is known wrong or undecided
+#   yellow = might be wrong, needs a person's judgment; can be accepted
+#   grey   = handled automatically, shown for information
+#
+# Red issues block the "verified" label. They never block export.
+#
+# individual_review: true means the warning cannot be bulk-accepted (not in "Accept warnings
+#   and verify", not in "Also apply to similar"). The user opens the source, then accepts,
+#   changes or marks it not found, one at a time. Open ones block the verified label.
+# note_required: true means accepting it needs a short note saying how it was handled.
+
+version: "0.4"
+
+record_issues:
+
+  # ----- Red -----
+  REQUIRED_MISSING:
+    severity: error
+    message: "{field} is required. Enter a value."
+  CONDITION_UNMET:
+    severity: error
+    message: "Enter Expected Amount with its unit, or Expected No of Containers."
+  PAIR_INCOMPLETE:
+    severity: error
+    message: "Expected Amount and Expected Amount Unit must both be filled in."
+  OR_EQUIVALENT:
+    severity: warning
+    message: "The document allows an equivalent product. Confirm which product is used."
+  NOT_IN_LOOKUP:
+    severity: error
+    message: "'{value}' is not in the {field} list. Choose a value from the list."
+  TOO_LONG:
+    severity: error
+    message: "{field} is longer than the limit of {max_length} characters."
+  WRONG_TYPE:
+    severity: error
+    message: "{field} must be a number."
+  INVALID_CHARACTERS:
+    severity: error
+    message: "{field} contains characters that are not allowed (for example Greek letters)."
+  DUPLICATE_IN_RUN:
+    severity: error
+    message: "Another record in this run has the same Consumable Type name."
+  EXISTS_IN_LABVANTAGE:
+    severity: error
+    message: "A Consumable Type with this name already exists in LabVantage."
+  CONFLICT_UNRESOLVED:
+    severity: error          # configurable; red is the default
+    message: "The documents give different values for {field}. Choose one."
+  CONTRADICTED_BY_SOURCE:
+    severity: error
+    message: "The cited document says something different for {field}."
+
+  # ----- Yellow -----
+  UNSUPPORTED_BY_SOURCE:
+    severity: warning
+    individual_review: true
+    message: "The cited text may not support this {field} value."
+  CITATION_NOT_VERIFIED:
+    severity: warning
+    individual_review: true
+    message: "The value or quote for {field} could not be found word for word in the cited document."
+  VALUE_PRESENT_MISSED:
+    severity: warning
+    message: "{field} may be in the documents but was not extracted."
+  POSSIBLE_DUPLICATE:
+    severity: warning
+    message: "This may be the same as an existing Consumable Type. Compare before export."
+  DEFAULT_APPLIED:
+    severity: warning
+    message: "{field} was not found, so the default '{value}' was used."
+  SCANNED_SOURCE:
+    severity: warning
+    message: "{field} was read from a scanned page image and could not be checked automatically."
+  SHOULD_BE_SPLIT:
+    severity: warning
+    individual_review: true
+    note_required: true
+    message: "This record may cover several consumables (for example dilution levels). Split it outside the tool or confirm it is one consumable, and note what you did."
+  NOT_A_CONSUMABLE_TYPE:
+    severity: warning
+    message: "This may not be a Consumable Type. Consider excluding it."
+
+  # ----- Grey -----
+  OPTIONAL_NOT_FOUND:
+    severity: info
+    message: "{field} was not found in the documents. It can stay blank."
+  FORMAT_CORRECTED:
+    severity: info
+    message: "'{original}' was matched to the list value '{value}'."
+  NUMBER_READ_FROM_TEXT:
+    severity: info
+    message: "{field} '{original}' was written as {value}."
+
+run_issues:
+  FILE_UNREADABLE:
+    severity: warning
+    message: "{file} could not be read and was skipped."
+  SCANNED_PAGES:
+    severity: warning
+    message: "{file} has scanned pages. Values from them could not be checked automatically."
+  LOADER_FILE_UPLOADED:
+    severity: warning
+    message: "{file} looks like a LabVantage loader, not a source document, and was skipped."
+  NO_RECORDS_FOUND:
+    severity: warning
+    message: "No Consumable Types were found in these documents."
+  MISSED_CANDIDATES_UNRESOLVED:
+    severity: warning
+    individual_review: true
+    note_required: true
+    message: "These items may be missing from the results: {items}. Add them outside the tool or confirm they are not consumables, and note what you did."
+  DUPLICATE_CHECK_SKIPPED:
+    severity: warning
+    message: "The duplicate check was skipped for {count} records because the run reached its limit. Check them against LabVantage."
+  DOCUMENT_SET_TOO_LARGE:
+    severity: error
+    message: "This document set is too large to process in one run. Split it into smaller runs."

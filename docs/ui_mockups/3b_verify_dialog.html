@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup: Verify output warning</title>
+<!-- Static reference mockup with placeholder values. docs/UI_SPEC.md wins where they differ. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#035599}a:hover{color:#0b3d6f}
+</style>
+</head>
+<body>
+<div style="width: 760px; height: 620px; box-sizing: border-box; background: #4a5561; display: flex; align-items: center; justify-content: center; padding: 40px; color: #26292e; font-family: 'Proxima Nova', 'Franklin Gothic Book', 'Franklin Gothic', 'Libre Franklin', sans-serif; font-size: 15px; line-height: 1.5">
+<div role="dialog" aria-modal="true" aria-labelledby="dlg-h" style="width: 560px; background: #ffffff; border-radius: 16px; padding: 28px; display: flex; flex-direction: column; gap: 18px">
+<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px">
+<h2 id="dlg-h" style="margin: 0; font-family: 'Futura PT', 'Franklin Gothic Medium', 'Franklin Gothic', 'Libre Franklin', sans-serif; font-weight: 700; font-size: 22px">Your review isn't finished</h2>
+<a href="3_review_and_resolve.html" aria-label="Close" style="color: #555b63; padding: 6px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></a>
+</div>
+<div>Verifying locks the values for this run. After that, the only action is Export to Excel.</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; gap: 12px; align-items: flex-start; background: #fbeceb; border-radius: 10px; padding: 12px 14px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8c1f18" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: 0 0 18px; margin-top: 3px"><circle cx="12" cy="12" r="9"></circle><path d="M15 9l-6 6M9 9l6 6"></path></svg>
+<div><strong style="color: #8c1f18">4 issues to fix.</strong> These must be resolved before you can verify.</div>
+</div>
+<div style="display: flex; gap: 12px; align-items: flex-start; background: #fdf6e3; border-radius: 10px; padding: 12px 14px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8a5a00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: 0 0 18px; margin-top: 3px"><path d="M12 4 2.8 19.5h18.4z"></path><path d="M12 10v4.5"></path></svg>
+<div><strong style="color: #6e4800">7 warnings not reviewed.</strong> If you verify, they are accepted as they are.</div>
+</div>
+</div>
+<div style="font-size: 14px; color: #3d4248">Reminder: before importing into production LabVantage, review all values, including those without warnings.</div>
+<div style="display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; padding-top: 4px">
+<button type="button" disabled="disabled" style="font: inherit; font-weight: 600; color: #6b7076; background: #e3e7eb; border: none; border-radius: 10px; padding: 11px 16px; cursor: not-allowed">Accept warnings and verify</button>
+<a href="3_review_and_resolve.html" style="font-weight: 700; color: #ffffff; background: #035599; border-radius: 10px; padding: 11px 18px; text-decoration: none">Keep reviewing</a>
+</div>
+</div>
+</div>
+</body>
+</html>

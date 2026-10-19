@@ -1,0 +1,8 @@
+# One eval case. Copy this folder to add a case.
+id: example_case_001
+description: "Synthetic example: method + worksheet with one storage conflict"
+source: synthetic            # synthetic | bioa
+tags: [conflict, excel_source]
+labeled_by: ""
+labeled_on: ""
+field_rules_version: "0.2"   # field rules version the expected output was labeled against; the eval loader flags a mismatch

@@ -1,0 +1,22 @@
+# Maps the columns of an uploaded "existing Consumable Types" export
+# to the names the duplicate check uses.
+# Defaults follow the LabVantage TEST query export
+# ("Consumable Types in TEST environment - Query Export.xlsx").
+# If the production export uses different column names, change them here. No code change needed.
+
+version: "0.1"
+
+columns:
+  name: reagenttypeid              # required: the Consumable Type name
+  version: reagenttypeversionid    # required
+  description: reagenttypedesc     # optional: helps the LLM duplicate judge
+  consumable_class: reagentclass   # optional
+  active_flag: activeflag          # optional
+  version_status: versionstatus    # optional
+
+rules:
+  # An exact name match is red even for inactive types:
+  # LabVantage will not accept the same name again.
+  exact_match_ignores_active_flag: true
+  # Number of similar existing types sent to the LLM duplicate judge
+  shortlist_size: 10
