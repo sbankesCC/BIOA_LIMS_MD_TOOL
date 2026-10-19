@@ -45,12 +45,14 @@
       "Bash(uv run ruff *)",
       "Bash(uv run pyright *)",
       "Bash(uv run pyright)",
-      "Bash(uv run uvicorn *)"
+      "Bash(uv run uvicorn *)",
+      "Bash(uv add *)",
+      "Bash(npm install)",
+      "Bash(npm install *)",
+      "Bash(npm ci)"
     ],
     "ask": [
-      "Bash(uv add *)",
       "Bash(pip install *)",
-      "Bash(npm install *)",
       "Bash(npx *)",
       "Bash(git checkout *)",
       "Bash(git merge *)",

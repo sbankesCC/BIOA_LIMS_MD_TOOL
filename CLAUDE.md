@@ -20,9 +20,10 @@ Run safe commands freely; stop and confirm anything risky.
 - Version checks: `python --version`, `uv --version`, `node --version`, `npm --version`, `git --version`
 - Build, test, run: `uv sync`, `uv run pytest`, `uv run ruff`, `uv run pyright`, `uv run uvicorn`, `npm run`, `npm test`
 - Files: `mkdir`, `touch`, `cp -n`, `mv -n` (never overwrite without checking)
+- Adding packages listed in the approved `PLAN.md`: `uv add`, `npm install`, `npm ci`
 
 ### Ask before running
-- Adding or installing packages: `uv add`, `pip install`, `npm install`, `npx <pkg>`
+- Installing outside the lockfiles or running packages directly: `pip install`, `npx <pkg>`
 - Git beyond the list above: `checkout`, `merge`, `rebase`, `pull`, `push`, `tag`
 - Deleting files (`rm`), even one file
 - Writing outside the project directory

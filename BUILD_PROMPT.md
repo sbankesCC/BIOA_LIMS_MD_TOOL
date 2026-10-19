@@ -27,9 +27,9 @@ The PDF and PNG figures are for people; the text and HTML versions hold the same
 6. `evals/README.md` and `evals/cases/_template/`.
 
 ### Why this exists
-BioA lab staff create LabVantage Consumable Types by hand from methods, study plans and worksheets.
-This tool reads those documents, proposes the records with sources, lets a user resolve problems, and fills out
-the Excel loader (DFD template), plus an audit file. It is a regulated lab: QC approves every Consumable Type in
+BioA lab staff create LabVantage Consumable Types by hand from methods, study plans and worksheets for thier LIMS. 
+This tool reads those documents, proposes the records with sources, lets a user resolve problems, and creates
+the Excel loader (DFD template), plus an audit file. It is a regulated lab: QC approves most Consumable Types in
 LabVantage, so accuracy and traceability (every value shows its source) matter more than speed.
 
 ### What to build: back end
@@ -49,14 +49,14 @@ LabVantage, so accuracy and traceability (every value shows its source) matter m
 - Startup validation of every config file, and a config consistency test against `clients/bioa/source/BAL_Consumable_Type_Definitions.xlsx` (ARCHITECTURE.md §9).
 
 ### What to build: front end
-- React and TypeScript, built with Vite, in `frontend/`. Calls the back end only through its API.
+- React and TypeScript, probablybuilt with Vite, in `frontend/`. Calls the back end only through its API.
 - The screens and behaviors in `UI_SPEC.md`: start a run, processing, review and resolve (grid, resolution panel, bulk actions, exclude, Verify dialog, export), and admin for lookup lists and reference data.
 - Look and layout from `docs/ui_mockups/*.html`: Clarkston design tokens (colors, fonts with fallbacks, spacing) as CSS variables, with status always shown as icon plus word.
 - API types generated from the back end's OpenAPI schema, not written by hand.
 
 ### Not part of this build
 - Writing to LabVantage. The tool's job ends at the filled template and audit file.
-- Deployment, cloud storage and production job processing. The pilot runs locally.
+- Deployment, cloud storage and production job processing. The pilot runs locally. The user will provide OpenAI API keys. 
 
 ### Constraints
 - Everything in CLAUDE.md section 5.
