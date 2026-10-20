@@ -115,8 +115,9 @@ cd frontend && npm run dev                           # front end dev server
 ```
 Machine-specific notes:
 - Windows 11. The Bash tool runs Git Bash: use POSIX syntax.
-- Where `pyproject.toml` lives (repo root or `backend/`) is decided in `PLAN.md` milestone 1;
-  update these commands to match once it is.
+- `pyproject.toml` and `uv.lock` are at the repo root; the package is `backend/app`. Run `uv`,
+  `pytest`, `ruff` and `pyright` from the repo root, and `uvicorn` from `backend/`.
+- Relative paths in settings resolve against the repo root, whatever the working folder.
 
 ### Build workflow
 - `PLAN.md` holds the approved milestones and open questions. Start each milestone in a fresh

@@ -250,4 +250,19 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
 - The first admin lookup apply after `v0-seed-2` becomes `v1`.
 
 ## Open questions
-- None yet. New ones found during the build are recorded here.
+- **M7 lookup upload check vs Container Tracking Method (found in M1).** The planned upload check
+  "max length per field" would reject every upload: the Container Tracking Method values ("Individual",
+  "Together") are longer than its 1-character limit. Options: skip the length check for that case,
+  report it as a warning, or wait for BioA to fix the workbook. Decide before M7.
+
+## Decisions made during the build
+- **M1: "N/A" in Manufacturer and Supplier.** BioA's List Values sheet has an "N/A" entry the seed
+  `lookup_lists.xlsx` leaves out. Treated as a placeholder, not a value: a named allowed difference in
+  the config consistency test. "N/A" in a document gives `NOT_IN_LOOKUP`.
+- **M1: blank `CLIENT_CONFIG_DIR`.** The app starts with no config loaded; `/health` names the setting.
+  A set but broken config stops startup with the list of problems.
+- **M1: DFD template version** is a short SHA-256 of the file (`sha256:…`), since the file has no version.
+- **M1: no-client-literals test** compares whole string constants (Python) and JSON strings with the
+  lookup values and column names. One-character values (`Y`, `%`, `L`) are left out as generic tokens.
+- **M1: packages.** `pydantic-settings` (reads env and `.env`) and dev `types-pyyaml` were added
+  beyond the approved list.
