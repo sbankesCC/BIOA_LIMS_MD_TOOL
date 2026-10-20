@@ -268,3 +268,32 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   beyond the approved list.
 
 ## Progress log
+
+### M2: Contracts and LLM schema generation (done)
+- `backend/app/contracts/`: Pydantic models (unknown keys rejected) for CONTRACTS §1 `chunk.py`,
+  §2 `extraction.py`, §3 `verification.py`, §3a `judge.py`, §4 `record.py` (stored record and
+  `find_record_field_problems`, which checks all 22 field keys against the field rules), §5 `issue.py`
+  (plus `IssueHistoryEntry`), §6 `changes.py` (one model per change type, chosen by `type`; `StoredChange`),
+  §7 `run.py` (`RunInfo`, `RunStatus`, `AuditEvent`) and `export.py` (`ExportInfo`, one model per audit
+  sheet row, §8), §9 `eval_case.py` (`case.yaml`), §10 `trace.py`, §11 `log_line.py`.
+- `llm_schema.py`: `build_extraction_schema(field_rules)`, `build_verification_schema(field_rules)`,
+  `build_judge_schema()`. Generated from the models, `$ref`s inlined, every object closed with all
+  properties required; only `type/properties/items/anyOf/enum/const` kept from Pydantic.
+- `status_rules.py`: `find_status_violations(output, field_rules, chunk_ids) -> list[StatusViolation]`.
+- `ids.py`: `IdCounter`, `make_record_id_counter(existing_ids)`, `make_issue_id(code, record_id, field, value)`.
+- Tests: 118 total, 65 new. CONTRACTS examples are parsed straight from `docs/CONTRACTS.md`.
+- Decisions the docs did not cover:
+  - Re-extraction returns an existing record's `record_id` in `record_ref` (as the extraction prompt
+    says), so the §2 schema needs no extra key.
+  - `output.value` is always text or null; numbers are stored as text (e.g. "10000"). Export converts.
+  - The stored record's `verification.findings` holds record-level findings; field findings go to
+    each field's `verification.verdict`/`note`.
+  - `set_value` accepts a null value, which clears the field (the review service still applies the reason rule).
+  - Issue ID: SHA-256 of the JSON list `[code, record_id, field, value]`, first 12 hex characters.
+  - Extraction schema: each field's `description` is its DFD column name (read from config). The
+    verification schema limits `field` to the extracted keys.
+  - Extra status checks: duplicate `record_ref`, blank values count as missing, wrong value shape
+    (list vs text), and excluded items' chunk IDs.
+  - The §4 example's `"alternatives": ["..."]` shorthand is expanded by the test before parsing.
+  - Left for later milestones: LangGraph state (§7) in M8 `graph/state.py`, the API error shape (§13)
+    in M9, the expected-extraction model (§9) in M10. `AuditEvent.event` is free text until M6.
