@@ -6,11 +6,16 @@ import { useApiClient } from "../api/client";
 import { describeError } from "../api/errors";
 import { startRun } from "../api/runs";
 import { ErrorMessage } from "../components/ErrorMessage";
-import { FileList, type FileEntry } from "../components/FileList";
+import { FileList, isUploadable, type FileEntry } from "../components/FileList";
 import { Icon } from "../components/Icon";
 import { RunListSection } from "../components/RunListSection";
 import { UploadArea } from "../components/UploadArea";
-import { describeUploadLimits, findFileTypeLabel } from "../lib/fileRules";
+import {
+  copyFileIntoMemory,
+  describeUploadLimits,
+  findFileTypeLabel,
+  UNREADABLE_FILE_MESSAGE,
+} from "../lib/fileRules";
 import { RUN_NAME_MAX_LENGTH, suggestRunName } from "../lib/runName";
 import { useUploadLimits } from "../lib/useUploadLimits";
 import "./StartRunPage.css";
@@ -93,7 +98,11 @@ function NewRunForm() {
             ? "Add at least one Word, PDF or Excel file to start."
             : `${fileCount} ${fileCount === 1 ? "file" : "files"} ready. Extraction usually takes a few minutes; you can leave the page while it runs.`}
         </div>
-        <button type="submit" className="button-main" disabled={fileCount === 0 || isSubmitting}>
+        <button
+          type="submit"
+          className="button-main"
+          disabled={fileCount === 0 || files.isReading || isSubmitting}
+        >
           {isSubmitting ? "Starting…" : "Start extraction"}
           <Icon name="arrow-right" strokeWidth={2} />
         </button>
@@ -144,15 +153,29 @@ function useFileEntries() {
     }
   };
 
+  // Replace one entry once its in-memory copy is made, or mark it unreadable
+  const finishReading = (id: number, change: Partial<FileEntry>) => {
+    setEntries((current) =>
+      current.map((entry) => (entry.id === id ? { ...entry, ...change, isReading: false } : entry)),
+    );
+  };
+
   // New files are checked by type; a file already in the list is not added twice
   const addFiles = (added: File[]) => {
     const fresh = added.filter((file) => !entries.some((entry) => isSameFile(entry.file, file)));
-    const newEntries = fresh.map((file) => ({
-      id: nextId.current++,
-      file,
-      typeLabel: findFileTypeLabel(file.name),
-    }));
+    const newEntries: FileEntry[] = fresh.map((file) => {
+      const typeLabel = findFileTypeLabel(file.name);
+      return { id: nextId.current++, file, typeLabel, isReading: typeLabel !== null, readError: null };
+    });
     updateEntries([...entries, ...newEntries]);
+    // Copy each accepted file into memory now: Chrome refuses to upload a picked file that
+    // changed on disk afterwards (open in Word or Excel, or syncing to OneDrive)
+    for (const entry of newEntries.filter((item) => item.isReading)) {
+      copyFileIntoMemory(entry.file).then(
+        (copy) => finishReading(entry.id, { file: copy }),
+        () => finishReading(entry.id, { readError: UNREADABLE_FILE_MESSAGE }),
+      );
+    }
   };
 
   const removeEntry = (id: number) => updateEntries(entries.filter((entry) => entry.id !== id));
@@ -163,8 +186,10 @@ function useFileEntries() {
     setIsNameEdited(true);
   };
 
-  const acceptedFiles = entries.filter((entry) => entry.typeLabel !== null).map((entry) => entry.file);
-  return { entries, acceptedFiles, name, setName, addFiles, removeEntry };
+  // Only readable files of an accepted type are sent; Start waits until every copy is made
+  const acceptedFiles = entries.filter(isUploadable).map((entry) => entry.file);
+  const isReading = entries.some((entry) => entry.isReading);
+  return { entries, acceptedFiles, isReading, name, setName, addFiles, removeEntry };
 }
 
 /** Return true when two files look like the same file (same name, size and date). */

@@ -17,6 +17,13 @@ function addFiles(files: File[]) {
   fireEvent.change(screen.getByLabelText("Add files"), { target: { files } });
 }
 
+/** Wait until the added files are copied into memory and Start extraction is enabled. */
+async function waitForFilesReady(): Promise<HTMLButtonElement> {
+  const start = screen.getByRole("button", { name: /Start extraction/ }) as HTMLButtonElement;
+  await waitFor(() => expect(start.disabled).toBe(false));
+  return start;
+}
+
 /** An API with no runs yet that starts run_0007 and then reports it processing. */
 const startingApi: MockHandler = (method, path) => {
   if (method === "GET" && path === "/runs") return { status: 200, body: [] };
@@ -28,12 +35,12 @@ const startingApi: MockHandler = (method, path) => {
 };
 
 describe("Start a run screen", () => {
-  it("start extraction is disabled until a file is added", () => {
+  it("start extraction is disabled until a file is added and read", async () => {
     renderApp("/", makeFetchMock(startingApi));
     const start = screen.getByRole("button", { name: /Start extraction/ }) as HTMLButtonElement;
     expect(start.disabled).toBe(true);
     addFiles([makeFile("Synthetic_Method_A.pdf")]);
-    expect(start.disabled).toBe(false);
+    await waitForFilesReady();
   });
 
   it("added files are listed with their type and size", () => {
@@ -81,7 +88,7 @@ describe("Start a run screen", () => {
     const fetchMock = makeFetchMock(startingApi);
     renderApp("/", fetchMock);
     addFiles([makeFile("Synthetic_Method_A.pdf"), makeFile("Synthetic_Email.msg")]);
-    fireEvent.click(screen.getByRole("button", { name: /Start extraction/ }));
+    fireEvent.click(await waitForFilesReady());
     // The new run's screen opens
     expect(await screen.findByRole("heading", { name: "Started run" })).not.toBeNull();
     // Exactly one POST /runs was sent
@@ -108,7 +115,7 @@ describe("Start a run screen", () => {
     };
     renderApp("/", makeFetchMock(api));
     addFiles([makeFile("Synthetic_Method_A.pdf")]);
-    fireEvent.click(screen.getByRole("button", { name: /Start extraction/ }));
+    fireEvent.click(await waitForFilesReady());
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("Set LLM_PROVIDER in .env, then restart the app.");
   });
@@ -119,7 +126,7 @@ describe("Start a run screen", () => {
     renderApp("/", fetchMock);
     addFiles([makeFile("Synthetic_Method_A.pdf")]);
     fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
-    fireEvent.click(screen.getByRole("button", { name: /Start extraction/ }));
+    fireEvent.click(await waitForFilesReady());
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("could not reach its server");
   });

@@ -1316,3 +1316,21 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   137 vitest tests in 11 files (5 new: Processing rename and cancel; "Also apply" unticked sends one change, hidden at 0; the Also apply change list helper; the bulk, Undo and comparison tests rewritten for the checkbox and the attributes, including hidden for individual review and hidden until a value is chosen).
 - Decisions: see "Review 2026-10-21 (M14 follow-up): ..." in Decisions made during the build; one
   new Open question (record side of the comparison).
+
+### Bug fix: Start extraction "could not reach its server" (done)
+- Cause: Chrome refuses to upload a picked file that changed on disk after it was picked
+  (`net::ERR_UPLOAD_FILE_CHANGED`), e.g. a file open in Word or Excel or syncing to OneDrive. The
+  fetch failed inside the browser, so no POST /runs reached the back end, and the client mapped the
+  failed fetch to "could not reach its server". Reproduced in headless Chrome through the Vite proxy
+  (5173 → 8000) by changing a synthetic .docx after picking it; GETs and unchanged files worked.
+- Fix: the Start screen copies each accepted file into memory when it is added
+  (`copyFileIntoMemory` in `lib/fileRules.ts`) and uploads the copies; Start extraction stays
+  disabled until the copies are made. A file the browser cannot read when added is listed in red
+  with a plain message and is not sent. After the fix the same browser repro returns 202.
+- Tests: `pages/StartRunUpload.test.tsx` (2: a file changed after picking is uploaded from its
+  copy; an unreadable file is refused with the message). Both fail on the old code. Four
+  `StartRunPage.test.tsx` tests now wait until the files are read. Front end 139 vitest tests.
+- Admin versions calls: not a loop. GET /admin/lookup-lists/versions runs once per app load (admin
+  access check) and once per opening of the Admin screen (history); each shows twice in
+  development because React StrictMode runs effects twice. Nothing is called while idle or when
+  moving between other screens (checked in the browser). No change made.

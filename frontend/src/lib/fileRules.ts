@@ -21,6 +21,17 @@ export const ACCEPT_ATTRIBUTE = ACCEPTED_TYPES.map((type) => type.extension).joi
 // The message shown next to a refused file
 export const REJECTED_FILE_MESSAGE = "Not added: only Word, PDF and Excel files are accepted";
 
+// The message shown next to a file the browser could not read when it was added
+export const UNREADABLE_FILE_MESSAGE =
+  "Not added: the file could not be read. Close it in Word or Excel, or wait for OneDrive to finish syncing, then add it again";
+
+/** Copy a picked file's bytes into memory, so a later change on disk cannot break the upload.
+ * Chrome refuses to send a picked file that changed after it was picked (ERR_UPLOAD_FILE_CHANGED). */
+export async function copyFileIntoMemory(file: File): Promise<File> {
+  const bytes = await file.arrayBuffer();
+  return new File([bytes], file.name, { type: file.type, lastModified: file.lastModified });
+}
+
 /** Return the type label ("Word", "PDF", "Excel") of an accepted file, or null if refused. */
 export function findFileTypeLabel(fileName: string): string | null {
   const lowerName = fileName.toLowerCase();
