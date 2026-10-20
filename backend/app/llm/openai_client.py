@@ -1,8 +1,9 @@
 """OpenAI client: sends a request through the Responses API with a strict structured-output schema.
 
 Needs OPENAI_API_KEY and the model setting of each node (EXTRACTION_MODEL, VERIFICATION_MODEL,
-DUPLICATE_JUDGE_MODEL); a blank one raises MissingSettingError naming it. The SDK's own retries
-are off: `tracing.TracedCaller` retries (LLM_RETRIES), so every try is traced.
+DUPLICATE_JUDGE_MODEL); a blank one raises MissingSettingError naming it. OPENAI_BASE_URL points
+the client at another endpoint, such as an Azure OpenAI v1 endpoint, where the model settings
+hold deployment names. The SDK's own retries are off: `tracing.TracedCaller` retries (LLM_RETRIES).
 """
 
 import base64
@@ -48,7 +49,8 @@ class OpenAIClient:
         api_key = settings.require_text("OPENAI_API_KEY")
         self.settings = settings
         self.storage_dir = storage_dir
-        self.sdk = openai.OpenAI(api_key=api_key, max_retries=0)
+        # A blank OPENAI_BASE_URL (None) keeps OpenAI's default address
+        self.sdk = openai.OpenAI(api_key=api_key, base_url=settings.openai_base_url, max_retries=0)
 
     @property
     def provider(self) -> str:
@@ -116,5 +118,6 @@ def describe_error(error: openai.OpenAIError) -> str:
     status_text = f" (HTTP {status})" if isinstance(status, int) else ""
     return (
         f"The OpenAI call failed: {type(error).__name__}{status_text}. "
-        "Check OPENAI_API_KEY, the model settings and the network, then retry the run."
+        "Check OPENAI_API_KEY, OPENAI_BASE_URL, the model settings and the network, "
+        "then retry the run."
     )

@@ -445,6 +445,10 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   `ReferenceUploadResponse`. Reference data summaries no longer store `original_file` (a storage
   path); the original stays in the upload's folder. A test checks no response or schema property
   is a storage-path key.
+- **2026-10-21: Azure OpenAI v1 endpoint.** New setting `OPENAI_BASE_URL` (blank: OpenAI's default
+  address) is passed as `base_url` to the OpenAI SDK. With an Azure endpoint ending in
+  `/openai/v1/`, the model settings hold deployment names and no api-version is sent. The value is
+  never logged or printed. Unverified against a real Azure endpoint.
 
 ## Progress log
 

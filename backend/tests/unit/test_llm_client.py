@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 
+import openai
 import pytest
 
 from app.agents.duplicate_judge import UNANSWERED_REASON, DuplicateJudgeAgent
@@ -203,6 +204,22 @@ def test_openai_client_names_a_missing_model(tmp_path: Path) -> None:
     client = OpenAIClient(Settings(openai_api_key="synthetic-key"), tmp_path)
     with pytest.raises(MissingSettingError, match="Set VERIFICATION_MODEL in .env"):
         client.model_for("extraction_verification")
+
+
+@pytest.mark.usefixtures("blank_environment")
+def test_openai_client_uses_the_base_url_setting(tmp_path: Path) -> None:
+    """OPENAI_BASE_URL (e.g. an Azure OpenAI v1 endpoint) becomes the SDK's base URL."""
+    base_url = "https://synthetic.openai.azure.com/openai/v1/"
+    settings = Settings(openai_api_key="synthetic-key", openai_base_url=base_url)
+    client = OpenAIClient(settings, tmp_path)
+    assert str(client.sdk.base_url) == base_url
+
+
+@pytest.mark.usefixtures("blank_environment")
+def test_blank_base_url_keeps_the_openai_default(tmp_path: Path) -> None:
+    """With OPENAI_BASE_URL blank, the SDK keeps OpenAI's default address."""
+    client = OpenAIClient(Settings(openai_api_key="synthetic-key"), tmp_path)
+    assert str(client.sdk.base_url) == str(openai.OpenAI(api_key="synthetic-key").base_url)
 
 
 @pytest.mark.usefixtures("blank_environment")

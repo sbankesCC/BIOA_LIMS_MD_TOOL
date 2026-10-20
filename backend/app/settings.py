@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     # LLM provider and models
     llm_provider: str | None = None
     openai_api_key: str | None = None
+    openai_base_url: str | None = None
     extraction_model: str | None = None
     verification_model: str | None = None
     duplicate_judge_model: str | None = None
