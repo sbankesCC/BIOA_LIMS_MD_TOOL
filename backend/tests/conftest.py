@@ -1,4 +1,4 @@
-"""Shared test fixtures: the client config, editable copies of it, and a blank environment."""
+"""Shared test fixtures: client config, editable copies, blank environment, synthetic documents."""
 
 import shutil
 from collections.abc import Callable
@@ -10,6 +10,7 @@ import yaml
 
 from app.config.bundle import ConfigBundle, load_config_bundle
 from app.settings import PROJECT_ROOT, Settings
+from tests.fixtures.make_documents import make_all_documents
 
 CLIENT_CONFIG_DIR = PROJECT_ROOT / "clients" / "bioa"
 SOURCE_WORKBOOK = CLIENT_CONFIG_DIR / "source" / "BAL_Consumable_Type_Definitions.xlsx"
@@ -19,6 +20,15 @@ SOURCE_WORKBOOK = CLIENT_CONFIG_DIR / "source" / "BAL_Consumable_Type_Definition
 def bundle() -> ConfigBundle:
     """Load the real client config once for the whole test session."""
     return load_config_bundle(CLIENT_CONFIG_DIR)
+
+
+@pytest.fixture(scope="session")
+def synthetic_documents(
+    tmp_path_factory: pytest.TempPathFactory, bundle: ConfigBundle
+) -> dict[str, Path]:
+    """Generate the synthetic test documents once, into a temp folder, by file name."""
+    folder = tmp_path_factory.mktemp("synthetic_documents")
+    return make_all_documents(folder, bundle.dfd_template.headers)
 
 
 @pytest.fixture

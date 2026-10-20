@@ -266,6 +266,16 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   lookup values and column names. One-character values (`Y`, `%`, `L`) are left out as generic tokens.
 - **M1: packages.** `pydantic-settings` (reads env and `.env`) and dev `types-pyyaml` were added
   beyond the approved list.
+- **M3: run store layout.** Besides the planned folders, each run has `documents.json` (file name,
+  type, SHA-256, size, page count, ingest status). Uploads are stored as `uploads/<document_id>/<name>`,
+  so repeated names never clash. Stored references (`image_ref`, `upload_ref`) are relative to
+  STORAGE_DIR, like the trace file paths in CONTRACTS §10.
+- **M3: chunk sizes.** A Word section is split at 4000 characters on paragraph boundaries. A table stays
+  whole up to 50 data rows; larger tables are split into groups of 50 with the header row repeated.
+  Sheets: 50 data rows per chunk, the first non-blank row is the header and is repeated. PDF: one
+  chunk per page (kind `paragraph`, since PDF text has no table structure). Constants in `ingest/chunking.py`.
+- **M3: loader detection.** A workbook is a loader when the first non-blank row of any sheet contains
+  every DFD template header (extra columns allowed).
 
 ## Progress log
 
@@ -297,3 +307,32 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   - The §4 example's `"alternatives": ["..."]` shorthand is expanded by the test before parsing.
   - Left for later milestones: LangGraph state (§7) in M8 `graph/state.py`, the API error shape (§13)
     in M9, the expected-extraction model (§9) in M10. `AuditEvent.event` is free text until M6.
+
+### M3: Run store and ingestion (done)
+- `storage/run_store.py`: `RunStore(storage_dir)` with `create_run(run_id)`, `open_run(run_id)`,
+  `resolve_ref(ref)`; `RunFolder` with `save_upload(file_name, content) -> DocumentInfo` (SHA-256,
+  next `docNN`), `read_documents`/`write_documents`, `write_chunks`/`read_chunks`/`find_chunk`,
+  `save_page_image(chunk_id, png) -> ref`, `upload_path`, `make_ref`. `DocumentInfo` (status
+  `uploaded`/`ingested`/`unreadable`/`loader_skipped`). Plain `RunStoreError` messages.
+- `ingest/`: `file_types.py` (`read_file_type`, `RejectedFileError`: only `.docx`/`.pdf`/`.xlsx`, case
+  ignored, no folder parts in names; the run store checks before writing), `chunking.py`, `docx.py`,
+  `pdf.py` (pypdfium2; scanned pages rendered at scale 2 to `pages/<chunk_id>.png`), `xlsx.py`,
+  `loader_detection.py`, `ingest.py` (`ingest_run(folder, bundle) -> IngestResult` with documents,
+  chunks, run issues and `readable_document_count()`; writes `chunks.json` and `documents.json`).
+- `config/issue_catalogue.py`: `fill_message(message, values)` added (unknown placeholders stay as written).
+- Fixtures: `backend/tests/fixtures/make_documents.py` generates every synthetic file into a temp
+  folder at test time (session fixture `synthetic_documents`); no binary fixtures are committed.
+- Tests: 169 total, 51 new (`unit/test_run_store.py`, `unit/test_chunking.py`, `integration/test_ingest.py`).
+- Decisions the docs did not cover (significant ones also above):
+  - Chunk IDs: Word `doc01-c001`, PDF `doc02-p04-c007` (one counter per document, page included),
+    Excel `doc03-sReagents-r12-20` (sheet name letters and digits only; a clash adds the sheet position).
+    Document IDs `doc01`, `doc02`, ... in upload order.
+  - Word: headings are the built-in `Heading N` and `Title` styles; the heading path is in `section`,
+    not in the chunk text. Headers, footers and text boxes are not read. Table cells are joined with
+    ` | `, one row per line; line breaks inside a cell become spaces.
+  - Excel: saved values are read (formulas not recalculated); whole floats lose `.0`; dates are ISO;
+    blank rows and trailing blank cells are dropped; every worksheet is read, hidden ones too.
+  - Ingest run issues: one per document; the issue key's value is the `document_id`; `details` holds
+    `document_id` (and `pages` for SCANNED_PAGES). Any reader error means FILE_UNREADABLE.
+  - Ingest returns chunk text in `IngestResult`; the graph (M8) must keep only document and chunk
+    references from it.

@@ -1,6 +1,7 @@
 """Issue catalogue (`issue_catalogue.yaml`): every issue code with its severity and message."""
 
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Literal
 
@@ -83,3 +84,13 @@ def find_definition_problems(code: str, definition: IssueDefinition) -> list[str
                 f"{FILE_NAME}: {code} message uses {{{placeholder}}}, which the code cannot fill."
             )
     return problems
+
+
+def fill_message(message: str, values: Mapping[str, str]) -> str:
+    """Fill the `{placeholder}`s of a catalogue message; ones without a value stay as written."""
+
+    def replace(match: re.Match[str]) -> str:
+        """Return the value for one placeholder, or the placeholder itself."""
+        return values.get(match.group(1), match.group(0))
+
+    return PLACEHOLDER_PATTERN.sub(replace, message)
