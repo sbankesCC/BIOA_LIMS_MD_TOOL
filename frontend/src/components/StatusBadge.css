@@ -1,0 +1,32 @@
+/* Status badge: a pill with an icon and a word, colored by status group. */
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-badge--blue {
+  background: var(--color-blue-tint);
+  color: var(--color-blue);
+}
+
+.status-badge--red {
+  background: var(--color-red-tint);
+  color: var(--color-red);
+}
+
+.status-badge--green {
+  background: var(--color-green-tint);
+  color: var(--color-green);
+}
+
+.status-badge--grey {
+  background: var(--color-grey-tint);
+  color: var(--color-grey);
+}

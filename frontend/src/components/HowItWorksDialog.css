@@ -1,0 +1,85 @@
+/* "How it works" popup: a white card centered over a dimmed page. */
+
+.how-it-works__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(38, 41, 46, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  z-index: 10;
+}
+
+.how-it-works {
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  padding: var(--space-8);
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.how-it-works__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.how-it-works__close {
+  background: none;
+  border: none;
+  padding: 10px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+
+/* Numbered steps with blue circles */
+.how-it-works__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.how-it-works__step {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+}
+
+.how-it-works__number {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  background: var(--color-blue);
+  color: var(--color-surface);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.how-it-works__step-title {
+  font-weight: 600;
+}
+
+.how-it-works__note {
+  margin: 0;
+  background: var(--color-note);
+  border-radius: var(--radius-medium);
+  padding: var(--space-3) var(--space-4);
+}
+
+.how-it-works__footer {
+  display: flex;
+  justify-content: flex-end;
+}

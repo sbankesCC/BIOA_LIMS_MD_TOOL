@@ -10,3 +10,6 @@ node_modules/
 # Eval reports are generated output (the folder itself is kept)
 evals/reports/*
 !evals/reports/.gitkeep
+
+# Front end build output (node_modules/ is ignored above)
+frontend/dist/

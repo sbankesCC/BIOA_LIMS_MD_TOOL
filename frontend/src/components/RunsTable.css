@@ -1,0 +1,40 @@
+/* Runs table: light header row, thin row dividers, scrolls sideways on narrow screens. */
+
+.runs-table__scroll {
+  overflow-x: auto;
+}
+
+.runs-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+/* Header row: small muted labels */
+.runs-table th {
+  text-align: left;
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+  font-weight: 600;
+  padding: 10px var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.runs-table td {
+  padding: 14px var(--space-3);
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.runs-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.runs-table__name {
+  font-weight: 600;
+}
+
+/* "N to fix" in red, next to the word (never color alone) */
+.runs-table__to-fix {
+  color: var(--color-red);
+  font-weight: 600;
+}

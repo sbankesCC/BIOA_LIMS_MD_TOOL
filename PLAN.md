@@ -253,6 +253,17 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
 - **OpenAPI review: `runs_interrupted` log event.** The start-up check logs one line with event
   `runs_interrupted` and `details.run_count`. CONTRACTS §11 lists the log events and does not name
   it (only §13 edits were approved). Add it to the §11 list?
+- **M11: no fake LLM provider in the running app.** `make_llm_client` builds only `openai`
+  (LLM_PROVIDER=fake gives 503 SETTING_INVALID), so a local click-through cannot take a run to
+  review without a real model. Add a dev-only fake provider (e.g. `LLM_PROVIDER=fake` plus a
+  replies-folder setting, using `load_fake_replies` with the `evals/cases/synthetic_001` documents)?
+  It is a back-end change (no API change), so it was not made in M11.
+- **M11: API gaps found (no change made; the schema is locked).** (1) Upload limits
+  (MAX_FILE_SIZE_MB, MAX_FILES_PER_RUN) are not exposed, so the Start screen does not show them
+  (the 413 message still names them). (2) `RunSummary` has no failure reason or export info, so
+  Recent runs shows "See why and retry" for a failed run (the reason is on the run's screen) and
+  no "Exported · export N" badge. (3) Page counts are only known after upload (`RunDocument`),
+  so the Start screen file list shows name, type and size only. Expose any of these?
 
 ## Decisions made during the build
 - **M1: "N/A" in Manufacturer and Supplier (reversed 2026-10-20).** M1 left BioA's "N/A" entry out of
@@ -449,6 +460,21 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   address) is passed as `base_url` to the OpenAI SDK. With an Azure endpoint ending in
   `/openai/v1/`, the model settings hold deployment names and no api-version is sent. The value is
   never logged or printed. Unverified against a real Azure endpoint.
+- **M11: generated API types are committed** (`frontend/src/api/generated/schema.ts`), so
+  `npm run typecheck` works without regenerating. After a (reviewed) schema change, run
+  `npm run generate:api` and commit the result.
+- **M11: the front end calls the API under `/api`.** The Vite dev server proxies `/api/*` to the
+  back end and strips the prefix (target `API_PROXY_TARGET` from the shell, default
+  `http://127.0.0.1:8000`), so screen addresses such as `/runs/run_0001` never clash with API
+  paths and no CORS setting is needed. `API_PROXY_TARGET` is a dev-server variable, not an app
+  setting, so it is not in `env.example` (whose test lists exactly the back-end settings).
+- **M11: TypeScript 5.9, not 7.** openapi-typescript 7 needs the TypeScript compiler API, which
+  TypeScript 7 no longer ships.
+- **M11: processing steps from status.** Reading documents = `created`/`ingesting`; Extracting =
+  `extracting`; Checking citations and Validating against the documents are both current during
+  `verifying_extraction` (one node does both); Formatting and final checks = `transforming`;
+  Preparing your preview = `validating` (validation plus saving the review). `in_review` checks
+  every step. The table is in `frontend/src/lib/processingSteps.ts`.
 
 ## Progress log
 
@@ -820,3 +846,65 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
 - Tests: 527 total (526 passed, 1 skipped: the manual OpenAI smoke test), 16 new
   (`unit/test_bulk_preview.py`, `integration/test_api_review_additions.py`); existing bulk preview,
   admin, catalogue-code and lock tests updated.
+
+### M11: Front end foundation (done; awaiting click-through)
+- `frontend/`: Vite + React + TypeScript, no component library. Scripts: `dev`, `build`
+  (typecheck, then `vite build`), `typecheck` (app and `vite.config.ts`), `test` (`vitest run`,
+  runs once), `generate:api` (openapi-typescript from `../backend/openapi.json` into the committed
+  `src/api/generated/schema.ts`).
+- `src/api/`: `client.ts` (openapi-fetch client under `/api`, given to screens through a React
+  context so tests pass a client with a mocked fetch), `types.ts` (aliases of generated types
+  only), `errors.ts` (`ApiError`, `readApiResult`, `describeError`: the API's own message;
+  a SETTING_MISSING/SETTING_INVALID message always names `details.setting`; plain messages for an
+  unreachable server or a non-API error body), `runs.ts` (list, get, start (multipart), retry).
+- `src/styles/tokens.css` (colors, fonts with Libre Franklin fallback, spacing, radii from the
+  mockups) and `base.css`; one CSS file per component.
+- Components: `TopBar` (New run, Runs, How it works, Admin), `HowItWorksDialog` (opens on the
+  first visit; "seen" stored in localStorage behind try/catch; Escape, X, backdrop and "Got it"
+  close it), `StatusBadge` (icon + word for every status; Verified for a verified run in review),
+  `UploadArea`, `FileList`, `RunsTable`, `RunListSection`, `StepList`, `ErrorMessage`, `Icon`.
+- Screens: Start a run (`/`: name suggested from the first file and today's date until the user
+  types one; drag and drop or Browse; `.docx/.pdf/.xlsx` only, refused files listed in red;
+  Start extraction disabled until a file is accepted; recent runs, newest 10), Processing
+  (`/runs/:runId`: six steps from the run status, polled every 2 s while processing; failed state
+  with the run's error issue messages and Retry, which opens the new run; finished state),
+  Runs (`/runs`, all runs), Admin placeholder (`/admin`), page not found.
+- Packages added (`frontend/package.json`, lock file committed): `react`, `react-dom`,
+  `react-router-dom`, `openapi-fetch`; dev `vite`, `@vitejs/plugin-react`, `typescript` (~5.9),
+  `@types/react`, `@types/react-dom`, `openapi-typescript`, `vitest`, `@testing-library/react`,
+  `@testing-library/dom` (required peer of `@testing-library/react`), `jsdom`. Not added:
+  jest-dom and user-event (not needed).
+- Tests: 40 vitest tests in 4 files (`StatusBadge.test.tsx`, `HowItWorksDialog.test.tsx`,
+  `StartRunPage.test.tsx`, `ProcessingPage.test.tsx`). Back end unchanged: 528 passed, 1 skipped.
+- Decisions the docs did not cover (significant ones also above):
+  - Vitest uses the `threads` pool: forked workers timed out while starting on this machine.
+    A cold first run (jsdom loading slowly) can still hit vitest's fixed 60 s worker start
+    limit ("Timeout waiting for worker to respond"); running `npm test` again passes (about 6 s).
+  - Recent runs "Needs action" counts open issues (`open_errors` "to fix", `open_warnings`
+    warnings); records show "—" while processing or failed.
+  - A file already in the list (same name, size and date) is not added twice. The run name is
+    trimmed and limited to 200 characters (the schema's maxLength).
+  - All processing statuses share one "Processing" badge; `rechecking` shows "Re-checking".
+  - A finished run's screen says it is ready for review; the link to the Review screen comes
+    with M12. Rename is left for the Review header (M12).
+- **Click-through (Start and Processing).**
+  1. In the repo-root `.env`, set (names only): `CLIENT_CONFIG_DIR`, `STORAGE_DIR`,
+     `CHECKPOINT_DB`, `REVIEW_DB` (as in `env.example`), `PILOT_USER`, `PILOT_USER_ROLES`
+     (`user` or `user,admin`), `LLM_PROVIDER=openai`, `OPENAI_API_KEY`, `EXTRACTION_MODEL`,
+     `VERIFICATION_MODEL`, `DUPLICATE_JUDGE_MODEL`, `LLM_RETRIES` (and `OPENAI_BASE_URL` for Azure).
+  2. Back end: `cd backend && uv run uvicorn app.main:app --reload` (port 8000).
+  3. Front end: `cd frontend && npm ci && npm run dev`, then open http://localhost:5173 (the
+     dev server listens on `localhost`). Set `API_PROXY_TARGET` in the shell if the back end
+     runs elsewhere.
+  4. A run that completes needs the real provider: the running app has no fake provider (see
+     Open questions). Upload the synthetic documents in `evals/cases/synthetic_001/` and watch
+     the steps until "Your run is ready for review".
+  5. Failed + Retry without any LLM call: make a text file and name it `synthetic_broken.pdf`,
+     upload only that file and start. Ingest cannot read it, so the run fails with "None of the
+     files could be read..." and a Retry button (the LLM settings must still be filled in,
+     because a run builds its client before it is stored; no call is made). Retry opens a new
+     run ("Retry of run_000N") that fails the same way; the first run stays in the list. Another
+     way: stop the back end while a run is processing and start it again (PROCESSING_INTERRUPTED).
+  6. Error messages: blank `PILOT_USER` (restart) and start a run: the Start screen shows
+     "Set PILOT_USER in .env, then restart the app." Stopping the back end gives "The app did not
+     get a usable answer from its server (status 500)..." (through the dev proxy).

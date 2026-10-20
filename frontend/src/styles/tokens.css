@@ -1,0 +1,72 @@
+/* Design tokens taken from the UI mockups (docs/ui_mockups/): colors, fonts and spacing.
+   Every component stylesheet uses these variables instead of raw values. */
+
+:root {
+  /* Clarkston brand: blue for the header and links, gold only for the one main action */
+  --color-blue: #035599;
+  --color-blue-dark: #0b3d6f;
+  --color-blue-tint: #e3edf7;
+  --color-blue-wash: #f2f6fa;
+  --color-blue-dashed: #6f8fb3;
+  --color-blue-ring: #c9d7e6;
+  --color-gold: #efaa1f;
+
+  /* Neutrals: light background (not the warm Clarkston gray), text and borders */
+  --color-page: #f4f6f8;
+  --color-surface: #ffffff;
+  --color-text: #26292e;
+  --color-text-muted: #555b63;
+  --color-text-faint: #6b7076;
+  --color-border-input: #8a8f96;
+  --color-border: #dde2e7;
+  --color-border-soft: #e5e9ee;
+  --color-divider: #edf0f3;
+  --color-step-idle: #b3b8bf;
+  --color-note: #f1f4f7;
+
+  /* Status colors (outside the brand palette); always shown with an icon and a word */
+  --color-red: #8c1f18;
+  --color-red-icon: #a3271f;
+  --color-red-tint: #fbeceb;
+  --color-red-border: #e3b4ae;
+  --color-amber: #8a5a00;
+  --color-amber-text: #6e4800;
+  --color-amber-tint: #fdf6e3;
+  --color-green: #0b5f56;
+  --color-green-tint: #e1f3f0;
+  --color-grey: #555b63;
+  --color-grey-tint: #eef0f2;
+
+  /* Fonts: Clarkston fonts first, Libre Franklin (Google Fonts) as the web fallback */
+  --font-body: "Proxima Nova", "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin", sans-serif;
+  --font-heading: "Futura PT", "Franklin Gothic Medium", "Franklin Gothic", "Libre Franklin", sans-serif;
+  --font-size-small: 13px;
+  --font-size-meta: 14px;
+  --font-size-body: 15px;
+  --font-size-large: 16px;
+  --font-size-brand: 19px;
+  --font-size-h2: 20px;
+  --font-size-h1: 34px;
+  --line-height: 1.5;
+
+  /* Spacing scale used for gaps and padding */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-16: 64px;
+
+  /* Radii and layout widths */
+  --radius-small: 8px;
+  --radius-medium: 10px;
+  --radius-large: 14px;
+  --radius-card: 18px;
+  --radius-pill: 999px;
+  --page-width: 1280px;
+  --header-height: 64px;
+}
