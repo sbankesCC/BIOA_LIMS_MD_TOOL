@@ -337,6 +337,21 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   before "Exported value" (CONTRACTS §8 updated): the extraction value, a list joined with the field's
   separator; for a conflict, every alternative as written, one per line (changed during M8; a
   multi-value alternative is itself joined with the separator); blank when not found or not extracted.
+- **M8: models per run (decided 2026-10-20).** `RunInfo.models` (node → model name: extraction,
+  extraction_verification, duplicate_judge) is captured at run start from the client
+  (`make_run_info`; a blank model setting stops the start with MissingSettingError) and stored in a
+  new `runs.models` JSON column. Review DB `SCHEMA_VERSION` is now `2` (an older file is refused with
+  the existing message). M9 fills `ExportContext.models` from `run.models`.
+- **M8: citation check and table cells (decided 2026-10-20).** `|` counts as whitespace when
+  matching quotes and values, so a table-row quote without the cell separators is verified.
+- **M8: failures.** A verification agent that still breaks the schema after its retry (or whose
+  call fails) fails the run with EXTRACTION_FAILED (the catalogue has no other code and ARCHITECTURE
+  §5 has no edge for it). A failed re-extraction fails the run too, as §5 says for Extraction. A
+  response cut off at the output limit is retried once, then DOCUMENT_SET_TOO_LARGE.
+- **M8: duplicate judge that cannot answer** (bad response twice, or call failure) gives "unsure"
+  for every candidate with a plain reason, so the record gets a yellow POSSIBLE_DUPLICATE and the
+  user checks it by hand. This result is cached like any other (the cache key does not change), so
+  a re-check does not call the judge again for that record.
 
 ## Progress log
 
@@ -564,3 +579,58 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   `audit_rows.find_written_text`); CONTRACTS §8 lists it.
 - Tests: 396 total, 11 new (flag config errors and lookup, judge request and cache key fields,
   reference/prompt versions, value as written).
+
+### M8: LLM client, agents and LangGraph flow (done)
+- `llm/`: `client.py` (`LLMClient` protocol: `provider`, `model_for(node)`, `complete(request)`;
+  `LLMRequest` with `TextPart`/`ImagePart` (page images by run store ref) and the strict schema;
+  `LLMResponse`; `LLMCallError(is_retryable)`), `fake_client.py` (`FakeLLMClient(replies by node)`,
+  Nth call gets the Nth reply, last one repeats; a reply can be text, a response or an error;
+  `load_fake_replies(folder)` reads `<node>.<attempt>.json`), `openai_client.py` (Responses API,
+  one user message, `json_schema` strict, `store=False`, SDK retries off; needs OPENAI_API_KEY and
+  the node's model setting), `provider.py` (`make_llm_client(settings, storage_dir)` from
+  LLM_PROVIDER: `openai` only; tests and evals pass a fake client), `tracing.py` (`TracedCaller`:
+  retries retryable errors up to LLM_RETRIES, one trace per try in `llm/llm_0001.json` plus
+  `_request.json`/`_response.json`, `read_traces`), `prompt_builder.py`, `token_estimate.py`.
+- `agents/`: `common.py` (one retry with the problems added to the prompt, `AgentError(code)`),
+  `extraction.py` (token gate before any call; schema + status rules + record IDs it may echo),
+  `extraction_verification.py`, `duplicate_judge.py` (`DuplicateJudgeAgent`, the M5 protocol).
+- `graph/`: `state.py` (TypedDict; IDs and JSON records/issues/findings only), `context.py`
+  (`ProcessingContext`, `ProcessingLimits`/`read_processing_limits` (needs LLM_RETRIES),
+  `capture_models`, `make_run_versions`), `records.py` (record IDs, re-extraction merge, findings
+  into fields/records), `reextraction.py` (the §5 problems), `routing.py` (every edge, fixed and
+  conditional, with `route_decided` logs), `nodes.py`, `build.py` (`make_run_info`, `build_graph`,
+  `open_checkpointer`, `run_processing(context, run_id, checkpoint_path)`).
+- Also in M8 (user decisions): models per run (review DB schema 2), `|` as whitespace in the
+  citation check, and the audit "Value as written" lists conflict alternatives one per line.
+- Tests: 441 total (440 passed, 1 skipped: the manual OpenAI smoke test), 45 new since the review fixes
+  (`integration/test_graph.py`, `unit/test_llm_client.py`, `unit/test_prompt_builder.py`, citation
+  and audit tests; fixtures in `tests/fixtures/fake_llm.py`). No prompt was changed.
+- Decisions the docs did not cover (significant ones also above):
+  - Field section: one line per extracted field, `- key (Column): guidance`, plus "(a list ...)" for
+    multi-value fields. Re-extraction section: the fixed text from the prompt's comment, the
+    affected records (ID, summary, found in), then one line per problem.
+  - Verification prompt: records as one JSON line each (ID, found_in, extraction of each field);
+    citation results one line per checked field; judge record by column name, "(not given)" when empty.
+  - Re-extraction problems: every field verdict, citation `not_verified`, unreported conflicts,
+    `should_be_split`, missed candidates (ARCHITECTURE §5). A re-extraction response may echo only
+    the affected record IDs (else a violation and retry); other records are new with new IDs.
+    Each verification pass replaces the agent's earlier verdicts; citation results are recomputed.
+    Excluded items from a re-extraction are added when their name is new.
+  - Run issues: NO_READABLE_DOCUMENTS (no ingested document) and EXTRACTION_FAILED/
+    DOCUMENT_SET_TOO_LARGE fail the run; NO_RECORDS_FOUND is a warning on a run that reaches review.
+    A failed run saves its run issues (no records) to the review DB, then status `failed`.
+    An unexpected error marks the run `failed` and is raised again.
+  - Status per node: `ingesting`, `extracting`, `verifying_extraction`, `transforming`,
+    `validating`; the finish node saves and sets `in_review`.
+  - Logs: `node_started`/`node_finished`/`node_failed` with counts of what the node wrote;
+    `route_decided` details are a `to_<node>` flag plus counts (log details must be numbers).
+  - Traces: `config_versions` holds the run's captured versions (prompts excluded: each trace has
+    its own prompt version) plus `reference_data`. Retention (LLM_TRACE_RETENTION_DAYS) is not built yet.
+  - LangGraph recursion limit: 20 + 2 per allowed re-extraction. State values are plain JSON.
+  - Token estimate also counts the JSON schema text; images are costed at high detail.
+  - For M9: create the run with `make_run_info(...)` (lookup lists from
+    `LookupListAdmin.find_current_lookup_lists()`, reference data from
+    `ReferenceDataAdmin.find_current_reference_data()`), `database.add_run`, save uploads, build a
+    `ProcessingContext` with the run's versions, then call `run_processing` in a background thread
+    with `settings.require_path("CHECKPOINT_DB")`. Status is read from the review DB. Retry: a new
+    run from the same uploads with `retry_of`. `ExportContext.models = run.models`.

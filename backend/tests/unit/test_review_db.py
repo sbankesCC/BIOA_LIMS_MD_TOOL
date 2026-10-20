@@ -37,6 +37,7 @@ def make_run(bundle: ConfigBundle, run_id: str = RUN_ID) -> RunInfo:
         created_at=NOW,
         config_versions=bundle.versions(),
         reference_data_version="ref-synthetic-1",
+        models={"extraction": "synthetic-model-1"},
         status="in_review",
     )
 

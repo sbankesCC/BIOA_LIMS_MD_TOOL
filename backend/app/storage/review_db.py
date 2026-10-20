@@ -26,7 +26,7 @@ from app.settings import Settings
 from app.validation.service import ProcessingFindings
 
 # Bump when a table changes; an existing file with another version is refused, never rewritten
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_info (
@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS runs (
     created_at TEXT NOT NULL,
     config_versions TEXT NOT NULL,
     reference_data_version TEXT,
+    models TEXT NOT NULL DEFAULT '{}',
     retry_of TEXT,
     status TEXT NOT NULL,
     is_verified INTEGER NOT NULL DEFAULT 0,
@@ -118,7 +119,7 @@ CREATE TABLE IF NOT EXISTS admin_events (
 );
 """
 
-# Run columns written from RunInfo, in table order (config versions are stored as JSON)
+# Run columns written from RunInfo, in table order (config versions and models as JSON)
 RUN_COLUMNS = (
     "run_id",
     "name",
@@ -126,6 +127,7 @@ RUN_COLUMNS = (
     "created_at",
     "config_versions",
     "reference_data_version",
+    "models",
     "retry_of",
     "status",
     "is_verified",
@@ -645,6 +647,8 @@ def to_column_value(value: object) -> object:
         return value.isoformat()
     if isinstance(value, BaseModel):
         return value.model_dump_json()
+    if isinstance(value, dict):
+        return json.dumps(value, ensure_ascii=False)
     if isinstance(value, bool):
         return int(value)
     return value
@@ -659,6 +663,7 @@ def row_to_run(row: sqlite3.Row) -> RunInfo:
     """Build a RunInfo from a runs row."""
     values = {column: row[column] for column in RUN_COLUMNS}
     values["config_versions"] = json.loads(row["config_versions"])
+    values["models"] = json.loads(row["models"])
     values["is_verified"] = bool(row["is_verified"])
     return RunInfo.model_validate(values)
 

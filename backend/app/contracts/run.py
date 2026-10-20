@@ -26,7 +26,11 @@ RunStatus = Literal[
 
 
 class RunInfo(ContractModel):
-    """One run: name, who started it, config versions captured at start, status, verified label."""
+    """One run: name, who started it, config versions captured at start, status, verified label.
+
+    `models` names the LLM model used per node (e.g. extraction), captured at start like the
+    config versions, so the audit file can list them.
+    """
 
     run_id: str
     name: str
@@ -34,6 +38,7 @@ class RunInfo(ContractModel):
     created_at: datetime
     config_versions: ConfigVersions
     reference_data_version: str | None = None
+    models: dict[str, str] = {}
     retry_of: str | None = None
     status: RunStatus = "created"
     is_verified: bool = False
