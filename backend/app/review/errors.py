@@ -1,12 +1,18 @@
 """Review errors: each has a code (for the API error shape) and a plain message.
 
-The API (M9) maps the codes to status codes: CHANGE_INVALID 400; BULK_ACCEPT_NOT_ALLOWED and
-RUN_NOT_IN_REVIEW 409.
+The API maps the codes to status codes (`api/errors.py`): CHANGE_INVALID and BULK_NOT_POSSIBLE
+400; ISSUE_NOT_FOUND 404; BULK_ACCEPT_NOT_ALLOWED and RUN_NOT_IN_REVIEW 409.
 """
 
 from typing import Literal
 
-ReviewErrorCode = Literal["CHANGE_INVALID", "BULK_ACCEPT_NOT_ALLOWED", "RUN_NOT_IN_REVIEW"]
+ReviewErrorCode = Literal[
+    "CHANGE_INVALID",
+    "BULK_ACCEPT_NOT_ALLOWED",
+    "BULK_NOT_POSSIBLE",
+    "ISSUE_NOT_FOUND",
+    "RUN_NOT_IN_REVIEW",
+]
 
 
 class ReviewError(Exception):

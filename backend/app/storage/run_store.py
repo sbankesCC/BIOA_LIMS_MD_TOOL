@@ -83,6 +83,13 @@ class RunStore:
         """Turn a stored reference into a path, refusing any that points outside STORAGE_DIR."""
         return resolve_inside(self.storage_dir, ref)
 
+    def list_run_ids(self) -> list[str]:
+        """Return the IDs of every run folder (so a new run ID never reuses a folder)."""
+        runs_dir = self.storage_dir / RUNS_FOLDER
+        if not runs_dir.is_dir():
+            return []
+        return sorted(path.name for path in runs_dir.iterdir() if path.is_dir())
+
 
 class RunFolder:
     """The files of one run: uploads, document list, chunks, page images, traces, exports."""

@@ -250,7 +250,11 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
 - The first admin lookup apply after the seed (`v0-seed-3` since 2026-10-20) becomes `v1`.
 
 ## Open questions
-- None open.
+- **M9 (for the OpenAPI review): scanned page images in "Show source".** `GET /runs/{run_id}/chunks/{chunk_id}`
+  returns a `page_image` chunk with `text: null` and its location, but CONTRACTS §13 has no endpoint
+  that serves the page PNG, so the UI cannot show a scanned page. Options: add
+  `GET /runs/{run_id}/chunks/{chunk_id}/image` (a contract change), or show only the location for
+  scanned pages in the pilot. Not built; decide before the schema is locked.
 
 ## Decisions made during the build
 - **M1: "N/A" in Manufacturer and Supplier (reversed 2026-10-20).** M1 left BioA's "N/A" entry out of
@@ -373,6 +377,31 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
 - **M10: citations** are scored per expected source: the record's "found in" chunks must include
   the document (file name) and, when labeled, the page and the section; a section label matches a
   Word heading path that contains it or an Excel sheet name.
+- **M9: missing settings are 503 `SETTING_MISSING`** (CONTRACTS §13 lists no status for it). The
+  message is the setting's own ("Set PILOT_USER in .env, then restart the app.") and `details.setting`
+  names it. A wrong LLM_PROVIDER is 503 `SETTING_INVALID`. The app starts with every setting blank;
+  config, review DB and stores open on first use.
+- **M9: who a change is stored for.** `POST /runs/{run_id}/changes` takes the §6 body as written,
+  but the signed-in user (PILOT_USER) is stored with the changes; the body's `user` is ignored and
+  its `timestamp` is kept. Re-check, Verify, exports and admin actions use the signed-in user and
+  the server time.
+- **M9: roles.** Run, review and export routes need the `user` or `admin` role; admin routes need
+  `admin` (403 `FORBIDDEN` otherwise). Every route but `/health` needs a signed-in user.
+- **M9: background processing** runs in one worker thread (`runs/background.py`), one run at a
+  time, because runs share the SQLite checkpoint file. Everything a run needs (LLM client and its
+  models, LLM_RETRIES, CHECKPOINT_DB) is built before anything is stored, so a missing setting
+  stores nothing. A run still processing when the app stops keeps its last status and cannot be
+  retried (retry is for failed runs only); pilot infrastructure, as ARCHITECTURE §11 says.
+- **M9: run IDs** are `run_0001`, ... after every run in the review DB and every run folder in
+  STORAGE_DIR. A retry keeps the failed run's name and copies its uploaded files (no limit checks).
+- **M9: OpenAPI titles removed.** The generated schema has no `title` keys: FastAPI's titles repeat
+  property names ("Status", "Version", "Description"), which equal client column names and would
+  fail the no-client-literals test on `backend/openapi.json`. Operation IDs are the route function
+  names; tags are health, runs, review, exports, admin.
+- **M9: services under `backend/app/runs/`** (not in the planned layout): run start/retry/rename,
+  run queries, contexts built from a run's captured versions, and the background runner. The
+  duplicate judge in review is built lazily, so saving changes and re-checks without judge calls
+  need no LLM settings.
 
 ## Progress log
 
@@ -683,3 +712,46 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
     the command line). The editable install was stale (no `.pth`); `uv sync
     --reinstall-package consumable-type-extractor` made `app` importable from the repo root.
 - For M9: nothing in the API depends on the harness; evals stay outside the API.
+
+### M9: API layer (done; OpenAPI awaiting review)
+- `backend/app/api/`: `auth.py` (placeholder sign-in from PILOT_USER/PILOT_USER_ROLES, `CurrentUser`,
+  `CurrentAdmin`), `errors.py` (one error shape, code → status table, handlers for every error),
+  `dependencies.py` (`AppResources`: config, lazy review DB, background runner; `get_workspace`,
+  `get_llm_client_factory` and `get_task_runner`, which tests override), `routes_health.py`,
+  `routes_runs.py`, `routes_review.py`, `routes_exports.py`, `routes_admin.py`, `openapi.py`
+  (title-free schema, operation IDs), `__main__.py` (writes the locked schema). `main.py` wires them.
+- `backend/app/runs/`: `service.py` (upload checks, `start_run`, `retry_run`, `rename_run`),
+  `queries.py` (runs list, run detail, review view, record, chunk, bulk preview, export files),
+  `contexts.py` (processing, review and export contexts from a run's captured versions; lazy judge),
+  `background.py` (`ThreadTaskRunner`), `workspace.py`, `errors.py` (`RunRequestError`).
+  Also `contracts/api.py` (request/response models), `review/bulk_preview.py`, `admin/history.py`,
+  `RunStore.list_run_ids`, and review error codes ISSUE_NOT_FOUND and BULK_NOT_POSSIBLE.
+- 25 endpoints: `/health` plus the 24 of CONTRACTS §13, paths and methods exactly as listed (a test
+  reads the §13 table and compares). Statuses: `POST /runs` and retry 202, `POST .../exports` 201,
+  others 200. Error codes: 400 CHANGE_INVALID, BULK_NOT_POSSIBLE, NO_FILES, FILE_REJECTED; 403
+  FORBIDDEN; 404 RUN/RECORD/ISSUE/CHUNK/EXPORT/VERSION_NOT_FOUND, NOT_FOUND; 409
+  BULK_ACCEPT_NOT_ALLOWED, RUN_NOT_IN_REVIEW, RUN_NOT_FAILED, UPLOAD_STALE, VERSION_ALREADY_CURRENT;
+  413 FILE_TOO_LARGE, TOO_MANY_FILES (only when the limit is set); 422 VALIDATION_FAILED; 500
+  UNEXPECTED_ERROR, STORAGE_ERROR; 503 SETTING_MISSING, SETTING_INVALID.
+- Regenerate the locked schema: `uv run python -m app.api` (repo root), then review the diff of
+  `backend/openapi.json`. `test_openapi_lock.py` fails while the file differs from the app's schema.
+- Tests: 511 total (510 passed, 1 skipped: the manual OpenAI smoke test), 29 new
+  (`integration/test_api_end_to_end.py`, `test_api_runs.py`, `test_api_admin.py`,
+  `test_openapi_lock.py`; helpers in `integration/api_helpers.py`). All through TestClient with the
+  fake LLM and the real worker thread (tests wait on it); no network.
+- Decisions the docs did not cover (significant ones also above):
+  - `GET /runs/{run_id}`: `current_step` is the status while processing, else null; it also gives
+    documents (no storage paths), counts, `has_pending_changes`, run issues (open and accepted)
+    and exports. `GET /runs` returns a plain list, newest first, each with the review counts.
+  - `GET /runs/{run_id}/records` works in any status (empty rows while processing or failed).
+    `GET .../records/{record_id}` returns the stored record, its issues of every status, and the
+    location of every cited chunk (found in, evidence, alternatives).
+  - Bulk preview: matches are included records with an open issue of the same code on the same
+    field and the same current output value, the selected record included. A run- or record-level
+    issue is 400 BULK_NOT_POSSIBLE; an individual-review issue is 409 BULK_ACCEPT_NOT_ALLOWED.
+  - Admin version routes take an upload ID (`upl_0001`) or a version name in `{version_id}`, since a
+    pending upload has no `vN` yet. Version lists return `{current_version, versions}` (lookup lists
+    name the seed version while no admin version is current). Uploads answer 200 with the report,
+    with problems or not. The lookup workbook downloads as `lookup_lists <version>.xlsx`.
+  - 422 lists each problem's location, message and type, never the sent values. Unknown addresses
+    are 404 NOT_FOUND in the error shape.
