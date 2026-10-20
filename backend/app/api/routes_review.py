@@ -1,6 +1,6 @@
 """Review routes (CONTRACTS §13): view, fields, record, source, page image, bulk preview.
 
-Changes, re-check and Verify are here too.
+Bulk actions, changes, re-check and Verify are here too.
 
 Thin: each route calls a run query or the review service with the run's own review context.
 """
@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from app.api.auth import CurrentUser
 from app.api.dependencies import WorkspaceDependency, current_time
 from app.api.errors import error_responses
-from app.contracts.api import ChunkSource, RecordDetail, RunFieldList
+from app.contracts.api import BulkActionSummary, ChunkSource, RecordDetail, RunFieldList
 from app.contracts.changes import ChangesRequest
 from app.review import service
 from app.review.bulk_preview import BulkMode, BulkPreview, BulkRequest
@@ -25,6 +25,7 @@ from app.runs.queries import (
     find_chunk_source,
     find_page_image,
     find_record_detail,
+    list_run_bulk_actions,
     preview_bulk_change,
 )
 
@@ -118,6 +119,16 @@ def get_bulk_preview(
         mode=mode, issue_id=issue_id, field=field, alternative_index=alternative_index
     )
     return preview_bulk_change(workspace, run_id, request)
+
+
+@router.get(
+    "/{run_id}/bulk-actions", summary="List bulk actions", responses=error_responses(404, 422)
+)
+def list_bulk_actions(
+    user: CurrentUser, workspace: WorkspaceDependency, run_id: str
+) -> list[BulkActionSummary]:
+    """Return the run's bulk actions, newest first, with whether each was or can be undone."""
+    return list_run_bulk_actions(workspace.database, run_id)
 
 
 @router.post(

@@ -9,7 +9,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import routes_admin, routes_exports, routes_health, routes_review, routes_runs
+from app.api import (
+    routes_admin,
+    routes_exports,
+    routes_health,
+    routes_review,
+    routes_runs,
+    routes_settings,
+)
 from app.api.dependencies import AppResources
 from app.api.errors import register_error_handlers
 from app.api.openapi import install_openapi, make_operation_id
@@ -28,6 +35,7 @@ API_DESCRIPTION = (
 ROUTERS = (
     routes_health.router,
     routes_runs.router,
+    routes_settings.router,
     routes_review.router,
     routes_exports.router,
     routes_admin.router,

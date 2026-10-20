@@ -58,6 +58,8 @@ const EMPTY_COUNTS = {
   excluded: 0,
   open_errors: 0,
   open_warnings: 0,
+  resolved_issues: 0,
+  total_issues: 0,
 };
 
 /** Return a synthetic run summary, changed by `overrides`. */
@@ -73,6 +75,8 @@ export function makeRunSummary(overrides: Partial<RunSummary> = {}): RunSummary 
     verified_by: null,
     verified_at: null,
     counts: EMPTY_COUNTS,
+    failure_reason: null,
+    latest_export: null,
     ...overrides,
   };
 }

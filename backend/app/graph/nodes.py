@@ -295,9 +295,11 @@ def make_state_caller(
 
 
 def read_processing_findings(state: ProcessingState) -> ProcessingFindings:
-    """Return the findings validation needs: verification output and dropped record IDs."""
+    """Return the findings validation needs: verification, dropped records, excluded items."""
     return ProcessingFindings(
-        verification=read_findings(state), dropped_record_ids=state["dropped_record_ids"]
+        verification=read_findings(state),
+        dropped_record_ids=state["dropped_record_ids"],
+        excluded_items=read_excluded_items(state),
     )
 
 

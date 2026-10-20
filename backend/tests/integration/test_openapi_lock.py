@@ -63,7 +63,7 @@ def test_every_contract_endpoint_is_served_and_nothing_else() -> None:
     assert isinstance(paths, dict)
     served = {(method.upper(), path) for path, operations in paths.items() for method in operations}
     contract = read_contract_endpoints()
-    assert len(contract) == 27
+    assert len(contract) == 29
     assert served == contract
 
 

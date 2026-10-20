@@ -126,7 +126,7 @@ describe("Start a run screen", () => {
   it("recent runs are listed with their status", async () => {
     const api: MockHandler = () => ({
       status: 200,
-      body: [makeRunSummary({ name: "Synthetic finished run", status: "in_review", counts: { records: 4, to_fix: 1, to_check: 1, excluded: 0, open_errors: 2, open_warnings: 3 } })],
+      body: [makeRunSummary({ name: "Synthetic finished run", status: "in_review", counts: { records: 4, to_fix: 1, to_check: 1, excluded: 0, open_errors: 2, open_warnings: 3, resolved_issues: 0, total_issues: 5 } })],
     });
     renderApp("/", makeFetchMock(api));
     expect(await screen.findByText("Synthetic finished run")).not.toBeNull();

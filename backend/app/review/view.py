@@ -27,6 +27,9 @@ SEVERITY_COLORS: dict[IssueSeverity, CellColor] = {
     "info": "grey",
 }
 
+# Issues counted in the progress ("issues resolved, 9 of 20"); grey issues never need action
+PROGRESS_SEVERITIES: frozenset[IssueSeverity] = frozenset({"error", "warning"})
+
 # Separator used to show a multi-value extraction as one text when the rule has none
 DEFAULT_SEPARATOR = ", "
 
@@ -60,7 +63,11 @@ class CellAlternative(BaseModel):
 
 
 class IssueSummary(BaseModel):
-    """An issue as the grid shows it (open or accepted)."""
+    """An issue as the grid shows it (open or accepted).
+
+    `note_required`: accepting it needs a note (catalogue). `sources`: the chunks the issue's
+    finding cites (e.g. missed candidates, challenged excluded items), only chunks of the run.
+    """
 
     issue_id: str
     code: str
@@ -68,6 +75,8 @@ class IssueSummary(BaseModel):
     status: IssueStatus
     message: str
     individual_review: bool
+    note_required: bool
+    sources: list[SourceLocation]
 
 
 class ReviewCell(BaseModel):
@@ -100,7 +109,11 @@ class ReviewRow(BaseModel):
 
 
 class ReviewCounts(BaseModel):
-    """Summary strip counts; issue counts leave out excluded records."""
+    """Summary strip counts; issue counts leave out excluded records.
+
+    Progress: `total_issues` counts red and yellow issues (any status) of included records and
+    the run; `resolved_issues` counts those that are resolved or accepted.
+    """
 
     records: int
     to_fix: int
@@ -108,6 +121,8 @@ class ReviewCounts(BaseModel):
     excluded: int
     open_errors: int
     open_warnings: int
+    resolved_issues: int
+    total_issues: int
 
 
 class ReviewView(BaseModel):
@@ -129,7 +144,7 @@ def build_review_view(
     locator = SourceLocator(chunks, documents)
     shown = [issue for issue in issues if issue.status != "resolved"]
     rows = [build_row(record, shown, field_rules, locator) for record in records]
-    run_issues = [summarize_issue(issue) for issue in shown if issue.record_id is None]
+    run_issues = [summarize_issue(issue, locator) for issue in shown if issue.record_id is None]
     return ReviewView(rows=rows, run_issues=run_issues, counts=count_review(records, issues))
 
 
@@ -157,6 +172,10 @@ class SourceLocator:
             is_scanned=chunk.is_scanned,
         )
 
+    def locate_known(self, chunk_ids: Sequence[str]) -> list[SourceLocation]:
+        """Return the locations of the chunk IDs that are chunks of the run (others left out)."""
+        return [self.locate(chunk_id) for chunk_id in chunk_ids if chunk_id in self.chunks]
+
     def locate_evidence(self, evidence: Sequence[Evidence]) -> list[CellSource]:
         """Return each evidence pair with its location."""
         return [CellSource(location=self.locate(e.chunk_id), quote=e.quote) for e in evidence]
@@ -177,7 +196,7 @@ def build_row(
         action_needed=record.action_needed,
         found_in=[locator.locate(chunk_id) for chunk_id in record.found_in],
         exclusion=record.exclusion,
-        record_issues=[summarize_issue(issue) for issue in own if issue.field is None],
+        record_issues=[summarize_issue(issue, locator) for issue in own if issue.field is None],
         cells=cells,
     )
 
@@ -207,7 +226,7 @@ def build_cell(
         extraction_status=extraction.status if extraction is not None else None,
         is_placeholder=is_placeholder,
         color="grey" if is_placeholder else pick_color(field_issues),
-        issues=[summarize_issue(issue) for issue in field_issues],
+        issues=[summarize_issue(issue, locator) for issue in field_issues],
         sources=locator.locate_evidence(extraction.evidence) if extraction is not None else [],
         alternatives=build_alternatives(rule, stored, locator),
     )
@@ -251,8 +270,8 @@ def pick_color(issues: Sequence[Issue]) -> CellColor:
     return "none"
 
 
-def summarize_issue(issue: Issue) -> IssueSummary:
-    """Return the grid's view of an issue."""
+def summarize_issue(issue: Issue, locator: SourceLocator) -> IssueSummary:
+    """Return the grid's view of an issue, with the locations of the chunks it cites."""
     return IssueSummary(
         issue_id=issue.issue_id,
         code=issue.code,
@@ -260,16 +279,27 @@ def summarize_issue(issue: Issue) -> IssueSummary:
         status=issue.status,
         message=issue.message,
         individual_review=issue.individual_review,
+        note_required=issue.note_required,
+        sources=locator.locate_known(read_source_ids(issue)),
     )
 
 
+def read_source_ids(issue: Issue) -> list[str]:
+    """Return the chunk IDs in an issue's `details.sources`, or none."""
+    sources = issue.details.get("sources")
+    if not isinstance(sources, list):
+        return []
+    return [source for source in sources if isinstance(source, str)]
+
+
 def count_review(records: Sequence[StoredRecord], issues: Sequence[Issue]) -> ReviewCounts:
-    """Count records by action needed, and open red and yellow issues of included records."""
+    """Count records by action needed, open red and yellow issues, and issues resolved so far."""
     excluded_ids = {record.record_id for record in records if record.exclusion is not None}
     live = [
         issue for issue in issues if issue.status == "open" and issue.record_id not in excluded_ids
     ]
     actions = [record.action_needed for record in records]
+    progress = find_progress_issues(issues, excluded_ids)
     return ReviewCounts(
         records=len(records),
         to_fix=actions.count("fix"),
@@ -277,4 +307,15 @@ def count_review(records: Sequence[StoredRecord], issues: Sequence[Issue]) -> Re
         excluded=len(excluded_ids),
         open_errors=sum(1 for issue in live if issue.severity == "error"),
         open_warnings=sum(1 for issue in live if issue.severity == "warning"),
+        resolved_issues=sum(1 for issue in progress if issue.status != "open"),
+        total_issues=len(progress),
     )
+
+
+def find_progress_issues(issues: Sequence[Issue], excluded_ids: set[str]) -> list[Issue]:
+    """Return the issues progress counts: red and yellow, of included records or the run."""
+    return [
+        issue
+        for issue in issues
+        if issue.severity in PROGRESS_SEVERITIES and issue.record_id not in excluded_ids
+    ]

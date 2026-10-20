@@ -92,6 +92,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/settings/upload-limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the upload limits
+         * @description Return MAX_FILE_SIZE_MB and MAX_FILES_PER_RUN; null means the limit is not set.
+         */
+        get: operations["get_upload_limits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/runs/{run_id}/records": {
         parameters: {
             query?: never;
@@ -208,6 +228,26 @@ export interface paths {
          * @description Return the records the bulk action would touch (excluded records never match).
          */
         get: operations["get_bulk_preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/runs/{run_id}/bulk-actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List bulk actions
+         * @description Return the run's bulk actions, newest first, with whether each was or can be undone.
+         */
+        get: operations["list_bulk_actions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -541,6 +581,29 @@ export interface components {
             /** @description The file to upload. */
             file: string;
         };
+        /**
+         * @description One bulk action of a run: what it changed, who made it and whether it was undone.
+         *
+         *     `field` is set for value changes; `issue_code` for accepted warnings. `record_count` counts
+         *     the records it touched. `can_undo` is true while it is not undone and the run is in review.
+         */
+        BulkActionSummary: {
+            bulk_id: string;
+            /** @enum {string} */
+            change_type: "set_value" | "pick_alternative" | "accept_warning" | "exclude_record" | "restore_record";
+            field: string | null;
+            issue_code: string | null;
+            record_count: number;
+            change_count: number;
+            created_by: string;
+            /** Format: date-time */
+            created_at: string;
+            is_pending: boolean;
+            is_undone: boolean;
+            undone_by: string | null;
+            undone_at: string | null;
+            can_undo: boolean;
+        };
         /** @description The selection (mode, issue, code, field, its current value) and every matching record. */
         BulkPreview: {
             /** @enum {string} */
@@ -704,7 +767,11 @@ export interface components {
             config_versions: components["schemas"]["ConfigVersions"] | null;
             message: string | null;
         };
-        /** @description One issue; run-level issues have no record and no field. */
+        /**
+         * @description One issue; run-level issues have no record and no field.
+         *
+         *     `individual_review` and `note_required` are the catalogue's flags for the issue's code.
+         */
         Issue: {
             issue_id: string;
             code: string;
@@ -715,6 +782,8 @@ export interface components {
             message: string;
             /** @default false */
             individual_review: boolean;
+            /** @default false */
+            note_required: boolean;
             /** @default {} */
             details: {
                 [key: string]: components["schemas"]["JsonValue"];
@@ -726,7 +795,12 @@ export interface components {
             status: "open" | "resolved" | "accepted";
             closed_by?: string | null;
         };
-        /** @description An issue as the grid shows it (open or accepted). */
+        /**
+         * @description An issue as the grid shows it (open or accepted).
+         *
+         *     `note_required`: accepting it needs a note (catalogue). `sources`: the chunks the issue's
+         *     finding cites (e.g. missed candidates, challenged excluded items), only chunks of the run.
+         */
         IssueSummary: {
             issue_id: string;
             code: string;
@@ -736,6 +810,8 @@ export interface components {
             status: "open" | "resolved" | "accepted";
             message: string;
             individual_review: boolean;
+            note_required: boolean;
+            sources: components["schemas"]["SourceLocation"][];
         };
         JsonValue: unknown;
         /** @description The check report of one upload: passed checks, problems, warnings and changes. */
@@ -843,7 +919,12 @@ export interface components {
             sources: components["schemas"]["CellSource"][];
             alternatives: components["schemas"]["CellAlternative"][];
         };
-        /** @description Summary strip counts; issue counts leave out excluded records. */
+        /**
+         * @description Summary strip counts; issue counts leave out excluded records.
+         *
+         *     Progress: `total_issues` counts red and yellow issues (any status) of included records and
+         *     the run; `resolved_issues` counts those that are resolved or accepted.
+         */
         ReviewCounts: {
             records: number;
             to_fix: number;
@@ -851,6 +932,8 @@ export interface components {
             excluded: number;
             open_errors: number;
             open_warnings: number;
+            resolved_issues: number;
+            total_issues: number;
         };
         /** @description One record: action needed, name, where it was found, record issues and its cells. */
         ReviewRow: {
@@ -928,7 +1011,8 @@ export interface components {
          * @description One loader field of a run's captured config, for the review screen's inputs.
          *
          *     `allowed_values` comes from the run's own lookup list version for a list field, is the
-         *     accepted values for a boolean field, and is empty for any other field.
+         *     accepted values for a boolean field, and is empty for any other field. `is_record_name`
+         *     marks the one field that names a record.
          */
         RunField: {
             key: string;
@@ -945,6 +1029,7 @@ export interface components {
             multi_value: boolean;
             separator: string | null;
             allowed_values: string[];
+            is_record_name: boolean;
         };
         /** @description Every loader field of a run, in loader order, with the versions they come from. */
         RunFieldList: {
@@ -952,7 +1037,12 @@ export interface components {
             lookup_lists_version: string;
             fields: components["schemas"]["RunField"][];
         };
-        /** @description One run in the runs list: name, status, counts and the verified label. */
+        /**
+         * @description One run in the runs list: name, status, counts, the verified label and export state.
+         *
+         *     `failure_reason` is the message of a failed run's first error run issue, else null.
+         *     `latest_export` is the run's newest export, or null before the first one.
+         */
         RunSummary: {
             run_id: string;
             name: string;
@@ -966,6 +1056,8 @@ export interface components {
             verified_by: string | null;
             verified_at: string | null;
             counts: components["schemas"]["ReviewCounts"];
+            failure_reason: string | null;
+            latest_export: components["schemas"]["RunExport"] | null;
         };
         /** @description Which changes were stored as pending, and which were ignored as already stored. */
         SaveResult: {
@@ -1063,6 +1155,11 @@ export interface components {
             sheet?: string | null;
             row?: number | null;
             message: string;
+        };
+        /** @description The upload limits a new run is checked against; null means no limit. */
+        UploadLimits: {
+            max_file_size_mb: number | null;
+            max_files_per_run: number | null;
         };
         /** @description Verify's answer: verified, or the issues that block it; and warnings it accepted. */
         VerifyResult: {
@@ -1413,6 +1510,53 @@ export interface operations {
             };
             /** @description The request did not pass validation */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A setting the feature needs is blank or wrong */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_upload_limits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadLimits"];
+                };
+            };
+            /** @description The signed-in user does not have the role this needs */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1836,6 +1980,73 @@ export interface operations {
             };
             /** @description Conflict with the run's status or the current version */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The request did not pass validation */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A setting the feature needs is blank or wrong */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_bulk_actions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkActionSummary"][];
+                };
+            };
+            /** @description The signed-in user does not have the role this needs */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

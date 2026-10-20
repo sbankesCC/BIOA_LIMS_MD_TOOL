@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from pydantic import JsonValue
 
 from app.config.field_rules import FieldRule
+from app.contracts.extraction import ExcludedItem
 from app.contracts.record import StoredField, StoredRecord
 from app.contracts.verification import (
     CitationCheck,
@@ -176,26 +177,55 @@ def find_other_records(note: str, record: StoredRecord, run_record_ids: set[str]
     return ITEM_SEPARATOR.join(named) if named else OTHER_RECORD_FALLBACK
 
 
-def find_run_finding_issues(findings: VerificationOutput | None) -> list[IssueDraft]:
-    """Return run issues for missed candidates and challenged excluded items."""
+def find_run_finding_issues(
+    findings: VerificationOutput | None, excluded_items: Sequence[ExcludedItem] = ()
+) -> list[IssueDraft]:
+    """Return run issues for missed candidates and challenged excluded items, with sources.
+
+    Sources are the chunk IDs the agent gave for missed candidates, and the chunk IDs
+    extraction gave for the excluded items the agent challenged (matched by item name).
+    """
     if findings is None:
         return []
     drafts: list[IssueDraft] = []
     missed = [candidate.name_as_written for candidate in findings.missed_candidates]
+    missed_sources = [c for candidate in findings.missed_candidates for c in candidate.sources]
     challenged = [challenge.item for challenge in findings.excluded_item_challenges]
+    challenged_sources = find_excluded_item_sources(challenged, excluded_items)
     # One run issue per kind; the list of items keys it, so a new list is a new issue
-    for code, items in (
-        (codes.MISSED_CANDIDATES_UNRESOLVED, missed),
-        (codes.EXCLUDED_ITEM_CHALLENGED, challenged),
+    for code, items, sources in (
+        (codes.MISSED_CANDIDATES_UNRESOLVED, missed, missed_sources),
+        (codes.EXCLUDED_ITEM_CHALLENGED, challenged, challenged_sources),
     ):
         if items:
-            drafts.append(make_items_issue(code, items))
+            drafts.append(make_items_issue(code, items, sources))
     return drafts
 
 
-def make_items_issue(code: str, items: Sequence[str]) -> IssueDraft:
-    """Return a run issue draft that lists items in its message."""
+def find_excluded_item_sources(
+    items: Sequence[str], excluded_items: Sequence[ExcludedItem]
+) -> list[str]:
+    """Return the chunk IDs of the excluded items with these names (case and spaces ignored)."""
+    wanted = {normalize_item_name(item) for item in items}
+    return [
+        chunk_id
+        for excluded in excluded_items
+        if normalize_item_name(excluded.item) in wanted
+        for chunk_id in excluded.chunk_ids
+    ]
+
+
+def normalize_item_name(name: str) -> str:
+    """Return an item name in lower case with runs of whitespace made one space."""
+    return " ".join(name.split()).lower()
+
+
+def make_items_issue(code: str, items: Sequence[str], sources: Sequence[str]) -> IssueDraft:
+    """Return a run issue draft that lists items in its message and keeps their chunk IDs."""
     text = ITEM_SEPARATOR.join(items)
-    return IssueDraft(
-        code=code, value=text, message_values={"items": text}, details={"items": list(items)}
-    )
+    # dict keeps the first position of each chunk ID
+    details: dict[str, JsonValue] = {
+        "items": list(items),
+        "sources": list(dict.fromkeys(sources)),
+    }
+    return IssueDraft(code=code, value=text, message_values={"items": text}, details=details)

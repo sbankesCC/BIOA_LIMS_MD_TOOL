@@ -142,5 +142,6 @@ def make_run_issue(catalogue: IssueCatalogue, note: IssueNote, document: Documen
         field=None,
         message=fill_message(definition.message, {"file": document.file_name}),
         individual_review=definition.individual_review,
+        note_required=definition.note_required,
         details={"document_id": document.document_id, **note.details},
     )

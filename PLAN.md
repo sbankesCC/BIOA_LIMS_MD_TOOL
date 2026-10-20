@@ -250,36 +250,9 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
 - The first admin lookup apply after the seed (`v0-seed-3` since 2026-10-20) becomes `v1`.
 
 ## Open questions
-- **OpenAPI review: `runs_interrupted` log event.** The start-up check logs one line with event
-  `runs_interrupted` and `details.run_count`. CONTRACTS §11 lists the log events and does not name
-  it (only §13 edits were approved). Add it to the §11 list?
-- **M11: no fake LLM provider in the running app.** `make_llm_client` builds only `openai`
-  (LLM_PROVIDER=fake gives 503 SETTING_INVALID), so a local click-through cannot take a run to
-  review without a real model. Add a dev-only fake provider (e.g. `LLM_PROVIDER=fake` plus a
-  replies-folder setting, using `load_fake_replies` with the `evals/cases/synthetic_001` documents)?
-  It is a back-end change (no API change), so it was not made in M11.
-- **M11: API gaps found (no change made; the schema is locked).** (1) Upload limits
-  (MAX_FILE_SIZE_MB, MAX_FILES_PER_RUN) are not exposed, so the Start screen does not show them
-  (the 413 message still names them). (2) `RunSummary` has no failure reason or export info, so
-  Recent runs shows "See why and retry" for a failed run (the reason is on the run's screen) and
-  no "Exported · export N" badge. (3) Page counts are only known after upload (`RunDocument`),
-  so the Start screen file list shows name, type and size only. Expose any of these?
-- **M12: API gaps found (no change made; the schema is locked).** (1) `RunField` has no
-  `is_record_name` flag, so the Review grid finds the name field as the field whose value equals
-  `ReviewRow.name` in every named row (header "Name" when no row has a name). (2) `IssueSummary`
-  has no `note_required` (catalogue flag), so the UI asks for a note from the UI_SPEC table
-  (should be split / may be missing / left-out items); the API still enforces the catalogue. (3)
-  Run-level individual-review issues (MISSED_CANDIDATES_UNRESOLVED, EXCLUDED_ITEM_CHALLENGED) cite
-  no chunk, so "source viewed" is a checkbox "I checked the documents for these items". (4) There
-  is no "who am I" endpoint, so `ChangesRequest.user` is sent empty (the API stores the signed-in
-  user, M9). Expose `is_record_name` and `note_required`, and chunk references for run findings?
-- **M13: API gaps found (no change made; the schema is locked).** (1) Progress "issues resolved
-  (9 of 20)": the review view leaves out resolved issues and `ReviewCounts` has no resolved or
-  total issue count, so the bottom bar shows "Records ready: X of Y" (included records with
-  nothing left to do) and the open counts instead. (2) No endpoint lists a run's bulk actions
-  (bulk_id, what it did, undone or not), so Undo is offered only for the last bulk action made
-  on the screen; after leaving the screen it cannot be undone from the UI (the API would still
-  accept `undo_bulk`). Expose resolved/total issue counts and a bulk action list?
+- **M11: page counts before upload.** Page counts are only known after upload (`RunDocument`),
+  so the Start screen file list shows name, type and size only. Expose them some other way, or
+  keep it as is?
 
 ## Decisions made during the build
 - **M1: "N/A" in Manufacturer and Supplier (reversed 2026-10-20).** M1 left BioA's "N/A" entry out of
@@ -462,7 +435,7 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   REVIEW_DB are set, every run in `created`, `ingesting`, `extracting`, `verifying_extraction`,
   `transforming` or `validating` is set to `failed` with the run issue PROCESSING_INTERRUPTED
   (history "opened"; other issues kept) and can be retried. `rechecking` is not used, so it is not
-  included. One log line `runs_interrupted` with `run_count` (see Open questions). No audit event:
+  included. One log line `runs_interrupted` with `run_count` (in CONTRACTS §11 since the API batch). No audit event:
   processing failures write none (audit events are user and admin actions). Catalogue `0.6`.
   This replaces the M9 note that such a run "cannot be retried".
 - **OpenAPI review 2026-10-21: no storage paths in responses.** Internal models keep their refs
@@ -519,6 +492,47 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
 - **M13: export.** Saved changes are re-checked first, then POST /exports, the run is read again,
   and both files are downloaded at once under the API's file names; the post-export note offers
   each file again and lists earlier exports. Export is disabled only while it runs.
+
+- **API batch 2026-10-21: progress counts.** `ReviewCounts` adds `total_issues` (red and yellow
+  issues of included records plus run-level ones, any status: open, accepted or resolved) and
+  `resolved_issues` (those accepted or resolved). Grey (info) issues never need action and are
+  left out; issues of excluded records are left out, like the other issue counts. A change that
+  gives a value a new problem resolves the old issue and opens a new one, so the total can grow.
+- **API batch 2026-10-21: bulk action list.** `GET /runs/{run_id}/bulk-actions` (user role) is
+  built from the stored changes: one entry per `bulk_id`, newest first. `change_type` and
+  `created_by`/`created_at` come from its first change; `field` from its value changes;
+  `issue_code` from the issue its first accepted warning closes; `record_count` counts distinct
+  records (an accepted warning counts its issue's record). `is_pending` while any of its changes
+  waits for a re-check; `is_undone` once an `undo_bulk` for it is saved (pending or applied),
+  with that change's user and time; `can_undo` = not undone and the run is in review (the
+  rules `undo_bulk` itself checks).
+- **API batch 2026-10-21: note_required** is stored on each issue from the catalogue when the
+  issue is made (like `individual_review`; CONTRACTS §5). Issues stored before this change have
+  `false` until the next re-check rebuilds them; the API still checks the catalogue when an
+  issue is accepted, so it is never skipped. `IssueSummary` and `RecordDetail.issues` carry it.
+- **API batch 2026-10-21: run finding sources.** Issues keep the chunk IDs their finding cites
+  in `details.sources`: missed candidates from the agent's `sources`; challenged excluded items
+  from the `chunk_ids` extraction gave the excluded item of the same name (case and spaces
+  ignored; a challenge that names no excluded item cites nothing). Validation gets the excluded
+  items in `ProcessingFindings` (graph state; in review read from the run's `excluded_items`
+  column, which stays the only stored copy). `IssueSummary.sources` gives the locations of the
+  chunk IDs that are chunks of the run (an unknown chunk ID is left out, never shown).
+- **API batch 2026-10-21: upload limits** are `GET /settings/upload-limits` (user role, new
+  `settings` tag): `max_file_size_mb`, `max_files_per_run`, null when blank. No other setting.
+- **API batch 2026-10-21: run list.** `RunSummary.failure_reason`: a failed run's first error
+  run issue (open or accepted) message, else null. `RunSummary.latest_export`: the export with
+  the highest number (`RunExport`: number, `is_draft`, `exported_at`, by, file names), or null.
+- **API batch 2026-10-21: no "who am I" endpoint** (skipped by your decision). `ChangesRequest.user`
+  stays as sent; the API stores the signed-in user (M9).
+- **API batch 2026-10-21: fake LLM provider** (local development only). `LLM_PROVIDER=fake`
+  builds a fresh `FakeLLMClient` on `load_fake_replies(FAKE_LLM_REPLIES_DIR)` for every run and
+  judge; `FAKE_LLM_REPLIES_DIR` is read only when the provider is `fake` (`openai` never looks at
+  it). Blank folder: 503 SETTING_MISSING; a path that is not a folder, or a folder with no
+  `<node>.<attempt>.json` files: 503 SETTING_INVALID. Models come from the client (`fake-model`),
+  so no model settings are needed; LLM_RETRIES is still required. Documents the replies do not
+  match fail the run (the replies cite chunks those documents do not have), so nothing is made
+  up. The replies expect `synthetic_001`'s documents uploaded together in name order (method,
+  then worksheet), since chunk IDs follow upload order.
 
 ## Progress log
 
@@ -1025,3 +1039,44 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   in Open questions. Also: bulk accept sends `source_viewed: false` and no note; the dialog
   primary buttons are blue (gold stays for Export); the Verify dialog says any later change
   removes the label (the mockup's "locks the values" contradicts UI_SPEC §4.4).
+
+### API batch and fake provider (done)
+- API changes (CONTRACTS §5, §11 and §13 updated; `backend/openapi.json` regenerated):
+  - `GET /runs`: `RunSummary.failure_reason` (string or null), `latest_export` (`RunExport` or null).
+  - `ReviewCounts` (review view, run list, run detail, re-check, Verify): `resolved_issues`,
+    `total_issues`.
+  - `IssueSummary` (review view): `note_required`, `sources` (list of `SourceLocation`).
+  - `Issue` (run detail, record detail, Verify): `note_required`.
+  - `RunField` (`GET /runs/{run_id}/fields`): `is_record_name`.
+  - New `GET /runs/{run_id}/bulk-actions` → list of `BulkActionSummary` (bulk_id, change_type,
+    field, issue_code, record_count, change_count, created_by, created_at, is_pending,
+    is_undone, undone_by, undone_at, can_undo).
+  - New `GET /settings/upload-limits` → `UploadLimits` (max_file_size_mb, max_files_per_run).
+- 29 endpoints (`/health` plus 28 in CONTRACTS §13; the §13 table test expects 29 rows).
+- Back end: `review/bulk_actions.py`, `api/routes_settings.py` (new); `contracts/api.py`,
+  `contracts/changes.py` (`BulkChangeType`), `contracts/issue.py`, `review/view.py`,
+  `runs/queries.py`, `runs/fields.py`, `routes_review.py`, `main.py`, `validation/issues.py`,
+  `validation/findings_to_issues.py`, `validation/service.py` (`ProcessingFindings.excluded_items`),
+  `ingest/ingest.py`, `graph/nodes.py`, `storage/review_db.py`, `llm/provider.py`, `settings.py`,
+  `env.example` (`FAKE_LLM_REPLIES_DIR`).
+- Front end: generated types regenerated (`npm run generate:api`); test fixtures and
+  `lib/verifyCheck.ts` given the new required fields (no behavior change; the workarounds stay
+  for the next step).
+- Tests: back end 542 passed, 1 skipped (14 new: `integration/test_api_batch_additions.py` 8,
+  `integration/test_api_fake_provider.py` 3, `unit/test_llm_client.py` 3); front end 102 vitest
+  tests passed.
+- **Click-through with the fake provider** (no OpenAI key needed).
+  1. In the repo-root `.env`, set (names only): `CLIENT_CONFIG_DIR`, `STORAGE_DIR`,
+     `CHECKPOINT_DB`, `REVIEW_DB` (as in `env.example`), `PILOT_USER`, `PILOT_USER_ROLES`
+     (`user,admin`), `LLM_PROVIDER=fake`, `FAKE_LLM_REPLIES_DIR=evals/cases/synthetic_001/fake_llm`,
+     `LLM_RETRIES` (e.g. 0). Leave the OpenAI and model settings blank, `MAX_INPUT_TOKENS` blank
+     or large, and `MAX_REEXTRACT` at 1 (the case has a re-extraction reply).
+  2. Back end: `cd backend && uv run uvicorn app.main:app --reload` (port 8000).
+  3. Front end: `cd frontend && npm ci && npm run dev`, then open http://localhost:5173.
+  4. Start a run with the two files of `evals/cases/synthetic_001/documents/`: add
+     `synthetic_001_method.docx` first, then `synthetic_001_worksheet.xlsx` (or select both at
+     once; the file list keeps the order added, and chunk IDs follow upload order). The run reaches review in a few seconds with the case's synthetic
+     records (one storage conflict, one record only in the worksheet, one excluded instrument).
+  5. Any other documents make the run fail plainly (the replies cite chunks those documents do
+     not have): useful to see the failed state and Retry.
+

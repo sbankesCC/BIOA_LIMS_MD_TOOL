@@ -13,6 +13,11 @@ from app.contracts.base import ContractModel
 
 ChangeStatus = Literal["pending", "applied"]
 
+# Change types that can be part of a bulk action (an undo cannot)
+BulkChangeType = Literal[
+    "set_value", "pick_alternative", "accept_warning", "exclude_record", "restore_record"
+]
+
 
 class SetValueChange(ContractModel):
     """Set a field's output value; null clears it."""

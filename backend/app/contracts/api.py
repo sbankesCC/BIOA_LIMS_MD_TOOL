@@ -14,6 +14,7 @@ from app.admin.reference_data import ReferenceUploadReport
 from app.config.bundle import ConfigVersions
 from app.config.field_rules import FieldRole, FieldType, Requirement
 from app.contracts.base import ContractModel
+from app.contracts.changes import BulkChangeType
 from app.contracts.chunk import ChunkKind
 from app.contracts.issue import Issue
 from app.contracts.record import StoredRecord
@@ -54,21 +55,6 @@ class RenameRunRequest(ContractModel):
     name: RunName
 
 
-class RunSummary(ContractModel):
-    """One run in the runs list: name, status, counts and the verified label."""
-
-    run_id: str
-    name: str
-    created_by: str
-    created_at: datetime
-    status: RunStatus
-    retry_of: str | None
-    is_verified: bool
-    verified_by: str | None
-    verified_at: datetime | None
-    counts: ReviewCounts
-
-
 class RunDocument(ContractModel):
     """One uploaded document of a run (never its contents)."""
 
@@ -93,6 +79,27 @@ class RunExport(ContractModel):
     audit_file_name: str
     exported_at: datetime
     exported_by: str
+
+
+class RunSummary(ContractModel):
+    """One run in the runs list: name, status, counts, the verified label and export state.
+
+    `failure_reason` is the message of a failed run's first error run issue, else null.
+    `latest_export` is the run's newest export, or null before the first one.
+    """
+
+    run_id: str
+    name: str
+    created_by: str
+    created_at: datetime
+    status: RunStatus
+    retry_of: str | None
+    is_verified: bool
+    verified_by: str | None
+    verified_at: datetime | None
+    counts: ReviewCounts
+    failure_reason: str | None
+    latest_export: RunExport | None
 
 
 class RunDetail(ContractModel):
@@ -121,6 +128,35 @@ class RunDetail(ContractModel):
     exports: list[RunExport]
 
 
+class BulkActionSummary(ContractModel):
+    """One bulk action of a run: what it changed, who made it and whether it was undone.
+
+    `field` is set for value changes; `issue_code` for accepted warnings. `record_count` counts
+    the records it touched. `can_undo` is true while it is not undone and the run is in review.
+    """
+
+    bulk_id: str
+    change_type: BulkChangeType
+    field: str | None
+    issue_code: str | None
+    record_count: int
+    change_count: int
+    created_by: str
+    created_at: datetime
+    is_pending: bool
+    is_undone: bool
+    undone_by: str | None
+    undone_at: datetime | None
+    can_undo: bool
+
+
+class UploadLimits(ContractModel):
+    """The upload limits a new run is checked against; null means no limit."""
+
+    max_file_size_mb: int | None
+    max_files_per_run: int | None
+
+
 class RecordDetail(ContractModel):
     """One record with all its sections, its issues (any status) and its resolved sources."""
 
@@ -145,7 +181,8 @@ class RunField(ContractModel):
     """One loader field of a run's captured config, for the review screen's inputs.
 
     `allowed_values` comes from the run's own lookup list version for a list field, is the
-    accepted values for a boolean field, and is empty for any other field.
+    accepted values for a boolean field, and is empty for any other field. `is_record_name`
+    marks the one field that names a record.
     """
 
     key: str
@@ -159,6 +196,7 @@ class RunField(ContractModel):
     multi_value: bool
     separator: str | None
     allowed_values: list[str]
+    is_record_name: bool
 
 
 class RunFieldList(ContractModel):

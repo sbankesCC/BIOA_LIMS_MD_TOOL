@@ -37,6 +37,7 @@ def describe_field(rule: FieldRule, lookup_lists: LookupLists) -> RunField:
         multi_value=rule.multi_value,
         separator=rule.separator,
         allowed_values=find_allowed_values(rule, lookup_lists),
+        is_record_name=rule.is_record_name,
     )
 
 

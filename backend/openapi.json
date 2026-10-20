@@ -437,6 +437,58 @@
         }
       }
     },
+    "/settings/upload-limits": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Get the upload limits",
+        "description": "Return MAX_FILE_SIZE_MB and MAX_FILES_PER_RUN; null means the limit is not set.",
+        "operationId": "get_upload_limits",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadLimits"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/runs/{run_id}/records": {
       "get": {
         "tags": [
@@ -1016,6 +1068,91 @@
           },
           "409": {
             "description": "Conflict with the run's status or the current version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/bulk-actions": {
+      "get": {
+        "tags": [
+          "review"
+        ],
+        "summary": "List bulk actions",
+        "description": "Return the run's bulk actions, newest first, with whether each was or can be undone.",
+        "operationId": "list_bulk_actions",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BulkActionSummary"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -2366,6 +2503,104 @@
           "file"
         ]
       },
+      "BulkActionSummary": {
+        "properties": {
+          "bulk_id": {
+            "type": "string"
+          },
+          "change_type": {
+            "type": "string",
+            "enum": [
+              "set_value",
+              "pick_alternative",
+              "accept_warning",
+              "exclude_record",
+              "restore_record"
+            ]
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issue_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "record_count": {
+            "type": "integer"
+          },
+          "change_count": {
+            "type": "integer"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "is_pending": {
+            "type": "boolean"
+          },
+          "is_undone": {
+            "type": "boolean"
+          },
+          "undone_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "undone_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "can_undo": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "bulk_id",
+          "change_type",
+          "field",
+          "issue_code",
+          "record_count",
+          "change_count",
+          "created_by",
+          "created_at",
+          "is_pending",
+          "is_undone",
+          "undone_by",
+          "undone_at",
+          "can_undo"
+        ],
+        "description": "One bulk action of a run: what it changed, who made it and whether it was undone.\n\n`field` is set for value changes; `issue_code` for accepted warnings. `record_count` counts\nthe records it touched. `can_undo` is true while it is not undone and the run is in review."
+      },
       "BulkPreview": {
         "properties": {
           "mode": {
@@ -3122,6 +3357,10 @@
             "type": "boolean",
             "default": false
           },
+          "note_required": {
+            "type": "boolean",
+            "default": false
+          },
           "details": {
             "additionalProperties": {
               "$ref": "#/components/schemas/JsonValue"
@@ -3159,7 +3398,7 @@
           "field",
           "message"
         ],
-        "description": "One issue; run-level issues have no record and no field."
+        "description": "One issue; run-level issues have no record and no field.\n\n`individual_review` and `note_required` are the catalogue's flags for the issue's code."
       },
       "IssueSummary": {
         "properties": {
@@ -3190,6 +3429,15 @@
           },
           "individual_review": {
             "type": "boolean"
+          },
+          "note_required": {
+            "type": "boolean"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceLocation"
+            },
+            "type": "array"
           }
         },
         "type": "object",
@@ -3199,9 +3447,11 @@
           "severity",
           "status",
           "message",
-          "individual_review"
+          "individual_review",
+          "note_required",
+          "sources"
         ],
-        "description": "An issue as the grid shows it (open or accepted)."
+        "description": "An issue as the grid shows it (open or accepted).\n\n`note_required`: accepting it needs a note (catalogue). `sources`: the chunks the issue's\nfinding cites (e.g. missed candidates, challenged excluded items), only chunks of the run."
       },
       "JsonValue": {},
       "LookupUploadReport": {
@@ -3684,6 +3934,12 @@
           },
           "open_warnings": {
             "type": "integer"
+          },
+          "resolved_issues": {
+            "type": "integer"
+          },
+          "total_issues": {
+            "type": "integer"
           }
         },
         "type": "object",
@@ -3693,9 +3949,11 @@
           "to_check",
           "excluded",
           "open_errors",
-          "open_warnings"
+          "open_warnings",
+          "resolved_issues",
+          "total_issues"
         ],
-        "description": "Summary strip counts; issue counts leave out excluded records."
+        "description": "Summary strip counts; issue counts leave out excluded records.\n\nProgress: `total_issues` counts red and yellow issues (any status) of included records and\nthe run; `resolved_issues` counts those that are resolved or accepted."
       },
       "ReviewRow": {
         "properties": {
@@ -4096,6 +4354,9 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "is_record_name": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false,
@@ -4111,9 +4372,10 @@
           "is_boolean",
           "multi_value",
           "separator",
-          "allowed_values"
+          "allowed_values",
+          "is_record_name"
         ],
-        "description": "One loader field of a run's captured config, for the review screen's inputs.\n\n`allowed_values` comes from the run's own lookup list version for a list field, is the\naccepted values for a boolean field, and is empty for any other field."
+        "description": "One loader field of a run's captured config, for the review screen's inputs.\n\n`allowed_values` comes from the run's own lookup list version for a list field, is the\naccepted values for a boolean field, and is empty for any other field. `is_record_name`\nmarks the one field that names a record."
       },
       "RunFieldList": {
         "properties": {
@@ -4204,6 +4466,26 @@
           },
           "counts": {
             "$ref": "#/components/schemas/ReviewCounts"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latest_export": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunExport"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -4218,9 +4500,11 @@
           "is_verified",
           "verified_by",
           "verified_at",
-          "counts"
+          "counts",
+          "failure_reason",
+          "latest_export"
         ],
-        "description": "One run in the runs list: name, status, counts and the verified label."
+        "description": "One run in the runs list: name, status, counts, the verified label and export state.\n\n`failure_reason` is the message of a failed run's first error run issue, else null.\n`latest_export` is the run's newest export, or null before the first one."
       },
       "SaveResult": {
         "properties": {
@@ -4604,6 +4888,37 @@
           "message"
         ],
         "description": "One check finding: where it is (sheet, row) and a plain explanation of what to do."
+      },
+      "UploadLimits": {
+        "properties": {
+          "max_file_size_mb": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_files_per_run": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "max_file_size_mb",
+          "max_files_per_run"
+        ],
+        "description": "The upload limits a new run is checked against; null means no limit."
       },
       "VerifyResult": {
         "properties": {

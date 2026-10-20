@@ -66,5 +66,6 @@ def make_issue(draft: IssueDraft, catalogue: IssueCatalogue, field_rules: FieldR
         field=draft.field,
         message=fill_message(definition.message, message_values),
         individual_review=definition.individual_review,
+        note_required=definition.note_required,
         details=draft.details,
     )

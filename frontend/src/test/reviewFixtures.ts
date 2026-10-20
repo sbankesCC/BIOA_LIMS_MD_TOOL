@@ -18,6 +18,7 @@ export function makeField(overrides: Partial<RunField> = {}): RunField {
     multi_value: false,
     separator: null,
     allowed_values: [],
+    is_record_name: false,
     ...overrides,
   };
 }
@@ -49,6 +50,8 @@ export function makeIssue(overrides: Partial<IssueSummary> = {}): IssueSummary {
     status: "open",
     message: "Synthetic message.",
     individual_review: false,
+    note_required: false,
+    sources: [],
     ...overrides,
   };
 }
@@ -102,7 +105,7 @@ export function makeView(rows: ReviewRow[], runIssues: IssueSummary[] = []): Rev
   return {
     rows,
     run_issues: runIssues,
-    counts: { records: rows.length, to_fix: 1, to_check: 1, excluded: 0, open_errors: 1, open_warnings: 1 },
+    counts: { records: rows.length, to_fix: 1, to_check: 1, excluded: 0, open_errors: 1, open_warnings: 1, resolved_issues: 0, total_issues: 2 },
   };
 }
 

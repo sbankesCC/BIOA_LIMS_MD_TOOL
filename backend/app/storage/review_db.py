@@ -344,10 +344,11 @@ class ReviewDatabase:
     ) -> None:
         """Store what processing produced (end of the graph) and open each issue's history."""
         with self.transaction() as connection:
+            # Excluded items have their own column, so the findings JSON leaves them out
             connection.execute(
                 "UPDATE runs SET findings = ?, excluded_items = ? WHERE run_id = ?",
                 (
-                    findings.model_dump_json(),
+                    findings.model_dump_json(exclude={"excluded_items"}),
                     EXCLUDED_ITEM_LIST.dump_json(list(excluded_items)).decode("utf-8"),
                     run_id,
                 ),
@@ -361,11 +362,15 @@ class ReviewDatabase:
             self.add_issue_history(run_id, opened)
 
     def read_findings(self, run_id: str) -> ProcessingFindings:
-        """Return the processing findings stored for a run (re-checks raise them again)."""
+        """Return the processing findings stored for a run (re-checks raise them again).
+
+        The excluded items come from their own column.
+        """
         rows = self.read_all("SELECT findings FROM runs WHERE run_id = ?", (run_id,))
         if not rows:
             raise RunNotFoundError(run_id)
-        return ProcessingFindings.model_validate_json(rows[0]["findings"])
+        findings = ProcessingFindings.model_validate_json(rows[0]["findings"])
+        return findings.model_copy(update={"excluded_items": self.read_excluded_items(run_id)})
 
     def read_excluded_items(self, run_id: str) -> list[ExcludedItem]:
         """Return the items extraction left out of a run."""

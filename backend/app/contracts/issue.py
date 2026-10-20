@@ -13,7 +13,10 @@ IssueAction = Literal["opened", "accepted", "resolved"]
 
 
 class Issue(ContractModel):
-    """One issue; run-level issues have no record and no field."""
+    """One issue; run-level issues have no record and no field.
+
+    `individual_review` and `note_required` are the catalogue's flags for the issue's code.
+    """
 
     issue_id: str
     code: str
@@ -22,6 +25,7 @@ class Issue(ContractModel):
     field: str | None
     message: str
     individual_review: bool = False
+    note_required: bool = False
     details: dict[str, JsonValue] = {}
     status: IssueStatus = "open"
     closed_by: str | None = None

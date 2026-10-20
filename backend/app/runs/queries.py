@@ -1,6 +1,6 @@
 """Run queries for the API: runs, run detail, review view, record, chunk, bulk preview, exports.
 
-Also the stored PNG of a scanned page.
+Also the stored PNG of a scanned page and a run's bulk actions.
 
 Read only: nothing here changes a run.
 """
@@ -10,6 +10,7 @@ from pathlib import Path, PurePath
 from typing import Literal
 
 from app.contracts.api import (
+    BulkActionSummary,
     ChunkSource,
     RecordDetail,
     RunDetail,
@@ -22,6 +23,7 @@ from app.contracts.export import ExportInfo
 from app.contracts.issue import Issue
 from app.contracts.record import StoredRecord
 from app.contracts.run import RunInfo, RunStatus
+from app.review.bulk_actions import list_bulk_actions
 from app.review.bulk_preview import BulkPreview, BulkRequest, find_bulk_matches
 from app.review.view import ReviewCounts, ReviewView, SourceLocator, build_review_view, count_review
 from app.runs.errors import RunRequestError
@@ -46,7 +48,8 @@ def count_run(database: ReviewDatabase, run_id: str) -> ReviewCounts:
 
 
 def summarize_run(database: ReviewDatabase, run: RunInfo) -> RunSummary:
-    """Return a run's line in the runs list."""
+    """Return a run's line in the runs list, with why it failed and its newest export."""
+    exports = database.list_exports(run.run_id)
     return RunSummary(
         run_id=run.run_id,
         name=run.name,
@@ -58,7 +61,17 @@ def summarize_run(database: ReviewDatabase, run: RunInfo) -> RunSummary:
         verified_by=run.verified_by,
         verified_at=run.verified_at,
         counts=count_run(database, run.run_id),
+        failure_reason=find_failure_reason(database, run),
+        latest_export=make_run_export(max(exports, key=lambda e: e.number)) if exports else None,
     )
+
+
+def find_failure_reason(database: ReviewDatabase, run: RunInfo) -> str | None:
+    """Return the message of a failed run's first error run issue; None for other runs."""
+    if run.status != "failed":
+        return None
+    errors = [issue for issue in find_run_issues(database, run.run_id) if issue.severity == "error"]
+    return errors[0].message if errors else None
 
 
 def list_run_summaries(database: ReviewDatabase) -> list[RunSummary]:
@@ -217,6 +230,14 @@ def preview_bulk_change(workspace: Workspace, run_id: str, request: BulkRequest)
         database.read_issues(run_id),
         request,
         workspace.bundle.field_rules,
+    )
+
+
+def list_run_bulk_actions(database: ReviewDatabase, run_id: str) -> list[BulkActionSummary]:
+    """Return a run's bulk actions, newest first, with whether each can still be undone."""
+    run = database.read_run(run_id)
+    return list_bulk_actions(
+        database.read_changes(run_id), database.read_issues(run_id), run.status == "in_review"
     )
 
 

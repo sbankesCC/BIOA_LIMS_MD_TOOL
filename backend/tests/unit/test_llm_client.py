@@ -231,6 +231,46 @@ def test_provider_setting_is_required_and_checked(tmp_path: Path) -> None:
         make_llm_client(Settings(llm_provider="synthetic"), tmp_path)
 
 
+@pytest.mark.usefixtures("blank_environment")
+def test_fake_provider_reads_the_replies_folder(tmp_path: Path) -> None:
+    """LLM_PROVIDER=fake builds a fake client on the reply files of FAKE_LLM_REPLIES_DIR."""
+    (tmp_path / "extraction.1.json").write_text("synthetic reply", encoding="utf-8")
+    settings = Settings(llm_provider="fake", fake_llm_replies_dir=str(tmp_path))
+    client = make_llm_client(settings, tmp_path)
+    assert isinstance(client, FakeLLMClient)
+    assert client.replies == {"extraction": ["synthetic reply"]}
+    # Each build is a fresh client, so every run starts at the first attempt
+    assert make_llm_client(settings, tmp_path) is not client
+
+
+@pytest.mark.usefixtures("blank_environment")
+def test_openai_provider_never_uses_the_fake_replies(tmp_path: Path) -> None:
+    """With LLM_PROVIDER=openai, a set FAKE_LLM_REPLIES_DIR is ignored."""
+    (tmp_path / "extraction.1.json").write_text("synthetic reply", encoding="utf-8")
+    settings = Settings(
+        llm_provider="openai", openai_api_key="synthetic-key", fake_llm_replies_dir=str(tmp_path)
+    )
+    assert isinstance(make_llm_client(settings, tmp_path), OpenAIClient)
+    # Without a key the OpenAI client names its setting; it never falls back to the fake
+    with pytest.raises(MissingSettingError, match="OPENAI_API_KEY"):
+        make_llm_client(
+            Settings(llm_provider="openai", fake_llm_replies_dir=str(tmp_path)), tmp_path
+        )
+
+
+@pytest.mark.usefixtures("blank_environment")
+def test_fake_provider_needs_a_folder_with_replies(tmp_path: Path) -> None:
+    """A blank, missing or empty replies folder is named plainly."""
+    with pytest.raises(MissingSettingError, match="FAKE_LLM_REPLIES_DIR"):
+        make_llm_client(Settings(llm_provider="fake"), tmp_path)
+    missing = Settings(llm_provider="fake", fake_llm_replies_dir=str(tmp_path / "missing"))
+    with pytest.raises(LLMProviderError, match="is not a folder"):
+        make_llm_client(missing, tmp_path)
+    empty = Settings(llm_provider="fake", fake_llm_replies_dir=str(tmp_path))
+    with pytest.raises(LLMProviderError, match="no fake reply files"):
+        make_llm_client(empty, tmp_path)
+
+
 @pytest.mark.skipif(
     os.environ.get("RUN_OPENAI_SMOKE") != "1"
     or not os.environ.get("OPENAI_API_KEY")

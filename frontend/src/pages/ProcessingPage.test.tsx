@@ -93,6 +93,7 @@ describe("Processing screen failed state", () => {
         field: null,
         message: "None of the files could be read. Check the files and start a new run.",
         individual_review: false,
+        note_required: false,
         details: {},
         status: "open",
         closed_by: null,

@@ -237,6 +237,7 @@ IDs connect user changes, bulk actions, accepted warnings, the audit trail and t
   "field": "storage_condition",
   "message": "The documents give different values for Storage Condition. Choose one.",
   "individual_review": false,
+  "note_required": false,
   "details": {},
   "status": "open",
   "closed_by": null
@@ -249,6 +250,8 @@ IDs connect user changes, bulk actions, accepted warnings, the audit trail and t
 - Codes, severities and messages: `clients/bioa/issue_catalogue.yaml`.
 - Red issues block the verified label. They never block export.
 - `individual_review` (from the catalogue; true for `CITATION_NOT_VERIFIED` and `UNSUPPORTED_BY_SOURCE`): open ones also block the verified label. They can only be accepted one at a time, after the source was opened (see §6).
+- `note_required` (from the catalogue): accepting the issue needs a note (§6).
+- `details.sources`: chunk IDs the finding cites, when it has any (missed candidates: the agent's `sources`; challenged excluded items: the excluded item's `chunk_ids`; unreported conflicts: the agent's `sources`).
 
 ## 6. Changes request (UI → API → review service)
 
@@ -353,7 +356,7 @@ evals/cases/<case_id>/
   "details": { "records_found": 18, "excluded_items": 2 } }
 ```
 
-- Events: `run_started`, `node_started`, `node_finished`, `node_failed`, `retry_scheduled`, `route_decided` (with reason), `llm_call_finished`, `changes_saved`, `run_rechecked`, `run_verified`, `export_created`, `lookup_version_applied`, `reference_data_applied`.
+- Events: `run_started`, `node_started`, `node_finished`, `node_failed`, `retry_scheduled`, `route_decided` (with reason), `llm_call_finished`, `changes_saved`, `run_rechecked`, `run_verified`, `export_created`, `lookup_version_applied`, `reference_data_applied`, `runs_interrupted` (at startup, with `run_count`).
 - Only IDs, counts and durations. No document text, no field values.
 
 ## 12. Config file formats
@@ -375,16 +378,17 @@ Request and response bodies use the models above. The OpenAPI schema generated b
 | Method | Path | Does |
 |---|---|---|
 | GET | /health | Liveness |
-| GET | /runs | List runs: name, status, record count, open issue counts, verified |
+| GET | /runs | List runs: name, status, record count, open issue counts, verified, `failure_reason` (a failed run's first error run issue message, else null), `latest_export` (number, `is_draft`, when; null before the first export) |
 | POST | /runs | Upload files (multipart) + run name; start the graph in the background; return `run_id` |
 | GET | /runs/{run_id} | Status, current step, verified label, exports, run issues |
 | PATCH | /runs/{run_id} | Rename the run |
-| GET | /runs/{run_id}/records | Flattened review view: one row per record, cells with value, display value, origin, color, messages, sources, alternatives. For `blank_for_now` fields the value is empty and the display value is the placeholder ("TEST VALUE") |
-| GET | /runs/{run_id}/fields | Every field of the run's config in loader order: key, column, role, requirement, type, max length, list or boolean, multi-value, and allowed values (lookup values from the run's own lookup list version; Y/N for booleans; none otherwise). For the review dropdowns |
+| GET | /runs/{run_id}/records | Flattened review view: one row per record, cells with value, display value, origin, color, messages, sources, alternatives. For `blank_for_now` fields the value is empty and the display value is the placeholder ("TEST VALUE"). Each issue has `note_required` and `sources` (locations of its `details.sources` chunks of the run). Counts add progress: `total_issues` (red and yellow issues of included records and the run, any status) and `resolved_issues` (those resolved or accepted) |
+| GET | /runs/{run_id}/fields | Every field of the run's config in loader order: key, column, role, requirement, type, max length, list or boolean, multi-value, `is_record_name`, and allowed values (lookup values from the run's own lookup list version; Y/N for booleans; none otherwise). For the review dropdowns |
 | GET | /runs/{run_id}/records/{record_id} | One record with all sections, issues and resolved sources |
 | GET | /runs/{run_id}/chunks/{chunk_id} | Source text for "Show source" (with document, section, page) |
 | GET | /runs/{run_id}/chunks/{chunk_id}/image | The scanned page of a `page_image` chunk as `image/png`; a text chunk is 404 `PAGE_IMAGE_NOT_FOUND` |
 | GET | /runs/{run_id}/bulk-preview?mode=&issue_id=&field=&alternative_index= | Records a bulk action would touch (included records only): `change_all` (`issue_id`: same field, issue code and current value), `fill_missing` (`field`: no value, not a conflict), `accept_type` (`issue_id`: same warning code, any field; not individual-review), `resolve_conflicts` (`issue_id` + `alternative_index`: same field, same set of alternatives in any order). Returns the selection, `count` and `matches` (record_id, name, issue_id, current value, and for conflicts the chosen value's `alternative_index` in that record) |
+| GET | /runs/{run_id}/bulk-actions | The run's bulk actions, newest first: `bulk_id`, change type, field or issue code, record and change counts, by/at, `is_pending`, `is_undone` (by/at), `can_undo` (not undone and the run is in review) |
 | POST | /runs/{run_id}/changes | Store changes as pending (§6); no re-check yet |
 | POST | /runs/{run_id}/recheck | Apply pending changes and run the Validation service; return updated counts |
 | POST | /runs/{run_id}/verify | Re-check, then set the verified label; or return the blocking issues |
@@ -393,6 +397,7 @@ Request and response bodies use the models above. The OpenAPI schema generated b
 | GET | /runs/{run_id}/exports | List exports |
 | GET | /runs/{run_id}/exports/{export_id}/loader | Download the loader |
 | GET | /runs/{run_id}/exports/{export_id}/audit | Download the audit workbook |
+| GET | /settings/upload-limits | `max_file_size_mb`, `max_files_per_run` (null: no limit). No other setting is exposed |
 | GET | /admin/lookup-lists/current | Download the current workbook |
 | POST | /admin/lookup-lists | Upload; return check report and diff; create a pending version |
 | POST | /admin/lookup-lists/{version_id}/apply | Make a pending version current, or restore an older one |

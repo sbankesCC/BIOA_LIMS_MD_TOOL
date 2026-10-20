@@ -14,6 +14,7 @@ from app.config.field_rules import FieldRules
 from app.config.issue_catalogue import IssueCatalogue
 from app.config.lookup_lists import LookupLists
 from app.config.reference_mapping import ReferenceRules
+from app.contracts.extraction import ExcludedItem
 from app.contracts.issue import Issue
 from app.contracts.record import StoredField, StoredRecord
 from app.contracts.reference import ReferenceData
@@ -48,11 +49,13 @@ class ProcessingFindings(BaseModel):
     """What processing found that is not stored in the records themselves.
 
     `verification` gives unreported conflicts, missed candidates and challenged excluded items;
-    `dropped_record_ids` are records a re-extraction did not return.
+    `dropped_record_ids` are records a re-extraction did not return; `excluded_items` (from
+    extraction) give the chunks of challenged excluded items.
     """
 
     verification: VerificationOutput | None = None
     dropped_record_ids: list[str] = []
+    excluded_items: list[ExcludedItem] = []
 
 
 class ValidationResult(BaseModel):
@@ -138,7 +141,7 @@ def find_run_drafts(
     name_rule = find_name_rule(config.field_rules)
     drafts = find_run_duplicates(records, name_rule)
     drafts += find_reference_drafts(records, config, runner, reference)
-    drafts += find_run_finding_issues(findings.verification)
+    drafts += find_run_finding_issues(findings.verification, findings.excluded_items)
     return drafts
 
 

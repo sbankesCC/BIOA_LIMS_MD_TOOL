@@ -40,6 +40,8 @@ function toIssueRef(issue: RunIssue): IssueRef {
     status: issue.status ?? "open",
     message: issue.message,
     individual_review: issue.individual_review ?? false,
+    note_required: issue.note_required ?? false,
+    sources: [],
   };
   return { issue: summary, recordId: issue.record_id, field: issue.field };
 }

@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     duplicate_judge_model: str | None = None
     llm_retries: int | None = None
 
+    # Fake LLM replies folder, used only when LLM_PROVIDER is fake (local development)
+    fake_llm_replies_dir: str | None = None
+
     # Limits: blank (None) means no limit
     max_file_size_mb: int | None = None
     max_files_per_run: int | None = None
