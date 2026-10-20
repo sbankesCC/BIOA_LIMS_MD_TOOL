@@ -8,12 +8,12 @@ stay empty in the record and the loader. Sources are locations only, never chunk
 from collections.abc import Sequence
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from app.config.field_rules import FieldRule, FieldRules
 from app.contracts.chunk import Chunk
 from app.contracts.extraction import Evidence, ExtractedValue, FieldStatus
-from app.contracts.issue import Issue, IssueSeverity, IssueStatus
+from app.contracts.issue import DuplicateCandidate, Issue, IssueSeverity, IssueStatus
 from app.contracts.record import ActionNeeded, Exclusion, Origin, StoredField, StoredRecord
 from app.storage.run_store import DocumentInfo
 from app.validation.duplicates import find_name_rule, read_name
@@ -67,6 +67,7 @@ class IssueSummary(BaseModel):
 
     `note_required`: accepting it needs a note (catalogue). `sources`: the chunks the issue's
     finding cites (e.g. missed candidates, challenged excluded items), only chunks of the run.
+    `duplicate_candidates`: the existing types a duplicate issue names (`details.candidates`).
     """
 
     issue_id: str
@@ -77,6 +78,7 @@ class IssueSummary(BaseModel):
     individual_review: bool
     note_required: bool
     sources: list[SourceLocation]
+    duplicate_candidates: list[DuplicateCandidate]
 
 
 class ReviewCell(BaseModel):
@@ -281,6 +283,7 @@ def summarize_issue(issue: Issue, locator: SourceLocator) -> IssueSummary:
         individual_review=issue.individual_review,
         note_required=issue.note_required,
         sources=locator.locate_known(read_source_ids(issue)),
+        duplicate_candidates=read_duplicate_candidates(issue),
     )
 
 
@@ -290,6 +293,23 @@ def read_source_ids(issue: Issue) -> list[str]:
     if not isinstance(sources, list):
         return []
     return [source for source in sources if isinstance(source, str)]
+
+
+def read_duplicate_candidates(issue: Issue) -> list[DuplicateCandidate]:
+    """Return the existing types in an issue's `details.candidates`, or none.
+
+    An entry that does not have the candidate shape is left out, never filled in.
+    """
+    entries = issue.details.get("candidates")
+    if not isinstance(entries, list):
+        return []
+    candidates: list[DuplicateCandidate] = []
+    for entry in entries:
+        try:
+            candidates.append(DuplicateCandidate.model_validate(entry))
+        except ValidationError:
+            continue
+    return candidates
 
 
 def count_review(records: Sequence[StoredRecord], issues: Sequence[Issue]) -> ReviewCounts:

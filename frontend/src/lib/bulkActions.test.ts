@@ -84,7 +84,7 @@ describe("Verify grouping", () => {
     const blocker = { issue_id: "e", code: "WRONG_TYPE", severity: "error", record_id: "rec_1", field: "amount", message: "m", individual_review: false, note_required: false, details: {}, status: "open", closed_by: null } as const;
     const result = { is_verified: false, blocking_errors: [blocker], individual_review_warnings: [], accepted_warnings: [], counts: makeView([]).counts } as VerifyResult;
     const check = checkVerifyResult(result);
-    expect(check.errors).toEqual([{ issue: { issue_id: "e", code: "WRONG_TYPE", severity: "error", status: "open", message: "m", individual_review: false, note_required: false, sources: [] }, recordId: "rec_1", field: "amount" }]);
+    expect(check.errors).toEqual([{ issue: { issue_id: "e", code: "WRONG_TYPE", severity: "error", status: "open", message: "m", individual_review: false, note_required: false, sources: [], duplicate_candidates: [] }, recordId: "rec_1", field: "amount" }]);
     expect(isBlocked(check)).toBe(true);
   });
 });

@@ -696,6 +696,21 @@ export interface components {
             current_version: string | null;
             versions: components["schemas"]["DataVersionInfo"][];
         };
+        /**
+         * @description One existing type a duplicate issue names in `details.candidates` (CONTRACTS §5).
+         *
+         *     `match`: `exact`, `normalized`, or the judge's verdict (`same`, `unsure`). Description, class
+         *     and active flag are copied from the run's pinned reference data, or None when it has none.
+         */
+        DuplicateCandidate: {
+            candidate_id: string;
+            name: string;
+            match: string;
+            reason?: string | null;
+            description?: string | null;
+            consumable_class?: string | null;
+            active_flag?: string | null;
+        };
         /** @description What went wrong: a stable code, a plain message that says what to do, and details. */
         ErrorBody: {
             code: string;
@@ -800,6 +815,7 @@ export interface components {
          *
          *     `note_required`: accepting it needs a note (catalogue). `sources`: the chunks the issue's
          *     finding cites (e.g. missed candidates, challenged excluded items), only chunks of the run.
+         *     `duplicate_candidates`: the existing types a duplicate issue names (`details.candidates`).
          */
         IssueSummary: {
             issue_id: string;
@@ -812,6 +828,7 @@ export interface components {
             individual_review: boolean;
             note_required: boolean;
             sources: components["schemas"]["SourceLocation"][];
+            duplicate_candidates: components["schemas"]["DuplicateCandidate"][];
         };
         JsonValue: unknown;
         /** @description The check report of one upload: passed checks, problems, warnings and changes. */

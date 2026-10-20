@@ -21,7 +21,6 @@ import {
   listRunIssues,
   type IssueRef,
 } from "../../lib/reviewIssues";
-import { readDuplicateCandidates } from "../../lib/duplicateCandidates";
 import { describeIssueDetails, useIssueDetails } from "../../lib/useIssueDetails";
 import { selectionFor, type ReviewSession, type Selection } from "../../lib/useReviewSession";
 import { ErrorMessage } from "../ErrorMessage";
@@ -172,7 +171,7 @@ function ExpandedIssue(props: ExpandedIssueProps) {
   const nameOf = (recordId: string) => findRow(view, recordId)?.name ?? recordId;
   const detailIssue = detailIssues.find((issue) => issue.issue_id === issueId);
   const detailLines = describeIssueDetails(detailIssue, nameOf);
-  const candidates = readDuplicateCandidates(detailIssue?.details);
+  const candidates = ref?.issue.duplicate_candidates ?? [];
   const title = columnOf(fieldKey);
   return (
     <section className="panel__expanded" aria-label="Selected issue">
@@ -182,7 +181,7 @@ function ExpandedIssue(props: ExpandedIssueProps) {
         <p key={line} className="panel__detail">{line}</p>
       ))}
       {/* Possible duplicates: this record next to the existing types the issue names */}
-      <DuplicateComparison row={row} candidates={candidates} referenceVersion={props.run.reference_data_version} />
+      <DuplicateComparison row={row} fields={fields} candidates={candidates} referenceVersion={props.run.reference_data_version} />
       <IssueAction
         kind={rule?.kind ?? null}
         acceptLabel={rule !== null ? describeAcceptLabel(rule) : ""}

@@ -6,30 +6,24 @@ import { describe, expect, it } from "vitest";
 import { readFileName } from "../../api/admin";
 import type { DataVersionInfo } from "../../api/types";
 import { describeApplyBlock, describeVersionChanges, findNextVersionName, listAppliedVersions } from "../../lib/adminVersions";
-import { describeMatch, readDuplicateCandidates } from "../../lib/duplicateCandidates";
+import { describeMatch, listRecordValues, showAttribute } from "../../lib/duplicateCandidates";
 import { makeRunDetail, renderApp } from "../../test/helpers";
-import { makeIssue, makeRecordingFetch, makeReviewHandler, makeRow, makeView } from "../../test/reviewFixtures";
+import { SYNTHETIC_FIELDS, makeIssue, makeRecordingFetch, makeReviewHandler, makeRow, makeView } from "../../test/reviewFixtures";
 
-// A possible-duplicate warning on the name field, and its details as the record detail gives them
-const DUPLICATE_ISSUE = makeIssue({ issue_id: "iss_dup", code: "POSSIBLE_DUPLICATE", severity: "warning", message: "May already exist in LabVantage." });
-const DUPLICATE_DETAILS = {
-  candidates: [
-    { candidate_id: "ref_0001", name: "synthetic buffer a", match: "normalized", reason: null },
-    { candidate_id: "ref_0002", name: "Synthetic Buffer A2", match: "unsure", reason: "Synthetic reason: names differ by one character." },
-  ],
-};
+// A possible-duplicate warning on the name field, with its existing types as the review view gives them
+const DUPLICATE_CANDIDATES = [
+  { candidate_id: "ref_0001", name: "synthetic buffer a", match: "normalized", reason: null, description: "Synthetic existing description", consumable_class: "Synthetic class", active_flag: "Y" },
+  { candidate_id: "ref_0002", name: "Synthetic Buffer A2", match: "unsure", reason: "Synthetic reason: names differ by one character.", description: null, consumable_class: null, active_flag: null },
+];
+const DUPLICATE_ISSUE = makeIssue({ issue_id: "iss_dup", code: "POSSIBLE_DUPLICATE", severity: "warning", message: "May already exist in LabVantage.", duplicate_candidates: DUPLICATE_CANDIDATES });
 
-/** A view with one record whose name has the possible-duplicate warning. */
-function makeDuplicateView() {
-  return makeView([makeRow("rec_0001", "Synthetic Buffer A", { item_name: { color: "yellow", issues: [DUPLICATE_ISSUE] } }, { action_needed: "check" })]);
+/** A view with one record whose name has the possible-duplicate warning (or `issue`). */
+function makeDuplicateView(issue = DUPLICATE_ISSUE) {
+  return makeView([makeRow("rec_0001", "Synthetic Buffer A", { item_name: { color: "yellow", issues: [issue] } }, { action_needed: "check" })]);
 }
 
-/** Answer the record detail with the full issue (details included) and the run with a reference version. */
-function answerDetails(_method: string, path: string) {
-  if (path === "/runs/run_0001/records/rec_0001") {
-    const issue = { ...DUPLICATE_ISSUE, record_id: "rec_0001", field: "item_name", details: DUPLICATE_DETAILS, closed_by: null };
-    return { status: 200, body: { record: {}, issues: [issue], sources: [] } };
-  }
+/** Answer the run with a reference data version. */
+function answerRun(_method: string, path: string) {
   if (path === "/runs/run_0001") {
     return { status: 200, body: makeRunDetail({ status: "in_review", current_step: null, reference_data_version: "v-synthetic-ref" }) };
   }
@@ -37,8 +31,8 @@ function answerDetails(_method: string, path: string) {
 }
 
 describe("Possible duplicate comparison", () => {
-  it("shows this record next to each existing type with how it matched and the checker's reason", async () => {
-    const { fetchMock } = makeRecordingFetch(makeReviewHandler(makeDuplicateView, answerDetails));
+  it("shows this record next to each existing type with its attributes, how it matched and the checker's reason", async () => {
+    const { fetchMock } = makeRecordingFetch(makeReviewHandler(() => makeDuplicateView(), answerRun));
     renderApp("/runs/run_0001/review", fetchMock);
     fireEvent.click(await screen.findByRole("button", { name: /Item Name: Synthetic Buffer A/ }));
     const panel = await screen.findByRole("complementary", { name: "Resolution panel" });
@@ -49,15 +43,23 @@ describe("Possible duplicate comparison", () => {
     const rows = within(table).getAllByRole("row").slice(1).map((row) => Array.from(row.children).map((cell) => cell.textContent));
     expect(rows[0]).toEqual(["Name", "Synthetic Buffer A", "synthetic buffer a", "Synthetic Buffer A2"]);
     expect(rows[1][2]).toBe("LabVantage (reference data v-synthetic-ref)");
-    expect(rows[2]).toEqual(["Why it matched", "—", "Same name apart from capitals, spaces or °", "The duplicate checker could not tell"]);
-    expect(rows[3]).toEqual(["Checker's reason", "—", "—", "Synthetic reason: names differ by one character."]);
-    // The actions stay: Not a duplicate (accept); nothing about other existing-type details is made up
+    // Attributes from the reference data; "—" where it has none (never made up)
+    expect(rows[2]).toEqual(["Description", "StorageRoom shelfAmount5", "Synthetic existing description", "—"]);
+    expect(rows[3]).toEqual(["Class", "Synthetic class", "—"]);
+    expect(rows[4]).toEqual(["Active flag", "Y", "—"]);
+    expect(rows[5]).toEqual(["Why it matched", "—", "Same name apart from capitals, spaces or °", "The duplicate checker could not tell"]);
+    expect(rows[6]).toEqual(["Checker's reason", "—", "—", "Synthetic reason: names differ by one character."]);
+    // This record's extracted values sit beside the attributes (no name, no placeholder field)
+    const values = within(table).getByLabelText("This record's values");
+    expect(within(values).queryByText("Item Name")).toBeNull();
+    expect(within(values).queryByText("Later Field")).toBeNull();
+    // The actions stay: Not a duplicate (accept); the old "only the name" note is gone
     expect(within(panel).getByRole("radio", { name: /Not a duplicate/ })).not.toBeNull();
-    expect(within(panel).getByText(/Only the name of an existing type is available here/)).not.toBeNull();
+    expect(within(panel).queryByText(/Only the name of an existing type is available here/)).toBeNull();
   });
 
   it("is not shown for an issue without existing types in its details", async () => {
-    const { fetchMock } = makeRecordingFetch(makeReviewHandler(makeDuplicateView));
+    const { fetchMock } = makeRecordingFetch(makeReviewHandler(() => makeDuplicateView(makeIssue({ issue_id: "iss_dup", code: "POSSIBLE_DUPLICATE", severity: "warning", message: "May already exist in LabVantage." }))));
     renderApp("/runs/run_0001/review", fetchMock);
     fireEvent.click(await screen.findByRole("button", { name: /Item Name: Synthetic Buffer A/ }));
     const panel = await screen.findByRole("complementary", { name: "Resolution panel" });
@@ -67,11 +69,14 @@ describe("Possible duplicate comparison", () => {
 });
 
 describe("Duplicate and admin helpers", () => {
-  it("reads candidates and skips entries without a name", () => {
-    const candidates = readDuplicateCandidates({ candidates: [{ name: "Synthetic X", match: "exact" }, { match: "same" }, "text"] });
-    expect(candidates).toEqual([{ candidateId: null, name: "Synthetic X", match: "exact", reason: null }]);
+  it("explains matches, shows missing attributes as a dash and lists only the record's extracted values", () => {
     expect(describeMatch("exact")).toBe("Exactly the same name");
     expect(describeMatch(null)).toBe("—");
+    expect(showAttribute(null)).toBe("—");
+    expect(showAttribute("Synthetic")).toBe("Synthetic");
+    const row = makeRow("rec_0001", "Synthetic Buffer A", { amount: { value: null, display_value: null } });
+    expect(listRecordValues(row, SYNTHETIC_FIELDS)).toEqual([{ column: "Storage", value: "Room shelf" }]);
+    expect(listRecordValues(null, SYNTHETIC_FIELDS)).toEqual([]);
   });
 
   it("describes version changes, the next version name and why an upload cannot be applied", () => {

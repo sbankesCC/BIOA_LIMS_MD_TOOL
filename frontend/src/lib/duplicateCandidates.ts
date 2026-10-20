@@ -1,13 +1,12 @@
-// Reads the existing LabVantage types an issue names (`details.candidates` of POSSIBLE_DUPLICATE
-// and EXISTS_IN_LABVANTAGE) and says in plain words why each one matched.
-// The match words are the tool's contract (CONTRACTS §3a and the duplicate check), not client data.
+// Helpers for the possible-duplicate comparison: how each existing LabVantage type matched (in
+// plain words) and which of this record's values to show next to the existing types.
+// The match words are the tool's contract (CONTRACTS §3a and §5), not client data.
+import type { ReviewRow, RunField } from "../api/types";
 
-/** One existing type from the issue details, as the API gives it. */
-export interface DuplicateCandidate {
-  candidateId: string | null;
-  name: string;
-  match: string | null;
-  reason: string | null;
+/** One of this record's values for the comparison: the field's column and the shown value. */
+export interface RecordValue {
+  column: string;
+  value: string;
 }
 
 // Plain explanations of each way a name can match an existing type
@@ -18,29 +17,32 @@ const MATCH_TEXTS: Record<string, string> = {
   unsure: "The duplicate checker could not tell",
 };
 
-/** Return a text field of an object, or null when it is missing or not text. */
-function readText(item: Record<string, unknown>, key: string): string | null {
-  const value = item[key];
-  return typeof value === "string" && value.length > 0 ? value : null;
-}
-
-/** Return the existing types listed in an issue's details; entries without a name are left out. */
-export function readDuplicateCandidates(details: Record<string, unknown> | undefined): DuplicateCandidate[] {
-  const list = details?.candidates;
-  if (!Array.isArray(list)) return [];
-  const candidates: DuplicateCandidate[] = [];
-  for (const entry of list) {
-    if (typeof entry !== "object" || entry === null) continue;
-    const item = entry as Record<string, unknown>;
-    const name = readText(item, "name");
-    if (name === null) continue;
-    candidates.push({ candidateId: readText(item, "candidate_id"), name, match: readText(item, "match"), reason: readText(item, "reason") });
-  }
-  return candidates;
-}
-
 /** Return the plain explanation of how a candidate matched ("—" when the API gives none). */
-export function describeMatch(match: string | null): string {
-  if (match === null) return "—";
+export function describeMatch(match: string | null | undefined): string {
+  if (match === null || match === undefined || match.length === 0) return "—";
   return MATCH_TEXTS[match] ?? match;
+}
+
+/** Return an existing type's attribute as text, or "—" when the reference data has none. */
+export function showAttribute(value: string | null | undefined): string {
+  return value !== null && value !== undefined && value.length > 0 ? value : "—";
+}
+
+/**
+ * Return this record's extracted values (not the name, not blank or placeholder ones) in field order.
+ * The fields are chosen by their role and flag from `/fields`, never by name: the API does not say
+ * which record field matches an existing type's description or class.
+ */
+export function listRecordValues(row: ReviewRow | null, fields: RunField[]): RecordValue[] {
+  if (row === null) return [];
+  const values: RecordValue[] = [];
+  for (const field of fields) {
+    // Only extracted fields; the name already has its own row
+    if (field.role !== "extracted" || field.is_record_name) continue;
+    const cell = row.cells.find((item) => item.field === field.key);
+    const shown = cell?.display_value ?? cell?.value ?? null;
+    if (cell === undefined || cell.is_placeholder || shown === null || shown.length === 0) continue;
+    values.push({ column: field.column, value: shown });
+  }
+  return values;
 }

@@ -52,6 +52,7 @@ export function makeIssue(overrides: Partial<IssueSummary> = {}): IssueSummary {
     individual_review: false,
     note_required: false,
     sources: [],
+    duplicate_candidates: [],
     ...overrides,
   };
 }

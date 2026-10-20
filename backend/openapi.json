@@ -3010,6 +3010,67 @@
         ],
         "description": "Version history of lookup lists or reference data, and the version new runs use."
       },
+      "DuplicateCandidate": {
+        "properties": {
+          "candidate_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "match": {
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "consumable_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "active_flag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "name",
+          "match"
+        ],
+        "description": "One existing type a duplicate issue names in `details.candidates` (CONTRACTS §5).\n\n`match`: `exact`, `normalized`, or the judge's verdict (`same`, `unsure`). Description, class\nand active flag are copied from the run's pinned reference data, or None when it has none."
+      },
       "ErrorBody": {
         "properties": {
           "code": {
@@ -3438,6 +3499,12 @@
               "$ref": "#/components/schemas/SourceLocation"
             },
             "type": "array"
+          },
+          "duplicate_candidates": {
+            "items": {
+              "$ref": "#/components/schemas/DuplicateCandidate"
+            },
+            "type": "array"
           }
         },
         "type": "object",
@@ -3449,9 +3516,10 @@
           "message",
           "individual_review",
           "note_required",
-          "sources"
+          "sources",
+          "duplicate_candidates"
         ],
-        "description": "An issue as the grid shows it (open or accepted).\n\n`note_required`: accepting it needs a note (catalogue). `sources`: the chunks the issue's\nfinding cites (e.g. missed candidates, challenged excluded items), only chunks of the run."
+        "description": "An issue as the grid shows it (open or accepted).\n\n`note_required`: accepting it needs a note (catalogue). `sources`: the chunks the issue's\nfinding cites (e.g. missed candidates, challenged excluded items), only chunks of the run.\n`duplicate_candidates`: the existing types a duplicate issue names (`details.candidates`)."
       },
       "JsonValue": {},
       "LookupUploadReport": {

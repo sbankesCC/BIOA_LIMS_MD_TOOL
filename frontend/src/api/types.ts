@@ -17,6 +17,7 @@ export type ReviewRow = Schemas["ReviewRow"];
 export type ReviewCell = Schemas["ReviewCell"];
 export type ReviewCounts = Schemas["ReviewCounts"];
 export type IssueSummary = Schemas["IssueSummary"];
+export type DuplicateCandidate = Schemas["DuplicateCandidate"];
 export type RunField = Schemas["RunField"];
 export type RunFieldList = Schemas["RunFieldList"];
 export type RecordDetail = Schemas["RecordDetail"];

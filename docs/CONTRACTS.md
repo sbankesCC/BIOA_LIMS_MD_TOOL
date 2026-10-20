@@ -251,6 +251,7 @@ IDs connect user changes, bulk actions, accepted warnings, the audit trail and t
 - Red issues block the verified label. They never block export.
 - `individual_review` (from the catalogue; true for `CITATION_NOT_VERIFIED` and `UNSUPPORTED_BY_SOURCE`): open ones also block the verified label. They can only be accepted one at a time, after the source was opened (see §6).
 - `note_required` (from the catalogue): accepting the issue needs a note (§6).
+- `details.candidates` (`EXISTS_IN_LABVANTAGE`, `POSSIBLE_DUPLICATE`): one entry per matching existing type: `candidate_id`, `name`, `match` (`exact`, `normalized`, or the judge's `same` / `unsure`), `reason` (the judge's, else null), and `description`, `consumable_class`, `active_flag` copied from the run's pinned reference data version (null when it has none). Details never key the issue, so they do not change its ID or accepted state.
 - `details.sources`: chunk IDs the finding cites, when it has any (missed candidates: the agent's `sources`; challenged excluded items: the excluded item's `chunk_ids`; unreported conflicts: the agent's `sources`).
 
 ## 6. Changes request (UI → API → review service)
@@ -382,7 +383,7 @@ Request and response bodies use the models above. The OpenAPI schema generated b
 | POST | /runs | Upload files (multipart) + run name; start the graph in the background; return `run_id` |
 | GET | /runs/{run_id} | Status, current step, verified label, exports, run issues |
 | PATCH | /runs/{run_id} | Rename the run |
-| GET | /runs/{run_id}/records | Flattened review view: one row per record, cells with value, display value, origin, color, messages, sources, alternatives. For `blank_for_now` fields the value is empty and the display value is the placeholder ("TEST VALUE"). Each issue has `note_required` and `sources` (locations of its `details.sources` chunks of the run). Counts add progress: `total_issues` (red and yellow issues of included records and the run, any status) and `resolved_issues` (those resolved or accepted) |
+| GET | /runs/{run_id}/records | Flattened review view: one row per record, cells with value, display value, origin, color, messages, sources, alternatives. For `blank_for_now` fields the value is empty and the display value is the placeholder ("TEST VALUE"). Each issue has `note_required`, `sources` (locations of its `details.sources` chunks of the run) and `duplicate_candidates` (its `details.candidates`, typed; empty for other issues). Counts add progress: `total_issues` (red and yellow issues of included records and the run, any status) and `resolved_issues` (those resolved or accepted) |
 | GET | /runs/{run_id}/fields | Every field of the run's config in loader order: key, column, role, requirement, type, max length, list or boolean, multi-value, `is_record_name`, and allowed values (lookup values from the run's own lookup list version; Y/N for booleans; none otherwise). For the review dropdowns |
 | GET | /runs/{run_id}/records/{record_id} | One record with all sections, issues and resolved sources |
 | GET | /runs/{run_id}/chunks/{chunk_id} | Source text for "Show source" (with document, section, page) |

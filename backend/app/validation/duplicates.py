@@ -14,6 +14,7 @@ from pydantic import BaseModel, JsonValue
 
 from app.config.field_rules import FieldRule, FieldRules
 from app.config.reference_mapping import ReferenceRules
+from app.contracts.issue import DuplicateCandidate
 from app.contracts.judge import JudgeOutput
 from app.contracts.record import StoredRecord
 from app.contracts.reference import ReferenceData, ReferenceType
@@ -127,13 +128,21 @@ def make_name_issue(
 
 
 def describe_candidate(existing: ReferenceType, match: str, reason: str | None) -> JsonValue:
-    """Return one matching existing type as issue details: its ID, name and why it matched."""
-    return {
-        "candidate_id": existing.candidate_id,
-        "name": existing.name,
-        "match": match,
-        "reason": reason,
-    }
+    """Return one matching existing type as issue details: its ID, name and why it matched.
+
+    Its description, class and active flag are copied from the reference data (None when absent)
+    so the review can compare them; details never key the issue, so its ID does not change.
+    """
+    candidate = DuplicateCandidate(
+        candidate_id=existing.candidate_id,
+        name=existing.name,
+        match=match,
+        reason=reason,
+        description=existing.description,
+        consumable_class=existing.consumable_class,
+        active_flag=existing.active_flag,
+    )
+    return candidate.model_dump(mode="json")
 
 
 def check_reference(

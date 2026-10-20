@@ -39,3 +39,19 @@ class IssueHistoryEntry(ContractModel):
     by: str | None
     at: datetime
     note: str | None = None
+
+
+class DuplicateCandidate(ContractModel):
+    """One existing type a duplicate issue names in `details.candidates` (CONTRACTS §5).
+
+    `match`: `exact`, `normalized`, or the judge's verdict (`same`, `unsure`). Description, class
+    and active flag are copied from the run's pinned reference data, or None when it has none.
+    """
+
+    candidate_id: str
+    name: str
+    match: str
+    reason: str | None = None
+    description: str | None = None
+    consumable_class: str | None = None
+    active_flag: str | None = None

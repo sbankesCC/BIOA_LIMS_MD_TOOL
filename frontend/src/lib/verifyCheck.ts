@@ -32,9 +32,9 @@ export function checkView(view: ReviewView): VerifyCheck {
 }
 
 /**
- * Return an issue reference for an issue of a Verify answer. Its sources stay empty: the answer
- * has chunk IDs only, and opening the issue selects it by ID, so the panel reads its sources
- * (locations) from the review view.
+ * Return an issue reference for an issue of a Verify answer. Its sources and duplicate candidates
+ * stay empty: the answer has chunk IDs only, and opening the issue selects it by ID, so the panel
+ * reads both from the review view.
  */
 function toIssueRef(issue: RunIssue): IssueRef {
   const summary = {
@@ -46,6 +46,7 @@ function toIssueRef(issue: RunIssue): IssueRef {
     individual_review: issue.individual_review ?? false,
     note_required: issue.note_required ?? false,
     sources: [],
+    duplicate_candidates: [],
   };
   return { issue: summary, recordId: issue.record_id, field: issue.field };
 }
