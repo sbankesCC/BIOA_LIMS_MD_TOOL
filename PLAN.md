@@ -301,6 +301,18 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   `user_edited` or `fixed`), so they resolve. Transform notes always apply to the current value.
 - **M5: excluded records** are not validated: they keep their earlier issues unchanged and get
   `action_needed = excluded`; they are left out of the in-run name check and the reference check.
+- **M6: lookup values in review** are checked against the run's own lookup version (captured at
+  its start), not the admin's latest, because validation checks the same version (ARCHITECTURE §6).
+  Y/N fields only take Y or N. Only `extracted` fields can be changed.
+- **M6: a picked alternative** gets origin `user_edited` (as in the CONTRACTS §4 example) and is
+  formatted with `transform_value`, so FORMAT_CORRECTED or NOT_IN_LOOKUP apply to the picked value.
+  `set_value` stores the value as typed (blank text = empty) and clears `output.changes`.
+- **M6: undo bulk** puts back each change's stored `before_state`, newest first, but only where the
+  target still holds what the change wrote; a value changed again later keeps the later change.
+  Undo cannot itself be undone, and a bulk action can be undone once.
+- **M6: Verify** accepts every remaining open warning of included records (closed by the verifier);
+  grey issues stay open and never block. The verified label is removed when a change is saved
+  (a resent, ignored change does not remove it).
 
 ## Progress log
 
@@ -437,3 +449,38 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   - For M6: store `ProcessingFindings` (verification output, dropped record IDs) per run so
     re-checks re-raise those issues; back `JudgeCache` with the `duplicate_judgments` table; clear
     coded notes from `output.changes` on `set_value` (else old FORMAT_CORRECTED notes reappear).
+
+### M6: Review database and review service (done)
+- `storage/review_db.py`: `ReviewDatabase(path)` (one sqlite3 connection, an RLock, nested
+  `transaction()`), `open_review_db(settings)` (REVIEW_DB via `require_path`), `SCHEMA_VERSION = 1`
+  in `schema_info` (another version is refused with a plain message). Tables: `runs` (RunInfo
+  columns plus `findings` = ProcessingFindings and `excluded_items` as JSON), `records`, `issues`,
+  `issue_history`, `changes` (status, `old_value`/`new_value`, `before_state`/`after_state`,
+  `undone_by`), `exports`, `audit_events`, `duplicate_judgments`, `lookup_versions`,
+  `reference_versions`, `admin_events`. `DatabaseJudgeCache` backs the M5 `JudgeCache`.
+  `DataVersion` (upload_id, version_id, status pending/current/superseded, file_ref, by/at, summary).
+- `review/`: `errors.py` (`ReviewError` with codes CHANGE_INVALID, BULK_ACCEPT_NOT_ALLOWED,
+  RUN_NOT_IN_REVIEW), `state.py`, `change_checks.py` (CONTRACTS §6 rules), `apply_changes.py`
+  (each change type, undo), `service.py` (`ReviewContext`, `save_changes`, `recheck_run`,
+  `verify_run`), `view.py` (`build_review_view`, `count_review`).
+- Tests: 333 total, 43 new (`unit/test_review_service.py`, `test_review_db.py`,
+  `test_review_view.py`, helpers in `unit/review_helpers.py`). Verify tests that need a clean record
+  drop the workbook's impossible Container Tracking Method limit in a test copy of the config only.
+- Decisions the docs did not cover (significant ones also above):
+  - Issue history is a child table `issue_history` of `issues`. "opened" steps have `by = null`
+    (validation), written when processing is saved and on re-check; "resolved" steps and
+    `closed_by` name the user whose re-check resolved the issue; "accepted" names the accepting user
+    with the note. Undoing an accept writes "opened" with the note "acceptance undone".
+  - A request with any invalid change saves nothing. A repeated `change_id` (stored or earlier in
+    the same request) is ignored. Only warnings can be accepted; a resolved issue cannot be.
+  - Changes are checked when saved, against the stored records and issues (the last re-check);
+    the reason rule uses open issues only (an accepted warning does not count).
+  - The `rechecking` status is not used: a re-check runs as one SQLite transaction under the lock,
+    so no reader can see a half-applied state. Verify (re-check included) is one transaction too.
+  - Audit events: `record_excluded`, `record_restored`, `bulk_undone`, `run_verified`,
+    `verified_label_removed` (per run, `audit_events`); admin actions go to `admin_events`.
+  - Data versions are keyed by `upload_id`; `version_id` (e.g. `v1`) is given on first apply and
+    kept on restore. No current row means the seed in `clients/bioa/` is in use.
+  - Review view: placeholder cells are grey; `written_value` only when it differs from the value;
+    cell issues list open and accepted issues, and only open ones tint the cell.
+  - Left for M9: `bulk-preview` (same field, code and value) and the API error mapping above.
