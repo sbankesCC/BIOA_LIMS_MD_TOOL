@@ -79,7 +79,7 @@
       "Read(./.env.*)",
       "Edit(./.env)",
       "Edit(./.env.*)",
-      "Read(~/.ssh/**)"
+      "Read(~/.ssh/**)",
       "Bash(git push *)",
       "Bash(git push)"
     ]
