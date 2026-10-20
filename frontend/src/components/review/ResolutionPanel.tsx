@@ -2,7 +2,7 @@
 // issue list, the selected issue expanded with its action, and "Save and next issue".
 // Extension slots let M13 add bulk actions and "Exclude record" without changing this file's flow.
 // Issues naming existing types show the side-by-side duplicate comparison.
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import type { CellAlternative, CellSource, ReviewCell, ReviewRow, ReviewView, RunDetail, RunField, SourceLocation } from "../../api/types";
 import {
   buildChoice,
@@ -30,13 +30,20 @@ import { DuplicateComparison } from "./DuplicateComparison";
 import { IssueAction } from "./IssueActions";
 import "./ResolutionPanel.css";
 
-/** What the issue extras get: the run, the session, the issue, its record and the user's choice (if ready). */
+/** What "Save and next issue" runs instead of the plain save, when an extra sets one. */
+export type SaveHandler = () => void;
+
+/**
+ * What the issue extras get: the run, the session, the issue, its record and the user's choice
+ * (if ready), and `setSaveHandler` to take over "Save and next issue" (null gives it back).
+ */
 export interface IssueExtrasContext {
   run: RunDetail;
   session: ReviewSession;
   issue: IssueRef;
   row: ReviewRow | null;
   choice: IssueChoice | null;
+  setSaveHandler: (handler: SaveHandler | null) => void;
 }
 
 /** What the footer's left side gets: the session and the record (null for run issues). */
@@ -152,6 +159,9 @@ interface ExpandedIssueProps extends ResolutionPanelProps {
 function ExpandedIssue(props: ExpandedIssueProps) {
   const { view, fields, selection, session, row, refs, columnOf, detailIssues, onOpenSource, extensions } = props;
   const [state, setState] = useState<ActionState>(makeEmptyActionState);
+  // An extra (e.g. "Also apply to N similar") may take over Save and next
+  const [saveHandler, setSaveHandler] = useState<SaveHandler | null>(null);
+  const changeSaveHandler = useCallback((handler: SaveHandler | null) => setSaveHandler(() => handler), []);
   const ref = refs.find((item) => item.issue.issue_id === selection.issueId) ?? null;
   const fieldKey = ref?.field ?? selection.field;
   const cell = row !== null && fieldKey !== null ? findCell(row, fieldKey) : null;
@@ -173,6 +183,12 @@ function ExpandedIssue(props: ExpandedIssueProps) {
   const detailLines = describeIssueDetails(detailIssue, nameOf);
   const candidates = ref?.issue.duplicate_candidates ?? [];
   const title = columnOf(fieldKey);
+  // Save the choice, through the extra's handler when one is set
+  const save = (choice: IssueChoice | null) => {
+    if (choice === null) return;
+    if (saveHandler !== null) saveHandler();
+    else void session.saveAndNext(choice);
+  };
   return (
     <section className="panel__expanded" aria-label="Selected issue">
       <h3 className="panel__issue-title">{ref !== null ? `${title} · ${rule?.shortLabel}` : `${title} · Change value`}</h3>
@@ -195,12 +211,12 @@ function ExpandedIssue(props: ExpandedIssueProps) {
         onState={(patch) => setState((current) => ({ ...current, ...patch }))}
         onViewSource={() => onOpenSource(title, sources, issueLocations, row, issueId)}
         onShowAlternativeSource={(alternative: CellAlternative) => onOpenSource(`${title}: ${alternative.value}`, alternative.sources, [], null, issueId)}
-        extraActions={ref !== null ? extensions?.renderIssueExtras?.({ run: props.run, session, issue: ref, row, choice: result.choice }) : null}
+        extraActions={ref !== null ? extensions?.renderIssueExtras?.({ run: props.run, session, issue: ref, row, choice: result.choice, setSaveHandler: changeSaveHandler }) : null}
       />
       <footer className="panel__footer">
         <div>{extensions?.renderFooterStart?.({ session, row })}</div>
         <div className="panel__save">
-          <button type="button" className="panel__save-button" disabled={result.choice === null || session.isBusy} onClick={() => result.choice !== null && void session.saveAndNext(result.choice)}>
+          <button type="button" className="panel__save-button" disabled={result.choice === null || session.isBusy} onClick={() => save(result.choice)}>
             {session.isBusy ? "Working…" : "Save and next issue"}
           </button>
           {result.hint !== null && <span className="panel__hint">{result.hint}</span>}

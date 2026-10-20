@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import type { VerifyResult } from "../api/types";
 import { makeIssue, makeRow, makeView } from "../test/reviewFixtures";
-import { buildBulkChanges, findBulkOffers, needsReason } from "./bulkActions";
+import { buildAlsoApplyChanges, buildBulkChanges, describeAlsoApply, findBulkOffers, needsReason } from "./bulkActions";
 import type { IssueChoice } from "./issueActions";
 import { checkVerifyResult, checkView, isBlocked, isClear } from "./verifyCheck";
 
@@ -60,6 +60,24 @@ describe("buildBulkChanges", () => {
     expect(changes).toEqual([
       { type: "set_value", record_id: "rec_1", field: "amount", value: "5", reason: "synthetic reason", bulk_id: "blk_1" },
       { type: "set_value", record_id: "rec_2", field: "amount", value: "5", reason: "synthetic reason", bulk_id: "blk_1" },
+    ]);
+  });
+});
+
+describe("Also apply", () => {
+  it("puts the current record's own change first, then the others, all with one bulk ID", () => {
+    const issue = makeIssue({ issue_id: "iss_1", code: "WRONG_TYPE" });
+    const row = makeRow("rec_1", "Synthetic Item", { amount: { value: "five", issues: [issue] } });
+    const choice = setValueChoice("rec_1", "amount", "5");
+    const [offer] = findBulkOffers({ issue: { issue, recordId: "rec_1", field: "amount" }, row, choice });
+    expect(describeAlsoApply(offer, 1)).toBe("Also apply to 1 other record with the same issue and value");
+    const others = [{ record_id: "rec_2", name: "B", issue_id: "iss_2", value: "five" }];
+    const current = choice.kind === "change" ? choice.change : null;
+    expect(current).not.toBeNull();
+    const changes = buildAlsoApplyChanges(offer, "amount", current!, others, "blk_1", null);
+    expect(changes).toEqual([
+      { type: "set_value", record_id: "rec_1", field: "amount", value: "5", reason: null, bulk_id: "blk_1" },
+      { type: "set_value", record_id: "rec_2", field: "amount", value: "5", reason: null, bulk_id: "blk_1" },
     ]);
   });
 });

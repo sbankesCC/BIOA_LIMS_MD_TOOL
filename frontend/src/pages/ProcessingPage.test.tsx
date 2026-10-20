@@ -79,6 +79,38 @@ describe("Processing screen polling", () => {
   });
 });
 
+describe("Processing screen rename", () => {
+  it("renames the run through PATCH /runs/{run_id} while it is processed", async () => {
+    // The run is extracting; the rename answers with the renamed run
+    const api: MockHandler = (method) => {
+      if (method === "PATCH") {
+        return { status: 200, body: makeRunDetail({ status: "extracting", name: "Renamed synthetic run" }) };
+      }
+      return { status: 200, body: makeRunDetail({ status: "extracting" }) };
+    };
+    const fetchMock = makeFetchMock(api);
+    renderApp("/runs/run_0001", fetchMock);
+    fireEvent.click(await screen.findByRole("button", { name: "Rename run" }));
+    fireEvent.change(screen.getByLabelText("Run name"), { target: { value: "  Renamed synthetic run " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save name" }));
+    expect(await screen.findByRole("heading", { name: "Renamed synthetic run" })).not.toBeNull();
+    // One PATCH to the run with the trimmed name
+    const patches = fetchMock.mock.calls.filter(([request]) => request.method === "PATCH");
+    expect(patches).toHaveLength(1);
+    expect(new URL(patches[0][0].url).pathname).toBe("/api/runs/run_0001");
+    expect(await patches[0][0].clone().json()).toEqual({ name: "Renamed synthetic run" });
+  });
+
+  it("Cancel keeps the name and sends nothing", async () => {
+    const fetchMock = makeFetchMock(answerWith(makeRunDetail({ status: "extracting" })));
+    renderApp("/runs/run_0001", fetchMock);
+    fireEvent.click(await screen.findByRole("button", { name: "Rename run" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("heading", { name: "Synthetic run" })).not.toBeNull();
+    expect(fetchMock.mock.calls.some(([request]) => request.method === "PATCH")).toBe(false);
+  });
+});
+
 describe("Processing screen failed state", () => {
   // A failed run with one open run-level error issue
   const failedRun = makeRunDetail({

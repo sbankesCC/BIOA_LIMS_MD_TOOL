@@ -15,6 +15,15 @@
   padding: var(--space-3);
 }
 
+/* "Also apply to N similar": a plain checkbox line under the choice (mockup 3) */
+.bulk-actions__also {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: var(--font-size-meta);
+  cursor: pointer;
+}
+
 .bulk-actions__text {
   margin: 0;
   font-size: var(--font-size-meta);
@@ -35,6 +44,10 @@
 }
 
 /* Confirmation list: one checkbox per record, scrolling when long */
+.bulk-confirm__current {
+  margin: 0;
+}
+
 .bulk-confirm__count {
   margin: 0;
 }

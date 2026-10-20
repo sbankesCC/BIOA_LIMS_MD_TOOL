@@ -13,11 +13,6 @@
   gap: var(--space-4);
 }
 
-.processing__title {
-  font-size: 30px;
-  line-height: 1.2;
-}
-
 .processing__meta {
   color: var(--color-text-muted);
   font-size: var(--font-size-meta);

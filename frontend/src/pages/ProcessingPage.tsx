@@ -1,5 +1,5 @@
-// The Processing screen (UI_SPEC §4.2): the step list while a run is processed, the reason
-// and Retry when it failed, and a finished state once the run is ready for review.
+// The Processing screen (UI_SPEC §4.2): the run name with rename, the step list while a run is
+// processed, the reason and Retry when it failed, and a finished state once it is ready for review.
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApiClient } from "../api/client";
@@ -8,6 +8,7 @@ import { retryRun } from "../api/runs";
 import type { RunDetail } from "../api/types";
 import { ErrorMessage } from "../components/ErrorMessage";
 import { Icon } from "../components/Icon";
+import { RunTitle } from "../components/RunTitle";
 import { StepList } from "../components/StepList";
 import { formatStarted } from "../lib/format";
 import { isProcessing } from "../lib/processingSteps";
@@ -26,7 +27,7 @@ interface ProcessingPageProps {
 
 /** Show one run's processing progress, failure or completion. */
 export function ProcessingPage({ runId, pollIntervalMs = DEFAULT_POLL_INTERVAL_MS }: ProcessingPageProps) {
-  const { run, errorMessage, reload } = useRunPolling(runId, pollIntervalMs);
+  const { run, errorMessage, reload, replaceRun } = useRunPolling(runId, pollIntervalMs);
 
   // Before the first answer: an error with Try again, or a loading line
   if (run === null) {
@@ -42,7 +43,7 @@ export function ProcessingPage({ runId, pollIntervalMs = DEFAULT_POLL_INTERVAL_M
   }
   return (
     <main className="page processing">
-      <RunHeading run={run} />
+      <RunHeading run={run} onRenamed={replaceRun} />
       {errorMessage !== null && <LoadError message={errorMessage} onRetry={reload} />}
       {run.status === "failed" ? <FailedCard run={run} /> : <ProgressCard run={run} />}
     </main>
@@ -67,8 +68,8 @@ function describeRunState(run: RunDetail): string {
   return isProcessing(run.status) ? "Run · In progress" : "Run · Ready";
 }
 
-/** The heading: state, run name, when it started, documents and data versions. */
-function RunHeading({ run }: { run: RunDetail }) {
+/** The heading: state, run name (with rename), when it started, documents and data versions. */
+function RunHeading({ run, onRenamed }: { run: RunDetail; onRenamed: (run: RunDetail) => void }) {
   const documentCount = run.documents.length;
   const metaParts = [
     `Started ${formatStarted(run.created_at)}`,
@@ -84,7 +85,7 @@ function RunHeading({ run }: { run: RunDetail }) {
     <div className="processing__heading">
       <div className="page-heading">
         <div className="eyebrow">{describeRunState(run)}</div>
-        <h1 className="processing__title">{run.name}</h1>
+        <RunTitle run={run} onRenamed={onRenamed} />
         <div className="processing__meta">{metaParts.join(" · ")}</div>
       </div>
       <Link to="/runs" className="processing__back">

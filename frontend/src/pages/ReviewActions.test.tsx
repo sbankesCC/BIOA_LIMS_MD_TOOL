@@ -1,6 +1,6 @@
-// Tests for the M13 Review actions: bulk actions with their bulk-preview confirmation list,
-// Undo from the API's bulk action list, progress, exclude and restore, the Verify dialog's three
-// cases and the verified label, and export with both downloads. All data is synthetic; the API
+// Tests for the M13 Review actions: "Also apply to N similar" and "Accept all of a type" with
+// their bulk-preview confirmation list, Undo from the API's bulk action list, progress, exclude
+// and restore, the Verify dialog's three cases and the verified label, and export with both downloads. All data is synthetic; the API
 // is a recording fetch mock.
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -66,33 +66,47 @@ function makeAmountView(): ReviewView {
 /** The change_all preview of the amount issue: all three records. */
 const AMOUNT_MATCHES: BulkPreviewMatch[] = ["1", "2", "3"].map((n) => ({ record_id: `rec_000${n}`, name: `Synthetic Item ${n}`, issue_id: `iss_a${n}`, value: "five", alternative_index: null }));
 
-/** Run "Change all" on the amount issue with record 3 unchecked; returns the recorded calls. */
-async function runChangeAll() {
+/** Render the amount view with the change_all preview of all three records; returns the panel and recorded calls. */
+async function openAmountIssue() {
   const { fetchMock, calls } = makeRecordingFetch(makeReviewHandler(makeAmountView, (_method, path) =>
     path === "/runs/run_0001/bulk-preview" ? makePreview("change_all", AMOUNT_MATCHES, "amount") : null,
   ));
   renderApp(REVIEW_PATH, fetchMock);
   const panel = await openCell(/^Amount: five/);
   fireEvent.change(within(panel).getByLabelText("Amount"), { target: { value: "5" } });
-  expect(await within(panel).findByText("Also applies to 2 other records with the same issue and value.")).not.toBeNull();
-  fireEvent.click(within(panel).getByRole("button", { name: "Change all 3…" }));
+  return { panel, calls };
+}
+
+/** Tick "Also apply" on the amount issue, Save and next, uncheck record 3 and apply; returns the recorded calls. */
+async function runAlsoApply() {
+  const { panel, calls } = await openAmountIssue();
+  const box = await within(panel).findByRole("checkbox", { name: "Also apply to 2 other records with the same issue and value" });
+  expect((box as HTMLInputElement).checked).toBe(false);
+  fireEvent.click(box);
+  fireEvent.click(within(panel).getByRole("button", { name: "Save and next issue" }));
   const dialog = await screen.findByRole("dialog", { name: /Change all: set Amount to “5”/ });
-  expect(within(dialog).getAllByRole("checkbox").every((box) => (box as HTMLInputElement).checked)).toBe(true);
-  expect(within(dialog).getByText(/3 of 3 selected/)).not.toBeNull();
+  // Only the other records are listed, all checked; this record is always included
+  expect(within(dialog).getByText("This record is always included.")).not.toBeNull();
+  const listed = within(dialog).getAllByRole("checkbox");
+  expect(listed.map((item) => item.closest("label")?.textContent ?? "")).toEqual([expect.stringContaining("Synthetic Item 2"), expect.stringContaining("Synthetic Item 3")]);
+  expect(listed.every((item) => (item as HTMLInputElement).checked)).toBe(true);
+  expect(within(dialog).getByText(/2 of 2 other records selected/)).not.toBeNull();
   // Uncheck one record: it is left out of the change
   fireEvent.click(within(dialog).getByRole("checkbox", { name: /Synthetic Item 3/ }));
-  expect(within(dialog).getByText(/2 of 3 selected/)).not.toBeNull();
+  expect(within(dialog).getByText(/1 of 2 other records selected/)).not.toBeNull();
   fireEvent.click(within(dialog).getByRole("button", { name: "Apply to 2 records" }));
   await waitFor(() => expect(findPosts(calls, "/runs/run_0001/recheck")).toHaveLength(1));
   return calls;
 }
 
 describe("Bulk actions", () => {
-  it("Change all previews with change_all and sends one bulk set_value list, then re-checks", async () => {
-    const calls = await runChangeAll();
+  it("Also apply (Change all) previews with change_all and sends this record's change and the others as one bulk list, then re-checks", async () => {
+    const calls = await runAlsoApply();
     expect(readPreviewQueries(calls)).toContainEqual({ mode: "change_all", issue_id: "iss_a1" });
-    const [changes] = readSentChanges(calls);
-    expect(changes).toHaveLength(2);
+    const sent = readSentChanges(calls);
+    expect(sent).toHaveLength(1);
+    const [changes] = sent;
+    // The current record first, then the checked other record
     expect(changes.map((change) => change.record_id)).toEqual(["rec_0001", "rec_0002"]);
     for (const change of changes) {
       expect(change).toMatchObject({ type: "set_value", field: "amount", value: "5", reason: null });
@@ -101,9 +115,34 @@ describe("Bulk actions", () => {
     expect(String(changes[0].bulk_id)).toMatch(/^blk_[0-9a-f]{32}$/);
     expect(changes[1].bulk_id).toBe(changes[0].bulk_id);
     expect(changes[0].change_id).not.toBe(changes[1].change_id);
+    // The re-check comes after the save
+    const order = calls.filter((call) => call.method === "POST").map((call) => call.path);
+    expect(order).toEqual(["/runs/run_0001/changes", "/runs/run_0001/recheck"]);
   });
 
-  it("Fill missing previews with fill_missing and asks a reason for values without an issue", async () => {
+  it("unticked, Save and next sends a single change without a bulk ID", async () => {
+    const { panel, calls } = await openAmountIssue();
+    await within(panel).findByRole("checkbox", { name: /Also apply to 2 other records/ });
+    fireEvent.click(within(panel).getByRole("button", { name: "Save and next issue" }));
+    await waitFor(() => expect(readSentChanges(calls)).toHaveLength(1));
+    const [changes] = readSentChanges(calls);
+    expect(changes).toEqual([expect.objectContaining({ type: "set_value", record_id: "rec_0001", field: "amount", value: "5" })]);
+    expect(changes[0].bulk_id ?? null).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("is hidden when no other record matches", async () => {
+    const { fetchMock, calls } = makeRecordingFetch(makeReviewHandler(makeAmountView, (_method, path) =>
+      path === "/runs/run_0001/bulk-preview" ? makePreview("change_all", AMOUNT_MATCHES.slice(0, 1), "amount") : null,
+    ));
+    renderApp(REVIEW_PATH, fetchMock);
+    const panel = await openCell(/^Amount: five/);
+    fireEvent.change(within(panel).getByLabelText("Amount"), { target: { value: "5" } });
+    await waitFor(() => expect(readPreviewQueries(calls)).toContainEqual({ mode: "change_all", issue_id: "iss_a1" }));
+    expect(within(panel).queryByRole("checkbox", { name: /Also apply/ })).toBeNull();
+  });
+
+  it("Also apply (Fill missing) previews with fill_missing and asks a reason for values without an issue", async () => {
     const issue = makeIssue({ issue_id: "iss_s1", code: "NOT_IN_LOOKUP", severity: "error" });
     const view = makeView([
       makeRow("rec_0001", "Synthetic Item 1", { storage: { value: null, display_value: null, written_value: "two to eight", color: "red", issues: [issue] } }, { action_needed: "fix" }),
@@ -118,13 +157,15 @@ describe("Bulk actions", () => {
     ));
     renderApp(REVIEW_PATH, fetchMock);
     const panel = await openCell(/^Storage: choose from list/);
-    expect(await within(panel).findByText("Storage is missing in 2 records. Choose a value above to set all of them.")).not.toBeNull();
+    await waitFor(() => expect(readPreviewQueries(calls)).toContainEqual({ mode: "fill_missing", field: "storage" }));
+    // Hidden until a value is chosen
+    expect(within(panel).queryByRole("checkbox", { name: /Also apply/ })).toBeNull();
     const box = within(panel).getByRole("combobox");
     fireEvent.focus(box);
     fireEvent.change(box, { target: { value: "Fridge 2-8" } });
     fireEvent.mouseDown(within(panel).getByRole("option", { name: "Fridge 2-8" }));
-    expect(within(panel).getByText("Storage is missing in 2 records. Set all to “Fridge 2-8”?")).not.toBeNull();
-    fireEvent.click(within(panel).getByRole("button", { name: "Fill all 2…" }));
+    fireEvent.click(await within(panel).findByRole("checkbox", { name: "Also apply to 1 other record where Storage is missing" }));
+    fireEvent.click(within(panel).getByRole("button", { name: "Save and next issue" }));
     const dialog = await screen.findByRole("dialog");
     const apply = within(dialog).getByRole("button", { name: "Apply to 2 records" }) as HTMLButtonElement;
     expect(apply.disabled).toBe(true);
@@ -132,10 +173,11 @@ describe("Bulk actions", () => {
     expect(apply.disabled).toBe(false);
     fireEvent.click(apply);
     await waitFor(() => expect(readSentChanges(calls)).toHaveLength(1));
-    expect(readPreviewQueries(calls)).toContainEqual({ mode: "fill_missing", field: "storage" });
     const [changes] = readSentChanges(calls);
     expect(changes.map((change) => change.record_id)).toEqual(["rec_0001", "rec_0002"]);
+    expect(changes[0]).toMatchObject({ type: "set_value", field: "storage", value: "Fridge 2-8" });
     expect(changes[1]).toMatchObject({ type: "set_value", field: "storage", value: "Fridge 2-8", reason: "Same storage for every synthetic item.", bulk_id: changes[0].bulk_id });
+    await waitFor(() => expect(findPosts(calls, "/runs/run_0001/recheck")).toHaveLength(1));
   });
 
   it("Accept all of a type previews with accept_type and accepts each matched warning", async () => {
@@ -162,7 +204,7 @@ describe("Bulk actions", () => {
     expect(changes[1].bulk_id).toBe(changes[0].bulk_id);
   });
 
-  it("Resolve repeated conflicts previews with the chosen alternative and picks each record's own index", async () => {
+  it("Also apply (Resolve repeated conflicts) previews with the chosen alternative and picks each record's own index", async () => {
     const alternatives = [
       { index: 0, value: "Fridge 2-8", sources: [] },
       { index: 1, value: "Room shelf", sources: [] },
@@ -183,9 +225,9 @@ describe("Bulk actions", () => {
     // No offer until an alternative is chosen
     expect(readPreviewQueries(calls)).toHaveLength(0);
     fireEvent.click(within(panel).getByRole("radio", { name: /Fridge 2-8/ }));
-    expect(await within(panel).findByText("Use “Fridge 2-8” for all 2 similar conflicts.")).not.toBeNull();
+    fireEvent.click(await within(panel).findByRole("checkbox", { name: "Also apply to 1 similar conflict" }));
     expect(readPreviewQueries(calls)).toContainEqual({ mode: "resolve_conflicts", issue_id: "iss_c1", alternative_index: "0" });
-    fireEvent.click(within(panel).getByRole("button", { name: "Resolve all 2…" }));
+    fireEvent.click(within(panel).getByRole("button", { name: "Save and next issue" }));
     fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Apply to 2 records" }));
     await waitFor(() => expect(readSentChanges(calls)).toHaveLength(1));
     const [changes] = readSentChanges(calls);
@@ -204,6 +246,7 @@ describe("Bulk actions", () => {
     const panel = await openCell(/^Amount: 5, check/);
     expect(within(panel).getByRole("heading", { name: "Amount · Citation not verified" })).not.toBeNull();
     expect(within(panel).queryByRole("button", { name: /Accept all/ })).toBeNull();
+    expect(within(panel).queryByRole("checkbox", { name: /Also apply/ })).toBeNull();
     expect(readPreviewQueries(calls)).toHaveLength(0);
   });
 
@@ -272,7 +315,8 @@ describe("Undo", () => {
     // No bulk action yet: no Undo
     expect(screen.queryByText(/Last bulk action/)).toBeNull();
     fireEvent.change(within(panel).getByLabelText("Amount"), { target: { value: "5" } });
-    fireEvent.click(await within(panel).findByRole("button", { name: "Change all 3…" }));
+    fireEvent.click(await within(panel).findByRole("checkbox", { name: /Also apply to 2 other records/ }));
+    fireEvent.click(within(panel).getByRole("button", { name: "Save and next issue" }));
     const dialog = await screen.findByRole("dialog", { name: /Change all/ });
     fireEvent.click(within(dialog).getByRole("button", { name: "Apply to 3 records" }));
     // After the bulk action's re-check, the reloaded list offers its Undo

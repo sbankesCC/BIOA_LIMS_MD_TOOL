@@ -131,35 +131,36 @@ export function buildBulkChanges(offer: BulkOffer, field: string | null, matches
   });
 }
 
-/** Return the sentence that offers the action, with the number of other records it also touches. */
-export function describeOffer(offer: BulkOffer, total: number, others: number, shortLabel: string): string {
-  const records = (count: number) => `${count} ${count === 1 ? "record" : "records"}`;
+/** Return true for an offer that applies the user's chosen value to similar records ("Also apply"). */
+export function isValueOffer(offer: BulkOffer): boolean {
+  return offer.mode !== "accept_type";
+}
+
+/** Return the "Also apply to N similar" checkbox label of a value offer; N counts other records only. */
+export function describeAlsoApply(offer: BulkOffer, others: number): string {
+  const records = `${others} ${others === 1 ? "other record" : "other records"}`;
   switch (offer.mode) {
-    case "change_all":
-      return `Also applies to ${others} other ${others === 1 ? "record" : "records"} with the same issue and value.`;
+    case "resolve_conflicts":
+      return `Also apply to ${others} similar ${others === 1 ? "conflict" : "conflicts"}`;
     case "fill_missing":
-      return offer.value !== null
-        ? `${offer.column} is missing in ${records(total)}. Set all to “${offer.value}”?`
-        : `${offer.column} is missing in ${records(total)}. Choose a value above to set all of them.`;
-    case "accept_type":
-      return `${total} open “${shortLabel}” ${total === 1 ? "warning" : "warnings"} in this run.`;
+      return `Also apply to ${records} where ${offer.column} is missing`;
     default:
-      return `Use “${offer.value ?? ""}” for all ${total} similar conflicts.`;
+      return `Also apply to ${records} with the same issue and value`;
   }
 }
 
-/** Return the label of the button that opens the confirmation list. */
-export function describeOfferButton(offer: BulkOffer, total: number): string {
-  switch (offer.mode) {
-    case "change_all":
-      return `Change all ${total}…`;
-    case "fill_missing":
-      return `Fill all ${total}…`;
-    case "accept_type":
-      return `Accept all ${total}…`;
-    default:
-      return `Resolve all ${total}…`;
-  }
+/**
+ * Return the change list of "Save and next" with "Also apply" ticked: the current record's own
+ * change first (as the user made it), then one change per checked other record; all share `bulkId`.
+ */
+export function buildAlsoApplyChanges(offer: BulkOffer, field: string | null, current: NewChange, others: BulkPreviewMatch[], bulkId: string, reason: string | null): NewChange[] {
+  const own = { ...current, bulk_id: bulkId } as NewChange;
+  return [own, ...buildBulkChanges(offer, field, others, bulkId, reason)];
+}
+
+/** Return the sentence of the "Accept all of a type" offer. */
+export function describeAcceptOffer(total: number, shortLabel: string): string {
+  return `${total} open “${shortLabel}” ${total === 1 ? "warning" : "warnings"} in this run.`;
 }
 
 /** Return the confirmation dialog's title. */

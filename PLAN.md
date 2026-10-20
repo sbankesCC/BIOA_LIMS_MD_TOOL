@@ -250,22 +250,11 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
 - The first admin lookup apply after the seed (`v0-seed-3` since 2026-10-20) becomes `v1`.
 
 ## Open questions
-- **M11: page counts before upload.** Page counts are only known after upload (`RunDocument`),
-  so the Start screen file list shows name, type and size only. Expose them some other way, or
-  keep it as is?
-- **M14: existing type details for the duplicate comparison.** POSSIBLE_DUPLICATE and
-  EXISTS_IN_LABVANTAGE details carry only `candidate_id`, `name`, `match` and `reason` per
-  existing type. The reference data keeps description, class, active flag, version and version
-  status, but no endpoint returns them, so the side-by-side shows names, how each matched and the
-  checker's reason only (with a note to check the rest in LabVantage). Add those attributes to
-  the issue details (or a reference data lookup endpoint) if a fuller comparison is wanted?
-- **M14: reference data download and current card.** There is no reference data download
-  endpoint (lookup lists have two) and no "current" endpoint, so the Reference data screen has
-  no Download buttons and builds its current card from `GET /admin/reference-data/versions`.
-  Add a download, or keep it as is?
-- **M14: history "Changes" from `summary`.** `DataVersionInfo.summary` is an untyped object;
-  the history reads `added_values` / `removed_values` (lookup lists) and `row_count` (reference
-  data) when they are numbers and shows "—" otherwise. Type these counts in the schema?
+- **M14 follow-up: record side of the duplicate comparison.** `GET /runs/{run_id}/fields` does
+  not expose `sent_to_duplicate_judge`, and no config pairs a record field with an existing type's
+  description or class. The comparison therefore shows the record's extracted values (role
+  `extracted`, not the name field, with a value) beside the existing types' attributes, not
+  row by row. Expose the judge flag (or a pairing) in `/fields` to narrow and pair them?
 
 ## Decisions made during the build
 - **M1: "N/A" in Manufacturer and Supplier (reversed 2026-10-20).** M1 left BioA's "N/A" entry out of
@@ -489,7 +478,7 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   next finds no issue left, and from "Re-check now" in the pending note. Closing the panel does not.
 - **M12: banner dismissal** stores the dismissed run issue IDs per run (localStorage, try/catch);
   a run issue that appears later shows the banner again.
-- **M13: bulk offers.** Under the selected issue (not individual-review): a conflict offers
+- **M13: bulk offers** (superseded by "Review 2026-10-21 (M14 follow-up): Also apply" below). Under the selected issue (not individual-review): a conflict offers
   Resolve repeated conflicts once an alternative is picked; a missing value offers Fill missing;
   any other value offers Change all; a warning also offers Accept all of a type. Each offer loads
   its bulk preview and shows only when it reaches another record. Its button (enabled once the
@@ -603,13 +592,50 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   with `details.candidates` (POSSIBLE_DUPLICATE, EXISTS_IN_LABVANTAGE): this record (name, first
   Found in) next to each existing type (name, "LabVantage (reference data vN)", how it matched,
   the checker's reason). The match words come from the tool's contract (`exact`, `normalized`,
-  `same`, `unsure`). Nothing else is shown about existing types (see Open questions).
+  `same`, `unsure`). Nothing else is shown about existing types (superseded by "Review
+  2026-10-21 (M14 follow-up): duplicate attributes" below).
 - **M14: base `.card` loads after component styles**, so a component that adds a class to a
   `.card` must use both classes (`.summary-strip.card`) to change its layout. This was the cause
   of the stacked summary strip seen in the end-to-end run.
 - **M14: Found in shows the last heading** of a Word section path ("file · 6.2 Reagents") in the
   grid, the alternatives and the comparison; the full path is the link's tooltip and stays in
   the source viewer.
+- **Review 2026-10-21 (M14 follow-up): page counts closed by you.** The Start screen file list
+  shows name, type and size only; page counts stay on the run (`RunDocument`) after upload.
+- **Review 2026-10-21 (M14 follow-up): skipped by you.** No reference data download or "current"
+  endpoint (the Reference data screen keeps building its current card from the version list), and
+  `DataVersionInfo.summary` stays untyped (the history keeps reading the counts when they are numbers).
+- **Review 2026-10-21 (M14 follow-up): duplicate attributes (API change, approved).** Validation
+  writes each existing type in `details.candidates` as a `DuplicateCandidate` (`candidate_id`,
+  `name`, `match`, `reason`, plus `description`, `consumable_class`, `active_flag` copied from
+  the reference data the pass is given: the run's pinned version; null when absent). Chosen over
+  enriching in the review view because validation already holds the pinned reference data and
+  the details then match what was checked. Details never key an issue, so issue IDs and accepted
+  states do not change; issues stored earlier get the attributes at their next re-check (until
+  then they show "—"). `IssueSummary.duplicate_candidates` (review view) types them; entries
+  without the shape are left out. CONTRACTS §5 and §13 updated; `backend/openapi.json` relocked.
+- **Review 2026-10-21 (M14 follow-up): comparison layout.** Rows: Name, Found in, Description,
+  Class, Active flag (existing types; "—" when the reference data has none), Why it matched,
+  Checker's reason. Beside the three attribute rows, the record column lists the record's
+  extracted values (column: value) chosen by role and `is_record_name` from `/fields`, never by
+  field name (see Open questions). The note "Only the name ... is available" is removed. The
+  candidates now come from the review view, not from `GET /records/{id}`.
+- **Review 2026-10-21 (M14 follow-up): rename on Processing.** The pencil and rename form are one
+  shared `RunTitle` component used by the Processing and Review headers (same `PATCH /runs/{id}`);
+  the renamed run the API returns is shown at once (`useRunPolling.replaceRun`).
+- **Review 2026-10-21 (M14 follow-up): Also apply.** The mockup's "Also apply to N similar"
+  checkbox replaces the separate Change all, Fill missing and Resolve repeated conflicts buttons
+  (they applied the same chosen value, so they duplicated it). "Accept all of a type" stays as
+  its own button with the confirmation list (UI_SPEC lists it as a separate action; an accept has
+  no value to apply). The checkbox shows under the choice once a value or alternative is chosen
+  and the bulk preview (same modes as M13) finds other records; N counts other records only; it
+  is hidden at 0 and never shown for individual-review issues. It starts unticked (the mockup
+  shows it ticked as an example; applying to other records stays an explicit choice). Ticked,
+  "Save and next issue" opens the confirmation list (UI_SPEC wins over the static mockup): the
+  other records, all checked and uncheckable, and "This record is always included". Confirming
+  sends one change list with one `blk_` ID (the current record's own change first, as the user
+  made it, then the checked others), re-checks, and moves to the next open issue. Unticked, Save
+  and next sends the single change as before. Undo works from the bulk action list (unchanged).
 
 ## Progress log
 
@@ -1265,3 +1291,28 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
     run's storage and databases, and `data/m14_e2e/chrome-profile/`. All servers and the
     headless browser were stopped afterwards.
 - Decisions: see "M14: ..." in Decisions made during the build; new Open questions above.
+
+### M14 follow-up (done)
+- Duplicate comparison attributes (API change, approved; OpenAPI relocked): `DuplicateCandidate`
+  in `contracts/issue.py`; `validation/duplicates.py` `describe_candidate` copies description,
+  class and active flag from the pinned reference data; `review/view.py`
+  `IssueSummary.duplicate_candidates` (`read_duplicate_candidates`). CONTRACTS §5 (`details.candidates`
+  shape) and §13 (review view) updated; `backend/openapi.json` regenerated (`uv run python -m
+  app.api`); front-end types regenerated (`npm run generate:api`).
+- Front end: `DuplicateComparison.tsx` shows Description, Class and Active flag beside the
+  record's extracted values (`lib/duplicateCandidates.ts` `listRecordValues`, `showAttribute`);
+  `ResolutionPanel` reads the candidates from the review view. New `components/RunTitle.tsx`
+  (+ CSS) shared by `ReviewHeader` and the Processing page (rename pencil). "Also apply to N
+  similar" in `BulkActions.tsx` (`AlsoApplyBox`, `AcceptAllBox`), `BulkConfirmDialog.tsx`
+  (current record always included), `lib/bulkActions.ts` (`isValueOffer`, `describeAlsoApply`,
+  `buildAlsoApplyChanges`, `describeAcceptOffer`), `useReviewSession.saveBulkAndNext`, and a
+  `setSaveHandler` in the panel's issue extras so a ticked box takes over Save and next.
+  Removed: the Change all / Fill all / Resolve all buttons.
+- Packages: none added.
+- Tests: back end 550 passed, 1 skipped (8 new: `unit/test_duplicate_candidates.py` 7 (exact,
+  normalized and judge candidates carry the attributes; null when absent; issue ID and accepted
+  state unchanged; view typing; malformed entries left out), `integration/test_api_duplicate_details.py`
+  1 (attributes from the run's pinned version after a newer version is applied)). Front end
+  137 vitest tests in 11 files (5 new: Processing rename and cancel; "Also apply" unticked sends one change, hidden at 0; the Also apply change list helper; the bulk, Undo and comparison tests rewritten for the checkbox and the attributes, including hidden for individual review and hidden until a value is chosen).
+- Decisions: see "Review 2026-10-21 (M14 follow-up): ..." in Decisions made during the build; one
+  new Open question (record side of the comparison).

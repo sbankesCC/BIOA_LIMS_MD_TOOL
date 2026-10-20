@@ -31,6 +31,8 @@ export interface ReviewSession {
   markSourceViewed: (issueId: string) => void;
   submitChanges: (changes: NewChange[] | Change[]) => Promise<boolean>;
   saveAndNext: (choice: IssueChoice) => Promise<void>;
+  // Save a bulk change that includes the current issue's change, re-check, then show the next issue
+  saveBulkAndNext: (changes: NewChange[]) => Promise<boolean>;
   recheckNow: () => Promise<void>;
 }
 
@@ -164,6 +166,23 @@ export function useReviewSession(
     [view, savedIssueIds, hasPendingChanges, submitChanges, moveTo, recheckAndShow],
   );
 
+  // Save a bulk change list (the current issue's change among them); a bulk action always
+  // re-checks at once, then the panel shows the issue after the current one
+  const saveBulkAndNext = useCallback(
+    async (changes: NewChange[]): Promise<boolean> => {
+      const current = selectionRef.current;
+      if (view === null || current === null) return false;
+      if (!(await submitChanges(changes))) return false;
+      // The next issue is found in the view before the re-check, skipping the current one;
+      // if the re-check resolves it too, the panel falls back to its record's first open issue
+      const skipped = current.issueId !== null ? new Set([...savedIssueIds, current.issueId]) : savedIssueIds;
+      const next = findNeighbourIssue(view, skipped, current.issueId, 1);
+      await recheckAndShow(next !== null ? selectionFor(next) : { ...current, issueId: null });
+      return true;
+    },
+    [view, savedIssueIds, submitChanges, recheckAndShow],
+  );
+
   const recheckNow = useCallback(() => recheckAndShow(selectionRef.current), [recheckAndShow]);
 
   // Remember that the user opened an issue's source (needed to accept individual-review warnings)
@@ -184,6 +203,7 @@ export function useReviewSession(
     markSourceViewed,
     submitChanges,
     saveAndNext,
+    saveBulkAndNext,
     recheckNow,
   };
 }

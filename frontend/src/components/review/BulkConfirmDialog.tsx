@@ -1,32 +1,43 @@
 // The bulk-action confirmation list (UI_SPEC §4.3, §5): every record the bulk preview matched,
 // all checked; the user may uncheck any. Confirming sends one change list with one bulk_id,
 // then re-checks the run. A missing value without an issue needs a reason (CONTRACTS §6).
+// From "Also apply to N similar" the current record is always included (its own change, as the
+// user made it), only the other records are listed, and the panel then moves to the next issue.
 import { useState } from "react";
 import type { BulkPreview, BulkPreviewMatch } from "../../api/types";
-import { buildBulkChanges, describeOfferTitle, makeMatchKey, needsReason, type BulkOffer } from "../../lib/bulkActions";
+import { buildAlsoApplyChanges, buildBulkChanges, describeOfferTitle, isSelectedMatch, makeMatchKey, needsReason, type BulkOffer } from "../../lib/bulkActions";
+import type { NewChange } from "../../lib/issueActions";
 import { makeBulkId } from "../../lib/ids";
 import type { ReviewSession } from "../../lib/useReviewSession";
 import { Dialog } from "../Dialog";
 import { ErrorMessage } from "../ErrorMessage";
 
-/** Props of the dialog: the preview, the offer, the session and what closing or saving does. */
+/**
+ * Props of the dialog: the preview, the offer, the session and what closing or saving does.
+ * `currentChange` is the current record's own change from "Also apply" (null for a plain bulk action).
+ */
 interface BulkConfirmDialogProps {
   preview: BulkPreview;
   offer: BulkOffer;
   shortLabel: string;
   session: ReviewSession;
+  currentChange: NewChange | null;
   onClose: () => void;
   onSaved: () => void;
 }
 
 /** Show the confirmation list and send the bulk change when the user confirms. */
-export function BulkConfirmDialog({ preview, offer, shortLabel, session, onClose, onSaved }: BulkConfirmDialogProps) {
-  const [checkedKeys, setCheckedKeys] = useState<ReadonlySet<string>>(() => new Set(preview.matches.map(makeMatchKey)));
+export function BulkConfirmDialog({ preview, offer, shortLabel, session, currentChange, onClose, onSaved }: BulkConfirmDialogProps) {
+  const isAlsoApply = currentChange !== null;
+  // "Also apply" lists only the other records; the current one is always part of the change
+  const listed = isAlsoApply ? preview.matches.filter((match) => !isSelectedMatch(offer, match)) : preview.matches;
+  const [checkedKeys, setCheckedKeys] = useState<ReadonlySet<string>>(() => new Set(listed.map(makeMatchKey)));
   const [reason, setReason] = useState("");
   const [hasFailed, setHasFailed] = useState(false);
-  const checked = preview.matches.filter((match) => checkedKeys.has(makeMatchKey(match)));
+  const checked = listed.filter((match) => checkedKeys.has(makeMatchKey(match)));
   const isReasonNeeded = needsReason(offer, checked);
-  const isReady = checked.length > 0 && (!isReasonNeeded || reason.trim().length > 0);
+  const isReady = (isAlsoApply || checked.length > 0) && (!isReasonNeeded || reason.trim().length > 0);
+  const recordCount = checked.length + (isAlsoApply ? 1 : 0);
   const title = describeOfferTitle(offer, shortLabel);
 
   // Check or uncheck one record
@@ -39,12 +50,19 @@ export function BulkConfirmDialog({ preview, offer, shortLabel, session, onClose
     });
   };
 
-  // Send every checked record's change with one new bulk ID, then re-check the run
+  // Send every change with one new bulk ID, then re-check (and, from "Also apply", move on)
   const confirm = async () => {
     const bulkId = makeBulkId();
     const trimmed = reason.trim();
-    const changes = buildBulkChanges(offer, preview.field, checked, bulkId, trimmed.length > 0 ? trimmed : null);
+    const reasonOrNull = trimmed.length > 0 ? trimmed : null;
     setHasFailed(false);
+    if (currentChange !== null) {
+      const changes = buildAlsoApplyChanges(offer, preview.field, currentChange, checked, bulkId, reasonOrNull);
+      if (await session.saveBulkAndNext(changes)) onSaved();
+      else setHasFailed(true);
+      return;
+    }
+    const changes = buildBulkChanges(offer, preview.field, checked, bulkId, reasonOrNull);
     if (!(await session.submitChanges(changes))) {
       setHasFailed(true);
       return;
@@ -63,16 +81,17 @@ export function BulkConfirmDialog({ preview, offer, shortLabel, session, onClose
             Cancel
           </button>
           <button type="button" className="dialog__primary" disabled={!isReady || session.isBusy} onClick={() => void confirm()}>
-            {session.isBusy ? "Working…" : `Apply to ${checked.length} ${checked.length === 1 ? "record" : "records"}`}
+            {session.isBusy ? "Working…" : `Apply to ${recordCount} ${recordCount === 1 ? "record" : "records"}`}
           </button>
         </>
       }
     >
+      {isAlsoApply && <p className="bulk-confirm__current">This record is always included.</p>}
       <p className="bulk-confirm__count" aria-live="polite">
-        {checked.length} of {preview.count} selected. Uncheck any record you want to leave as it is.
+        {`${checked.length} of ${listed.length}${isAlsoApply ? " other records" : ""} selected.`} Uncheck any record you want to leave as it is.
       </p>
       <ul className="bulk-confirm__list" aria-label="Records this action changes">
-        {preview.matches.map((match) => (
+        {listed.map((match) => (
           <MatchItem key={makeMatchKey(match)} match={match} isChecked={checkedKeys.has(makeMatchKey(match))} onToggle={() => toggle(makeMatchKey(match))} />
         ))}
       </ul>
