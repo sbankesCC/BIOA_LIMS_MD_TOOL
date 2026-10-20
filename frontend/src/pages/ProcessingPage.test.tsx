@@ -39,6 +39,12 @@ describe("Processing screen step mapping", () => {
     expect(readStepStates()).toEqual(expected);
   });
 
+  it("a run in review links to its Review screen", async () => {
+    renderApp("/runs/run_0001", makeFetchMock(answerWith(makeRunDetail({ status: "in_review", current_step: null }))));
+    const link = await screen.findByRole("link", { name: /Review the records/ });
+    expect(link.getAttribute("href")).toBe("/runs/run_0001/review");
+  });
+
   it("the current step is marked for screen readers", async () => {
     renderApp("/runs/run_0001", makeFetchMock(answerWith(makeRunDetail({ status: "extracting" }))));
     const current = await screen.findByText("Extracting consumables");

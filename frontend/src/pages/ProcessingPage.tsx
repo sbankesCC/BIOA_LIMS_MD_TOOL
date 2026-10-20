@@ -119,6 +119,15 @@ function ProgressCard({ run }: { run: RunDetail }) {
           )}
         </div>
       </div>
+      {/* A run in review opens on the Review screen */}
+      {!isRunning && (
+        <div>
+          <Link to={`/runs/${run.run_id}/review`} className="button-main processing__review-link">
+            Review the records
+            <Icon name="arrow-right" size={20} />
+          </Link>
+        </div>
+      )}
     </section>
   );
 }

@@ -3,7 +3,7 @@
 import { Route, Routes } from "react-router-dom";
 import { HowItWorksDialog, useHowItWorks } from "./components/HowItWorksDialog";
 import { TopBar } from "./components/TopBar";
-import { AdminPage, NotFoundPage, RunRoute, RunsPage } from "./pages/OtherPages";
+import { AdminPage, NotFoundPage, ReviewRoute, RunRoute, RunsPage } from "./pages/OtherPages";
 import { StartRunPage } from "./pages/StartRunPage";
 
 /** Show the top bar, the current screen and, on a first visit, the "How it works" popup. */
@@ -16,6 +16,7 @@ export function App() {
         <Route path="/" element={<StartRunPage onOpenHowItWorks={howItWorks.open} />} />
         <Route path="/runs" element={<RunsPage />} />
         <Route path="/runs/:runId" element={<RunRoute />} />
+        <Route path="/runs/:runId/review" element={<ReviewRoute />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

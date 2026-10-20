@@ -264,6 +264,15 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   Recent runs shows "See why and retry" for a failed run (the reason is on the run's screen) and
   no "Exported · export N" badge. (3) Page counts are only known after upload (`RunDocument`),
   so the Start screen file list shows name, type and size only. Expose any of these?
+- **M12: API gaps found (no change made; the schema is locked).** (1) `RunField` has no
+  `is_record_name` flag, so the Review grid finds the name field as the field whose value equals
+  `ReviewRow.name` in every named row (header "Name" when no row has a name). (2) `IssueSummary`
+  has no `note_required` (catalogue flag), so the UI asks for a note from the UI_SPEC table
+  (should be split / may be missing / left-out items); the API still enforces the catalogue. (3)
+  Run-level individual-review issues (MISSED_CANDIDATES_UNRESOLVED, EXCLUDED_ITEM_CHALLENGED) cite
+  no chunk, so "source viewed" is a checkbox "I checked the documents for these items". (4) There
+  is no "who am I" endpoint, so `ChangesRequest.user` is sent empty (the API stores the signed-in
+  user, M9). Expose `is_record_name` and `note_required`, and chunk references for run findings?
 
 ## Decisions made during the build
 - **M1: "N/A" in Manufacturer and Supplier (reversed 2026-10-20).** M1 left BioA's "N/A" entry out of
@@ -475,6 +484,18 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   `verifying_extraction` (one node does both); Formatting and final checks = `transforming`;
   Preparing your preview = `validating` (validation plus saving the review). `in_review` checks
   every step. The table is in `frontend/src/lib/processingSteps.ts`.
+- **M12: Review route** is `/runs/:runId/review`. The Processing screen shows "Review the records"
+  for a run in review, and the runs table opens runs in review on the Review screen.
+- **M12: issue actions by code.** `frontend/src/lib/issueActions.ts` maps catalogue codes (the
+  tool's contract, as in `backend/app/validation/codes.py`) to the UI_SPEC action kinds; an unknown
+  code falls back by severity (red field: enter a value; yellow: accept or change; grey: nothing).
+- **M12: issue navigation** moves through open red and yellow issues of included records in grid
+  order, then open run issues; grey issues never block, so they are selectable in the record's
+  issue list but not counted in "Issue i of n open". A saved issue is skipped until the re-check.
+- **M12: re-check** runs when the panel moves to another record with saved changes, when Save and
+  next finds no issue left, and from "Re-check now" in the pending note. Closing the panel does not.
+- **M12: banner dismissal** stores the dismissed run issue IDs per run (localStorage, try/catch);
+  a run issue that appears later shows the banner again.
 
 ## Progress log
 
@@ -908,3 +929,48 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   6. Error messages: blank `PILOT_USER` (restart) and start a run: the Start screen shows
      "Set PILOT_USER in .env, then restart the app." Stopping the back end gives "The app did not
      get a usable answer from its server (status 500)..." (through the dev proxy).
+
+### M12: Review screen: grid and resolution panel (done)
+- Route `/runs/:runId/review` (`pages/ReviewPage.tsx`): header with rename (`PATCH /runs/{id}`),
+  document count, lookup list version (from `/fields`) and reference data version; run banner
+  (open run issues, X remembered per run, "Review" opens a run issue in the panel); summary strip
+  (records, to fix, warnings, excluded; filters All / Needs action / Excluded); "saved changes are
+  checked when you move on" note with Re-check now; API errors shown in plain language.
+- Grid (`components/review/RecordsGrid.tsx`): sticky header; Action needed and name columns pinned;
+  Found in (first location, "(scan)", "+N more") opens the source viewer; tinted cells with icon;
+  "as written → exported" pairs; "— (not found)", "Missing", "N values"; the API's placeholder for
+  `is_placeholder` cells (read-only, never by field name); excluded rows struck through with the
+  reason; arrow keys move between clickable cells.
+- Source viewer (`SourceViewer.tsx`): text chunks with every quote highlighted (case, spaces and
+  "|" ignored, like the citation check), quotes not found listed; scanned pages as the PNG from
+  `/image` (fetched through the API client) with the quotes to look for; several locations as buttons.
+- Resolution panel (`ResolutionPanel.tsx`, `IssueActions.tsx`): Previous / Next across the run
+  ("Issue i of n open"), the record's issue list (icon, field, short label, Accepted / Saved), one
+  expanded issue with its message, details (checker's note, existing types, same-name records from
+  `GET /records/{id}`), and its action: enter value, pick alternative (Show source, Other value),
+  review source (accept / change / mark not found), optional not found (leave blank / add value),
+  accept or change, not a duplicate, accept (keep record), confirm with a required note, nothing
+  to do; "Change value" with a required reason for a value without an issue. Searchable dropdown
+  (`SearchableDropdown.tsx`, combobox roles, arrows/Enter/Escape) with list values from `/fields`,
+  closest first (`lib/optionRanking.ts`). Free text is checked against length and number type.
+  Save and next posts `/changes` with `chg_` IDs (`lib/ids.ts`), then moves on; individual-review
+  accepts are disabled until the source is opened and send `source_viewed: true`.
+- M13 extension points: `ReviewPage` `extensions` prop (`ReviewExtensions`):
+  `renderIssueExtras` (bulk "Also apply to N similar", Fill missing, Accept all of a type, Resolve
+  repeated conflicts; under the expanded issue), `renderFooterStart` (Exclude record, footer left),
+  `renderExclusionAction` (Restore link on excluded rows), `renderBottomBar` (progress, Verify,
+  Export). `useReviewSession` gives `submitChanges` (any change list, IDs added), `recheckNow`,
+  `select` and the saved/pending state for those actions.
+- Packages: none added.
+- Tests: 81 vitest tests in 7 files (41 new: `pages/ReviewPage.test.tsx` 15,
+  `lib/reviewHelpers.test.ts` 20, `components/review/SearchableDropdown.test.tsx` 5, one
+  Processing link test). Back end unchanged: 528 passed, 1 skipped. The first vitest run after a
+  cold start hit the known 60 s worker start timeout once; the re-run passed.
+- Decisions the docs did not cover (significant ones also above; API gaps in Open questions):
+  - "To fix" and "Warnings" in the strip are open issue counts (`open_errors`, `open_warnings`);
+    "Needs action" counts records (`to_fix + to_check`), as the mockup's numbers suggest.
+  - Save and next is blue, not gold: gold stays for Export (the screen's main action, M13).
+  - The action inputs start empty; list options are ordered by the value as written (or the
+    current value) before the user types.
+  - Possible duplicate shows the matching existing type names from issue details; the
+    side-by-side comparison is M14.

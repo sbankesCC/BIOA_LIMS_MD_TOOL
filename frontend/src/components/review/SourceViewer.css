@@ -1,0 +1,98 @@
+/* Source viewer: a white dialog over a dimmed page with the source text or page image. */
+
+.source-viewer__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(38, 41, 46, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  z-index: 20;
+}
+
+.source-viewer {
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  padding: var(--space-7);
+  width: 100%;
+  max-width: 760px;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.source-viewer__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+/* Location buttons when a value has several sources */
+.source-viewer__locations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.source-viewer__location {
+  font: inherit;
+  font-size: var(--font-size-small);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
+
+.source-viewer__location[aria-pressed="true"] {
+  background: var(--color-blue);
+  border-color: var(--color-blue);
+  color: var(--color-surface);
+}
+
+.source-viewer__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.source-viewer__where {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+/* The chunk text keeps its line breaks; the quote is highlighted in gold */
+.source-viewer__text {
+  white-space: pre-wrap;
+  background: var(--color-note);
+  border-radius: var(--radius-medium);
+  padding: var(--space-4);
+  font-size: var(--font-size-meta);
+}
+
+.source-viewer__text mark {
+  background: var(--color-highlight);
+  color: inherit;
+  outline: 2px solid var(--color-gold);
+  border-radius: 2px;
+}
+
+.source-viewer__quotes {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.source-viewer__quotes ul {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-6);
+}
+
+.source-viewer__image {
+  max-width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+}

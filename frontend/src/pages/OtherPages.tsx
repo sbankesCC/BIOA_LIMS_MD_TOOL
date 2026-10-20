@@ -1,8 +1,9 @@
-// Small screens around the main ones: the Runs list, the Admin placeholder, a run route
-// wrapper and "page not found". The Review and Admin screens come in later milestones.
+// Small screens around the main ones: the Runs list, the Admin placeholder, the run and
+// review route wrappers and "page not found". The Admin screens come in a later milestone.
 import { Link, useParams } from "react-router-dom";
 import { RunListSection } from "../components/RunListSection";
 import { ProcessingPage } from "./ProcessingPage";
+import { ReviewPage } from "./ReviewPage";
 
 /** Show every run, newest first. */
 export function RunsPage() {
@@ -21,6 +22,12 @@ export function RunsPage() {
 export function RunRoute() {
   const { runId = "" } = useParams();
   return <ProcessingPage key={runId} runId={runId} />;
+}
+
+/** Open a run's Review screen from its address; a new key resets the screen for another run. */
+export function ReviewRoute() {
+  const { runId = "" } = useParams();
+  return <ReviewPage key={runId} runId={runId} />;
 }
 
 /** Admin placeholder until the lookup list and reference data screens are built. */

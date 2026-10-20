@@ -1,0 +1,38 @@
+/* Review header: run state, name with the rename button, and versions. */
+
+.review-header__title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.review-header__title {
+  font-size: 30px;
+  line-height: 1.2;
+}
+
+.review-header__title-row .icon-button {
+  color: var(--color-blue);
+}
+
+.review-header__meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+}
+
+/* Rename form: the name box with Save and Cancel next to it */
+.review-header__rename {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.review-header__input {
+  font: inherit;
+  font-size: var(--font-size-h2);
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-small);
+  padding: var(--space-2) var(--space-3);
+  min-width: 320px;
+}

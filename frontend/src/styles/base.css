@@ -116,6 +116,33 @@ h2 {
   cursor: pointer;
 }
 
+/* Text-only action, styled like a link */
+.button-text {
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-blue);
+  background: none;
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Small square button with only an icon (it always has an aria-label) */
+.icon-button {
+  background: none;
+  border: none;
+  padding: var(--space-2);
+  cursor: pointer;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-small);
+  display: inline-flex;
+}
+
+.icon-button:hover {
+  background: var(--color-grey-tint);
+}
+
 /* Text hidden on screen but read by screen readers */
 .visually-hidden {
   position: absolute;

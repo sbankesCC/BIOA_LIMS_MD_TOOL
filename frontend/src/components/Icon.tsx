@@ -13,7 +13,12 @@ export type IconName =
   | "arrow-right"
   | "save"
   | "refresh"
-  | "eye";
+  | "eye"
+  | "ban"
+  | "info"
+  | "pencil"
+  | "chevron-left"
+  | "chevron-right";
 
 // The SVG path data of each icon (24 x 24 view box)
 const ICON_PATHS: Record<IconName, string[]> = {
@@ -33,6 +38,11 @@ const ICON_PATHS: Record<IconName, string[]> = {
   save: ["M5 4h11l3 3v13H5z", "M8 4v5h7V4", "M8 20v-6h8v6"],
   refresh: ["M20 11a8 8 0 1 0-2.3 5.7", "M20 4v7h-7"],
   eye: ["M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z", "M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6z"],
+  ban: ["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M5.6 5.6l12.8 12.8"],
+  info: ["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 11v5", "M12 8h.01"],
+  pencil: ["M4 20h4L19 9l-4-4L4 16z", "M13.5 6.5l4 4"],
+  "chevron-left": ["M15 6l-6 6 6 6"],
+  "chevron-right": ["M9 6l6 6-6 6"],
 };
 
 /** Props of an icon: which one, its size in pixels and its stroke width. */

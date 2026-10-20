@@ -1,0 +1,59 @@
+/* Searchable dropdown: a text box with a scrolling list of options under it. */
+
+.dropdown {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.dropdown__label {
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.dropdown__input {
+  font: inherit;
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-small);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+}
+
+/* The list floats over the content below it */
+.dropdown__list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  margin: var(--space-1) 0 0;
+  padding: var(--space-1) 0;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+  box-shadow: 0 6px 18px rgba(38, 41, 46, 0.12);
+}
+
+.dropdown__option {
+  padding: 6px var(--space-3);
+  cursor: pointer;
+}
+
+.dropdown__option--active,
+.dropdown__option:hover {
+  background: var(--color-blue-tint);
+}
+
+.dropdown__option[aria-selected="true"] {
+  font-weight: 700;
+}
+
+.dropdown__empty {
+  padding: 6px var(--space-3);
+  color: var(--color-text-muted);
+}

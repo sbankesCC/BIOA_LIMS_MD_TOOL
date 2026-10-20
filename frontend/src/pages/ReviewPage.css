@@ -1,0 +1,37 @@
+/* Review screen: a wider page than the others (the grid needs the width), the grid and the
+   panel side by side, and the pending-changes note. */
+
+.review {
+  max-width: 1680px;
+  gap: var(--space-5);
+}
+
+/* Grid alone, or grid plus a fixed-width panel on the right */
+.review__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.review__body--with-panel {
+  grid-template-columns: minmax(0, 1fr) 420px;
+}
+
+.review__pending {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  background: var(--color-blue-wash);
+  border-radius: var(--radius-medium);
+  padding: var(--space-3) var(--space-4);
+}
+
+.review__load-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  max-width: 760px;
+}

@@ -37,6 +37,9 @@
   --color-grey: #555b63;
   --color-grey-tint: #eef0f2;
 
+  /* Highlight of a quoted passage in the source viewer */
+  --color-highlight: #fbe3a6;
+
   /* Fonts: Clarkston fonts first, Libre Franklin (Google Fonts) as the web fallback */
   --font-body: "Proxima Nova", "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin", sans-serif;
   --font-heading: "Futura PT", "Franklin Gothic Medium", "Franklin Gothic", "Libre Franklin", sans-serif;

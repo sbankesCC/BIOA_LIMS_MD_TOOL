@@ -30,7 +30,7 @@ export function RunsTable({ runs }: RunsTableProps) {
           {runs.map((run) => (
             <tr key={run.run_id}>
               <td>
-                <Link to={`/runs/${run.run_id}`} className="runs-table__name">
+                <Link to={makeRunAddress(run)} className="runs-table__name">
                   {run.name}
                 </Link>
               </td>
@@ -48,6 +48,11 @@ export function RunsTable({ runs }: RunsTableProps) {
       </table>
     </div>
   );
+}
+
+/** Return the screen a run opens on: Review once it is in review, else its progress. */
+function makeRunAddress(run: RunSummary): string {
+  return hasRecords(run) ? `/runs/${run.run_id}/review` : `/runs/${run.run_id}`;
 }
 
 /** Return true when the run has reached review, so its record count means something. */

@@ -77,3 +77,8 @@
   gap: var(--space-3);
   max-width: 760px;
 }
+
+/* "Review the records": the gold main action as a link */
+.processing__review-link {
+  text-decoration: none;
+}
