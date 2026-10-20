@@ -276,6 +276,15 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   chunk per page (kind `paragraph`, since PDF text has no table structure). Constants in `ingest/chunking.py`.
 - **M3: loader detection.** A workbook is a loader when the first non-blank row of any sheet contains
   every DFD template header (extra columns allowed).
+- **M4: transform notes format.** `output.changes` holds plain clean-up notes ("trimmed whitespace",
+  "collapsed spaces", "removed control characters") and coded notes for validation, written as
+  `CODE: {"original": ..., "value": ...}` (codes FORMAT_CORRECTED, NOT_IN_LOOKUP, NUMBER_READ_FROM_TEXT,
+  DEFAULT_APPLIED). `transform/notes.py` reads them back (`find_transform_notes`).
+- **M4: lookup matching never guesses.** The normalized match must also be unique: two list values
+  that match after removing case, spaces and "°" (the seed Container Type list has such a pair) give
+  NOT_IN_LOOKUP. Booleans accept only Y or N in any case; words such as "Yes" are kept as written.
+- **M4: defaults** fill not-found fields (and found values that clean to empty), never conflicting
+  fields, and are applied literally (no lookup matching). An empty extracted field has origin `extracted`.
 
 ## Progress log
 
@@ -336,3 +345,34 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
     `document_id` (and `pages` for SCANNED_PAGES). Any reader error means FILE_UNREADABLE.
   - Ingest returns chunk text in `IngestResult`; the graph (M8) must keep only document and chunk
     references from it.
+
+### M4: Transformation and citation check (done)
+- `transform/cleaning.py`: `clean_text(text) -> CleanedText(value, notes)` (control characters removed,
+  ends trimmed, whitespace runs collapsed to one space). `transform/notes.py`: `TransformNote(code,
+  original, value)` with `to_text()`, `parse_transform_note`, `find_transform_notes(changes)`.
+- `transform/lookup_matching.py`: `match_lookup_value(value, allowed) -> MatchResult(value, note)`
+  (exact, then one case-insensitive, then one normalized match), `match_boolean_value(value)` (Y/N).
+- `transform/numbers.py`: `read_number(value) -> NumberResult(value, note)`.
+- `transform/transform.py`: `transform_records`/`transform_record(record, field_rules, lookup_lists)`,
+  `transform_field`, `build_field_output(rule, extraction, lookup_lists)`, and
+  `transform_value(rule, raw_value, lookup_lists) -> TransformedValue(value, changes)` (for M6, e.g.
+  a picked alternative). Writes only `output`; `user_edited` and `fixed` outputs are never touched.
+- `verification/citation_check.py`: `check_field_citations(extraction, chunks) -> CitationCheck | None`,
+  `check_record_citations(record, chunks)` (sets only `verification.citation_check`), `index_chunks`.
+- Tests: 234 total, 65 new (`unit/test_cleaning.py`, `test_lookup_matching.py`, `test_numbers.py`,
+  `test_transform.py`, `test_transform_notes.py`, `test_citation_check.py`).
+- Decisions the docs did not cover (significant ones also above):
+  - Numbers: a plain number (`-20`, `2.50`) is kept unchanged. Text with exactly one number gives it
+    as plain digits (thousands commas dropped, exponent expanded, written digits kept). No number or
+    several (`2-8`, `1 x 10^4`) keeps the text unchanged with no note; validation flags WRONG_TYPE.
+    A sign counts only at the start or after a space.
+  - Multi-value parts are cleaned one by one; empty parts are dropped; each clean-up note appears once.
+  - NOT_IN_LOOKUP is also recorded as a transform note (same issue key as validation's lookup check).
+  - Citation check: comparisons drop all whitespace and ignore case. An unknown chunk ID or any quote
+    missing from its chunk gives `not_verified`. A value found in a checked text quote is `verified`
+    even when other pairs are on page images; a value found only in image quotes is `not_checkable`.
+    A list value needs every entry in a checked quote. A conflict is checked per alternative (any
+    `not_verified` wins, then `not_checkable`). A not-found field gets no result (null).
+  - To watch in M8/M10: Word table cells are joined with ` | ` in chunk text, so a table-row quote
+    without the pipes fails the citation check. The prompt shows the chunk text, so quotes should
+    keep them; check this with the eval cases.
