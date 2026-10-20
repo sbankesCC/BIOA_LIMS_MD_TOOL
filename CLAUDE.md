@@ -18,7 +18,7 @@ Run safe commands freely; stop and confirm anything risky.
 - Git, read-only: `git status`, `git diff`, `git log`, `git show`, `git blame`, `git branch`
 - Git, local writes: `git add`, `git commit`, `git stash`, `git switch`
 - Version checks: `python --version`, `uv --version`, `node --version`, `npm --version`, `git --version`
-- Build, test, run: `uv sync`, `uv run pytest`, `uv run ruff`, `uv run pyright`, `uv run uvicorn`, `npm run`, `npm test`
+- Build, test, run: `uv sync`, `uv run ...` (any), `npm run`, `npm test`
 - Files: `mkdir`, `touch`, `cp -n`, `mv -n` (never overwrite without checking)
 - Adding packages listed in the approved `PLAN.md`: `uv add`, `npm install`, `npm ci`
 

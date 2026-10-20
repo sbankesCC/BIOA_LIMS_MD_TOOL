@@ -46,6 +46,7 @@
       "Bash(uv run pyright *)",
       "Bash(uv run pyright)",
       "Bash(uv run uvicorn *)",
+      "Bash(uv run *)",
       "Bash(uv add *)",
       "Bash(npm install)",
       "Bash(npm install *)",
@@ -62,8 +63,7 @@
       "Bash(rm *)",
       "Bash(curl *)",
       "Bash(wget *)",
-      "Bash(docker *)",
-      "Bash(uv run *)"
+      "Bash(docker *)"
     ],
     "deny": [
       "Bash(sudo *)",
