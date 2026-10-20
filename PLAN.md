@@ -335,7 +335,8 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   checks the record name field is also flagged.
 - **Review 2026-10-21: value as written column.** The audit Values sheet has "Value as written" just
   before "Exported value" (CONTRACTS §8 updated): the extraction value, a list joined with the field's
-  separator; for a conflict, every alternative joined the same way; blank when not found or not extracted.
+  separator; for a conflict, every alternative as written, one per line (changed during M8; a
+  multi-value alternative is itself joined with the separator); blank when not found or not extracted.
 
 ## Progress log
 

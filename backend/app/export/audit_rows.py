@@ -191,21 +191,21 @@ def build_value_row(
 
 
 def find_written_text(rule: FieldRule, stored: StoredField | None) -> str | None:
-    """Return the value as written in the document; a conflict's alternatives are all listed.
+    """Return the value as written in the document; a conflict lists each alternative.
 
-    Several values (a list, or the alternatives) are joined with the field's separator, as for
-    multi-value fields. A field that was not found or not extracted gives None (an empty cell).
+    A list value is joined with the field's separator. A conflict's alternatives go one per
+    line. A field that was not found or not extracted gives None (an empty cell).
     """
     if stored is None or stored.extraction is None:
         return None
     extraction = stored.extraction
     if extraction.value is not None:
         return format_written(rule, extraction.value)
-    # A conflicting field has no single value: every alternative as written is listed
+    # A conflicting field has no single value: every alternative as written, one per line
     texts = [
         format_written(rule, alternative.value) or "" for alternative in extraction.alternatives
     ]
-    return format_written(rule, texts) if texts else None
+    return LINE_BREAK.join(texts) if texts else None
 
 
 def find_field_evidence(stored: StoredField | None) -> list[Evidence]:

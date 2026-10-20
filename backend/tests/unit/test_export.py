@@ -344,16 +344,30 @@ def test_written_value_joins_a_multi_value_with_the_field_separator(bundle: Conf
     assert find_written_text(rule, stored) == f"syn-1{rule.separator}syn-2"
 
 
-def test_written_value_of_a_conflict_lists_every_alternative(bundle: ConfigBundle) -> None:
-    """A conflicting field shows every alternative as written, joined like multi-values."""
+def test_written_value_of_a_conflict_lists_each_alternative_on_its_own_line(
+    bundle: ConfigBundle,
+) -> None:
+    """A multi-value conflict shows one alternative per line, each list joined as usual."""
     rule = multi_value_rule(bundle)
     evidence = [Evidence(chunk_id=CHUNK_ID, quote=QUOTE)]
     alternatives = [
-        Alternative(value=["syn-1"], evidence=evidence),
-        Alternative(value=["syn-2"], evidence=evidence),
+        Alternative(value=["syn-1", "syn-2"], evidence=evidence),
+        Alternative(value=["syn-3"], evidence=evidence),
     ]
     stored = stored_extraction(ExtractedField(status="conflicting", alternatives=alternatives))
-    assert find_written_text(rule, stored) == f"syn-1{rule.separator}syn-2"
+    assert find_written_text(rule, stored) == f"syn-1{rule.separator}syn-2\nsyn-3"
+
+
+def test_written_value_of_a_single_value_conflict_is_one_per_line(bundle: ConfigBundle) -> None:
+    """A conflict on a single-value field lists its alternatives one per line too."""
+    rule = find_rule(bundle.field_rules, lambda rule: not rule.multi_value)
+    evidence = [Evidence(chunk_id=CHUNK_ID, quote=QUOTE)]
+    alternatives = [
+        Alternative(value="syn-a", evidence=evidence),
+        Alternative(value="syn-b", evidence=evidence),
+    ]
+    stored = stored_extraction(ExtractedField(status="conflicting", alternatives=alternatives))
+    assert find_written_text(rule, stored) == "syn-a\nsyn-b"
 
 
 def test_written_value_is_blank_when_not_found_or_not_extracted(bundle: ConfigBundle) -> None:
