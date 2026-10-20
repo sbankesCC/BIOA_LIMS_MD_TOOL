@@ -1,7 +1,8 @@
 """Citation check (CONTRACTS §2, code): checks quoted sources against the cited chunks.
 
 Per evidence pair, the quote must appear in its chunk; per field, the value must appear in at
-least one quote. Both ignore case and whitespace. Quotes on a scanned page image cannot be checked.
+least one quote. Both ignore case and whitespace; table-cell separators (`|`, which Word table
+chunks put between cells) count as whitespace. Quotes on a scanned page image cannot be checked.
 Writes only `verification.citation_check` of each field.
 """
 
@@ -12,10 +13,14 @@ from app.contracts.extraction import Evidence, ExtractedField, ExtractedValue
 from app.contracts.record import FieldVerification, StoredField, StoredRecord
 from app.contracts.verification import CitationCheck
 
+# Word table chunks join cells with " | ", so a quoted row may be written with or without it
+TABLE_CELL_SEPARATOR = "|"
+
 
 def normalize_for_citation(text: str) -> str:
-    """Return the text without whitespace and without case, for a citation comparison."""
-    return "".join(text.split()).casefold()
+    """Return the text without whitespace, cell separators or case, for a citation comparison."""
+    without_separators = text.replace(TABLE_CELL_SEPARATOR, " ")
+    return "".join(without_separators.split()).casefold()
 
 
 def contains_text(container: str, text: str) -> bool:

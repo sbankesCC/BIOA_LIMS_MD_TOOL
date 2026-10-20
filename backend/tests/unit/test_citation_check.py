@@ -145,3 +145,22 @@ def test_record_check_sets_only_citation_result() -> None:
         citation_check="verified", verdict="unsupported", note="synthetic note"
     )
     assert result.fields["synthetic_blank"] == blank_field
+
+
+def test_table_row_quote_without_pipes_is_verified() -> None:
+    """A quote of a Word table row written without the cell separators still matches."""
+    quote = Evidence(
+        chunk_id="doc01-c001", quote="Synthetic antibody 1 mL vial Vendor Syn Cat. SYN-1 or SYN-2"
+    )
+    assert check_field_citations(found("Vendor Syn", [quote]), CHUNKS) == "verified"
+
+
+def test_value_with_cells_separated_by_pipes_still_matches() -> None:
+    """A value that spans cells and keeps the pipes is found in the quote."""
+    value = "1 mL vial | Vendor Syn"
+    assert check_field_citations(found(value, [ROW_QUOTE]), CHUNKS) == "verified"
+
+
+def test_value_spanning_cells_without_pipes_matches_a_quote_with_pipes() -> None:
+    """A value written across two cells without the pipe is found in a quote that has it."""
+    assert check_field_citations(found("1 mL vial Vendor Syn", [ROW_QUOTE]), CHUNKS) == "verified"
