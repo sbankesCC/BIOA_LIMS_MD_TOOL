@@ -1,0 +1,11 @@
+{
+  "notes": "Synthetic. The harness plants this wrong value into the first extraction response; extraction verification should report it.",
+  "errors": [
+    {
+      "record": "Synthetic Coating Antibody",
+      "field": "manufacturer",
+      "planted_value": "Synthetic Vendor Two",
+      "expected_verdict": "contradicted"
+    }
+  ]
+}

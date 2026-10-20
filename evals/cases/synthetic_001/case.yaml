@@ -1,0 +1,8 @@
+# Synthetic eval case: a method and a worksheet, made up for the harness (no real BioA data).
+id: synthetic_001
+description: "Synthetic: method reagent table + worksheet sheet; one storage conflict, one record only in the worksheet, one excluded instrument"
+source: synthetic
+tags: [synthetic, conflict, excel_source, reextraction]
+labeled_by: "Claude Code (synthetic case, M10)"
+labeled_on: "2026-10-20"
+field_rules_version: "0.3"

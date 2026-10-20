@@ -352,6 +352,27 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   for every candidate with a plain reason, so the record gets a yellow POSSIBLE_DUPLICATE and the
   user checks it by hand. This result is cached like any other (the cache key does not change), so
   a re-check does not call the judge again for that record.
+- **M10: eval harness drives the graph directly** (M9 does not exist yet; done before M9 at your
+  request). Each run is stored with `make_run_info` and processed with `run_processing`, like the
+  API will. Runs work in a temporary folder (run store, review DB, checkpoints), never STORAGE_DIR,
+  REVIEW_DB or CHECKPOINT_DB; `--work-dir` keeps the files. Seed lookup lists, no reference data.
+- **M10: fake or real LLM per case.** A case with a `fake_llm/` folder (`<node>.<attempt>.json`,
+  read by `load_fake_replies`) runs on those replies with fixed limits (no retries, one
+  re-extraction, no caps), so its scores never depend on `.env`; `--real-llm` uses LLM_PROVIDER
+  and the settings' limits instead. No new setting.
+- **M10: seeded errors are planted by the harness.** `EvalLLMClient` wraps the client and puts
+  each seeded `planted_value` (status found, keeping the field's or the name's evidence) into the
+  first extraction response, so seeding works with the real provider too. A seeded error counts as
+  caught when any verification reply gives its `expected_verdict`; one that could not be planted
+  is reported and not scored. "Correct values wrongly flagged" = verification findings on labeled
+  values that end up correct, seeded fields left out.
+- **M10: value comparison.** Expected values are compared with whitespace collapsed against the
+  value as written or the exported value (either counts); lists as sets; conflicts by their
+  alternatives. The record's name is also the name field's label. Unscored fields are in
+  `evals/scoring.yaml` (description), not in code.
+- **M10: citations** are scored per expected source: the record's "found in" chunks must include
+  the document (file name) and, when labeled, the page and the section; a section label matches a
+  Word heading path that contains it or an Excel sheet name.
 
 ## Progress log
 
@@ -634,3 +655,31 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
     `ProcessingContext` with the run's versions, then call `run_processing` in a background thread
     with `settings.require_path("CHECKPOINT_DB")`. Status is read from the review DB. Retry: a new
     run from the same uploads with `retry_of`. `ExportContext.models = run.models`.
+
+### M10: Eval harness foundation (done)
+- `backend/app/evals/`: `__main__.py` (`uv run python -m app.evals run --suite cases` from the repo
+  root; `--suite` is a folder under `evals/` or an absolute path; `--runs` (3), `--real-llm`,
+  `--reports-dir`, `--work-dir`), `case_loader.py` (cases, warnings for a field-rules version
+  mismatch and unknown field keys, broken cases reported as problems, `evals/scoring.yaml`),
+  `seeding.py` (`EvalLLMClient`), `runner.py` (one workspace per suite, each run through the
+  graph), `scoring.py` (records, fields, status, citations, seeded errors, wrongly flagged),
+  `report.py` (`<timestamp>_<suite>.json` + `.csv` in `evals/reports/`), `suite.py` (`run_suite`,
+  console summary). `contracts/eval_case.py`: expected-extraction and seeded-error models (§9).
+- `evals/cases/synthetic_001/`: synthetic Word method + Excel worksheet (committed, rebuilt by its
+  `make_documents.py`), labels written from the documents, one seeded error, fake replies (one
+  re-extraction for a missed record; one deliberate miss, so fields score 37 of 38).
+  `evals/reports/*` is in `.gitignore`; `evals/README.md` documents the run.
+- Harness run on the synthetic case: 3 runs in review, recall/precision 1.0, fields and status
+  0.974, citations 1.0, seeded errors caught 1.0, correct values flagged 0.0.
+- Tests: 482 total (481 passed, 1 skipped), 41 new (`unit/test_eval_scoring.py`,
+  `test_eval_case_loader.py`, `test_eval_seeding.py`, `test_eval_report.py`,
+  `integration/test_evals.py`).
+- Decisions the docs did not cover (significant ones also above):
+  - `expected_loader.xlsx` and excluded items are not scored yet (no score is defined for them).
+  - Eval run IDs are `run_eval_0001`, ... per suite run; runs are named after the case ID.
+  - A run that raises is reported with its error and the other runs go on; a missing setting,
+    broken config or missing suite folder stops the command with its plain message.
+  - The command needs CLIENT_CONFIG_DIR (the local `.env` has none, so the run above set it on
+    the command line). The editable install was stale (no `.pth`); `uv sync
+    --reinstall-package consumable-type-extractor` made `app` importable from the repo root.
+- For M9: nothing in the API depends on the harness; evals stay outside the API.

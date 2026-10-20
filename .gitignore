@@ -6,3 +6,7 @@ node_modules/
 .pytest_cache/
 .ruff_cache/
 *.egg-info/
+
+# Eval reports are generated output (the folder itself is kept)
+evals/reports/*
+!evals/reports/.gitkeep

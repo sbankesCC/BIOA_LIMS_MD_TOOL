@@ -1,0 +1,7 @@
+# Eval scoring settings, read by the eval harness (`uv run python -m app.evals run --suite cases`).
+# Field keys are the keys in the client's field_rules.yaml.
+
+# Fields left out of automatic scoring, with the reason. They stay in the case labels for people.
+unscored_fields:
+  - key: description
+    reason: "Free text; reviewed by a person (evals/README.md)"

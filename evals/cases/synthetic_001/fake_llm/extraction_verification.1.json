@@ -1,0 +1,25 @@
+{
+  "field_findings": [
+    {
+      "record_id": "rec_0001",
+      "field": "manufacturer",
+      "verdict": "contradicted",
+      "sources": [
+        "doc01-c002"
+      ],
+      "note": "synthetic: the cited row names a different vendor"
+    }
+  ],
+  "record_findings": [],
+  "missed_candidates": [
+    {
+      "name_as_written": "Synthetic Detection Reagent",
+      "sources": [
+        "doc02-sReagents-r1-3"
+      ],
+      "reason": "synthetic: listed in the worksheet but not extracted"
+    }
+  ],
+  "excluded_item_challenges": [],
+  "unreported_conflicts": []
+}

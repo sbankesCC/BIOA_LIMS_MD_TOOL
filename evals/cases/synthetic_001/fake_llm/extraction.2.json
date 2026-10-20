@@ -1,0 +1,359 @@
+{
+  "records": [
+    {
+      "record_ref": "rec_0001",
+      "found_in": [
+        "doc01-c002",
+        "doc02-sReagents-r1-3"
+      ],
+      "record_summary": "synthetic: coating antibody from the 6.2 reagent table and the worksheet",
+      "record_warning": null,
+      "fields": {
+        "consumable_type": {
+          "status": "found",
+          "value": "Synthetic Coating Antibody",
+          "evidence": [
+            {
+              "chunk_id": "doc01-c002",
+              "quote": "Synthetic Coating Antibody | Synthetic Vendor One | SYN-1001 | 1 mL vial | -20 °C"
+            }
+          ],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "description": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "consumable_class": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "storage_condition": {
+          "status": "conflicting",
+          "value": null,
+          "evidence": [],
+          "alternatives": [
+            {
+              "value": "-20 °C",
+              "evidence": [
+                {
+                  "chunk_id": "doc01-c002",
+                  "quote": "Synthetic Coating Antibody | Synthetic Vendor One | SYN-1001 | 1 mL vial | -20 °C"
+                }
+              ]
+            },
+            {
+              "value": "2–8 °C",
+              "evidence": [
+                {
+                  "chunk_id": "doc02-sReagents-r1-3",
+                  "quote": "Synthetic Coating Antibody | 2–8 °C | SYN-LOT-01"
+                }
+              ]
+            }
+          ],
+          "allows_equivalent": false,
+          "warning": "synthetic: method and worksheet give different storage conditions"
+        },
+        "critical": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "expected_amount": {
+          "status": "found",
+          "value": "1",
+          "evidence": [
+            {
+              "chunk_id": "doc01-c002",
+              "quote": "Synthetic Coating Antibody | Synthetic Vendor One | SYN-1001 | 1 mL vial | -20 °C"
+            }
+          ],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "expected_amount_unit": {
+          "status": "found",
+          "value": "mL",
+          "evidence": [
+            {
+              "chunk_id": "doc01-c002",
+              "quote": "Synthetic Coating Antibody | Synthetic Vendor One | SYN-1001 | 1 mL vial | -20 °C"
+            }
+          ],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "expected_no_of_containers": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "container_tracking_method": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "manage_container_inventory_flag": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "container_type": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "container_type_size": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "container_type_unit": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "manufacturer": {
+          "status": "found",
+          "value": "Synthetic Vendor One",
+          "evidence": [
+            {
+              "chunk_id": "doc01-c002",
+              "quote": "Synthetic Coating Antibody | Synthetic Vendor One | SYN-1001 | 1 mL vial | -20 °C"
+            }
+          ],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "supplier": {
+          "status": "found",
+          "value": "Synthetic Vendor One",
+          "evidence": [
+            {
+              "chunk_id": "doc01-c002",
+              "quote": "Synthetic Coating Antibody | Synthetic Vendor One | SYN-1001 | 1 mL vial | -20 °C"
+            }
+          ],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "catalog_no": {
+          "status": "found",
+          "value": [
+            "SYN-1001"
+          ],
+          "evidence": [
+            {
+              "chunk_id": "doc01-c002",
+              "quote": "Synthetic Coating Antibody | Synthetic Vendor One | SYN-1001 | 1 mL vial | -20 °C"
+            }
+          ],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "target_concentration": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        }
+      }
+    },
+    {
+      "record_ref": "R3",
+      "found_in": [
+        "doc02-sReagents-r1-3"
+      ],
+      "record_summary": "synthetic: detection reagent from the worksheet",
+      "record_warning": null,
+      "fields": {
+        "consumable_type": {
+          "status": "found",
+          "value": "Synthetic Detection Reagent",
+          "evidence": [
+            {
+              "chunk_id": "doc02-sReagents-r1-3",
+              "quote": "Synthetic Detection Reagent | -20 °C | SYN-LOT-02"
+            }
+          ],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "description": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "consumable_class": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "storage_condition": {
+          "status": "found",
+          "value": "-20 °C",
+          "evidence": [
+            {
+              "chunk_id": "doc02-sReagents-r1-3",
+              "quote": "Synthetic Detection Reagent | -20 °C | SYN-LOT-02"
+            }
+          ],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "critical": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "expected_amount": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "expected_amount_unit": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "expected_no_of_containers": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "container_tracking_method": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "manage_container_inventory_flag": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "container_type": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "container_type_size": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "container_type_unit": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "manufacturer": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "supplier": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "catalog_no": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        },
+        "target_concentration": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "allows_equivalent": false,
+          "warning": null
+        }
+      }
+    }
+  ],
+  "excluded_items": []
+}
