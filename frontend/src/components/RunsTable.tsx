@@ -1,9 +1,11 @@
-// The runs table: name, started, status, record count and what needs action (UI_SPEC §4.1).
-// Used for "Recent runs" on the Start screen and for the Runs page.
+// The runs table: name, started, status (or the "Exported · export N" badge), record count and
+// what needs action, with a failed run's reason (UI_SPEC §4.1, mockup 1). Used for "Recent
+// runs" on the Start screen and for the Runs page.
 import { Link } from "react-router-dom";
 import type { RunSummary } from "../api/types";
 import { formatStarted } from "../lib/format";
 import { isProcessing } from "../lib/processingSteps";
+import { Icon } from "./Icon";
 import { StatusBadge } from "./StatusBadge";
 import "./RunsTable.css";
 
@@ -36,7 +38,7 @@ export function RunsTable({ runs }: RunsTableProps) {
               </td>
               <td>{formatStarted(run.created_at)}</td>
               <td>
-                <StatusBadge status={run.status} isVerified={run.is_verified} />
+                <RunStatus run={run} />
               </td>
               <td>{hasRecords(run) ? run.counts.records : "—"}</td>
               <td>
@@ -60,11 +62,33 @@ function hasRecords(run: RunSummary): boolean {
   return run.status !== "failed" && !isProcessing(run.status);
 }
 
-/** Show what a run needs: retry when failed, nothing while processing, else its open issues. */
+/** Show a run in review that was exported as "Exported · export N", else its status badge. */
+function RunStatus({ run }: { run: RunSummary }) {
+  const latest = run.latest_export;
+  if (latest === null || run.status !== "in_review") {
+    return <StatusBadge status={run.status} isVerified={run.is_verified} />;
+  }
+  // A draft export (not verified) says so; a verified export is green
+  return (
+    <span className={`status-badge status-badge--${latest.is_draft ? "blue" : "green"}`}>
+      <Icon name="download" size={14} strokeWidth={2.2} />
+      {`Exported · export ${latest.number}${latest.is_draft ? " (draft)" : ""}`}
+    </span>
+  );
+}
+
+/** Show what a run needs: the failure reason and Retry, nothing while processing, else its open issues. */
 function NeedsAction({ run }: { run: RunSummary }) {
-  // A failed run: its page shows the reason and the Retry button
+  // A failed run: the API's reason, and its page has the Retry button
   if (run.status === "failed") {
-    return <Link to={`/runs/${run.run_id}`}>See why and retry</Link>;
+    if (run.failure_reason === null) {
+      return <Link to={`/runs/${run.run_id}`}>See why and retry</Link>;
+    }
+    return (
+      <span>
+        {run.failure_reason} · <Link to={`/runs/${run.run_id}`}>Retry</Link>
+      </span>
+    );
   }
   if (isProcessing(run.status)) {
     return <span className="muted">—</span>;

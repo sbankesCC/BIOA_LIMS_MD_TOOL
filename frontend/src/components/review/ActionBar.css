@@ -81,7 +81,7 @@
   color: var(--color-text-muted);
 }
 
-/* Undo note of the last bulk action */
+/* Undo note: the newest undoable bulk action, earlier ones folded underneath */
 .action-bar__undo {
   display: flex;
   flex-wrap: wrap;
@@ -91,6 +91,31 @@
   border-radius: var(--radius-medium);
   padding: var(--space-2) var(--space-4);
   font-size: var(--font-size-meta);
+}
+
+.action-bar__undo-item {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.action-bar__undo-earlier {
+  flex-basis: 100%;
+}
+
+.action-bar__undo-earlier summary {
+  cursor: pointer;
+  color: var(--color-blue);
+  font-weight: 600;
+}
+
+.action-bar__undo-earlier ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
 }
 
 /* Post-export state */

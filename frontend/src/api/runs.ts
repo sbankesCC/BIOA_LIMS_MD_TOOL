@@ -1,8 +1,9 @@
-// Run calls used by the Start and Processing screens: list, start, read and retry runs.
+// Run calls used by the Start and Processing screens: list, start, read and retry runs, and
+// the upload limits shown on the Start screen.
 // Each returns the API's data or throws an ApiError (see errors.ts).
 import type { ApiClient } from "./client";
 import { readApiResult } from "./errors";
-import type { RunDetail, RunSummary, StartRunResponse } from "./types";
+import type { RunDetail, RunSummary, StartRunResponse, UploadLimits } from "./types";
 
 /** Return every run, newest first. */
 export function listRuns(client: ApiClient): Promise<RunSummary[]> {
@@ -40,4 +41,9 @@ export function buildRunForm(name: string, files: File[]): FormData {
     form.append("files", file, file.name);
   }
   return form;
+}
+
+/** Return the upload limits (null fields: no limit is set). */
+export function getUploadLimits(client: ApiClient): Promise<UploadLimits> {
+  return readApiResult(client.GET("/settings/upload-limits"));
 }

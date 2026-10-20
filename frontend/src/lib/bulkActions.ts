@@ -1,9 +1,9 @@
 // Bulk actions of the resolution panel (UI_SPEC §4.3 "Bulk actions"): which ones an issue
-// offers, the bulk-preview request of each, and the one bulk change list sent after the user
-// confirms (CONTRACTS §6: every change shares one bulk_id, so the action is undone together).
+// offers, the bulk-preview request of each, the one bulk change list sent after the user
+// confirms (CONTRACTS §6: one bulk_id, undone together), and how a saved one is described.
 import type { BulkPreviewRequest } from "../api/review";
-import type { BulkMode, BulkPreviewMatch, ReviewCell, ReviewRow } from "../api/types";
-import type { IssueChoice, NewChange } from "./issueActions";
+import type { BulkActionSummary, BulkMode, BulkPreviewMatch, ReviewCell, ReviewRow } from "../api/types";
+import { findShortLabel, type IssueChoice, type NewChange } from "./issueActions";
 import { findCell, type IssueRef } from "./reviewIssues";
 
 /** A bulk action the panel can offer for the selected issue. */
@@ -173,5 +173,31 @@ export function describeOfferTitle(offer: BulkOffer, shortLabel: string): string
       return `Accept all “${shortLabel}” warnings`;
     default:
       return `Resolve repeated conflicts: use “${offer.value ?? ""}”`;
+  }
+}
+
+/** Return "1 record" or "N records". */
+function describeRecordCount(count: number): string {
+  return `${count} ${count === 1 ? "record" : "records"}`;
+}
+
+/** Describe a saved bulk action from the API's list, e.g. "Set Amount in 2 records". */
+export function describeBulkAction(action: BulkActionSummary, columnOf: (field: string) => string): string {
+  const records = describeRecordCount(action.record_count);
+  const column = action.field !== null ? columnOf(action.field) : "values";
+  switch (action.change_type) {
+    case "set_value":
+      return `Set ${column} in ${records}`;
+    case "pick_alternative":
+      return `Resolved ${column} conflicts in ${records}`;
+    case "accept_warning": {
+      // The issue code names the warning type; an unknown code is described plainly
+      const label = action.issue_code !== null ? findShortLabel(action.issue_code) : null;
+      return label !== null ? `Accepted “${label}” warnings in ${records}` : `Accepted warnings in ${records}`;
+    }
+    case "exclude_record":
+      return `Excluded ${records}`;
+    default:
+      return `Restored ${records}`;
   }
 }

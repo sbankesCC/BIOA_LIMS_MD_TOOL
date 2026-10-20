@@ -4,7 +4,7 @@
 import type { ReactNode } from "react";
 import type { CellAlternative, IssueSummary, ReviewCell, RunField } from "../../api/types";
 import type { ActionKind, ActionOption, ActionState } from "../../lib/issueActions";
-import { isNoteRequired } from "../../lib/issueActions";
+import { needsDocumentsCheck } from "../../lib/issueActions";
 import { formatLocation } from "../../lib/sourceLocation";
 import { Icon } from "../Icon";
 import { ValueInput } from "./ValueInput";
@@ -156,11 +156,13 @@ function listOptions(props: IssueActionProps): OptionItem[] {
   if (kind === "optional_not_found") {
     items.push({ option: "leave_blank", label: "Leave blank" });
   }
-  // Only warnings can be accepted; individual-review ones after the source was opened
+  // Only warnings can be accepted; individual-review ones after the source was opened (or,
+  // for a run issue without sources, after the user confirms they checked the documents)
   if (issue !== null && issue.severity === "warning" && kind !== "optional_not_found") {
-    const isViewed = isSourceViewed || state.hasCheckedDocuments;
+    const isManualCheck = needsDocumentsCheck(issue, isRunIssue);
+    const isViewed = isManualCheck ? state.hasCheckedDocuments : isSourceViewed;
     const needsSource = issue.individual_review && !isViewed;
-    const reason = isRunIssue ? "Confirm you checked the documents first." : "Open the source first.";
+    const reason = isManualCheck ? "Confirm you checked the documents first." : "Open the source first.";
     items.push({ option: "accept", label: acceptLabel, disabledReason: needsSource ? reason : null });
   }
   const canChange = kind === "review_source" || kind === "accept_or_change" || kind === "optional_not_found";
@@ -175,16 +177,14 @@ function listOptions(props: IssueActionProps): OptionItem[] {
 
 /** Accept / Change / Mark not found / Leave blank options, with the inputs they need. */
 function OptionsAction(props: IssueActionProps) {
-  const { kind, issue, state, onState, isRunIssue } = props;
+  const { issue, state, onState, isRunIssue } = props;
   const items = listOptions(props);
-  const isNoteShown = state.option === "accept" && (issue?.individual_review === true || isNoteRequired(kind));
+  const isNoteRequired = issue?.note_required === true;
+  const isNoteShown = state.option === "accept" && (issue?.individual_review === true || isNoteRequired);
   return (
     <div className="issue-action__group">
-      {isRunIssue && issue?.individual_review && (
-        <label className="issue-action__check">
-          <input type="checkbox" checked={state.hasCheckedDocuments} onChange={(event) => onState({ hasCheckedDocuments: event.target.checked })} />
-          I checked the documents for these items
-        </label>
+      {issue !== null && needsDocumentsCheck(issue, isRunIssue) && (
+        <DocumentsCheck state={state} onState={onState} />
       )}
       <fieldset className="issue-action__options">
         <legend className="issue-action__legend">What do you want to do?</legend>
@@ -196,12 +196,25 @@ function OptionsAction(props: IssueActionProps) {
       {(state.option === "change" || state.option === "other_value") && <ValueField {...props} />}
       {isNoteShown && (
         <TextArea
-          label={isNoteRequired(kind) ? "Note: what you did (required)" : "Note (optional)"}
+          label={isNoteRequired ? "Note: what you did (required)" : "Note (optional)"}
           value={state.note}
           onChange={(note) => onState({ note })}
         />
       )}
     </div>
+  );
+}
+
+/** A run issue that cites no passage: say so, and let the user confirm they checked the documents. */
+function DocumentsCheck({ state, onState }: { state: ActionState; onState: (patch: Partial<ActionState>) => void }) {
+  return (
+    <>
+      <p className="issue-action__note">No source passage was recorded for these items. Check the documents yourself, then say in the note what you did.</p>
+      <label className="issue-action__check">
+        <input type="checkbox" checked={state.hasCheckedDocuments} onChange={(event) => onState({ hasCheckedDocuments: event.target.checked })} />
+        I checked the documents for these items
+      </label>
+    </>
   );
 }
 

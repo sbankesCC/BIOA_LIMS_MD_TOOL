@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReviewView } from "../api/types";
 import { makeRunDetail, renderApp } from "../test/helpers";
 import {
+  makeFieldList,
   makeIssue,
   makeLocation,
   makeRecordingFetch,
@@ -55,6 +56,18 @@ describe("Review grid", () => {
     // Action needed is an icon and a word
     expect(within(table).getByText("Fix")).not.toBeNull();
     expect(within(table).getByText("Check")).not.toBeNull();
+  });
+
+  it("the pinned name column is the field flagged is_record_name", async () => {
+    const fields = makeFieldList().fields.map((field) => ({ ...field, is_record_name: field.key === "storage" }));
+    const { fetchMock } = makeRecordingFetch(makeReviewHandler(makeTwoRecordView, (_method, path) =>
+      path === "/runs/run_0001/fields" ? { status: 200, body: { ...makeFieldList(), fields } } : null,
+    ));
+    renderApp(REVIEW_PATH, fetchMock);
+    const table = await screen.findByRole("table");
+    const headers = within(table).getAllByRole("columnheader").map((header) => header.textContent);
+    expect(headers).toEqual(["Action needed", "Storage", "Found in", "Item Name", "Amount", "Later Field"]);
+    expect(within(table).getAllByRole("columnheader")[1].className).toContain("records-grid__pin--name");
   });
 
   it("shows the placeholder of a blank-for-now field as read-only text", async () => {
@@ -237,9 +250,9 @@ describe("Resolution panel", () => {
     expect(body.changes[0]).toMatchObject({ type: "accept_warning", issue_id: "iss_citation", source_viewed: true, note: null });
   });
 
-  it("a split warning needs a note before it can be accepted", async () => {
+  it("a warning with note_required needs a note before it can be accepted", async () => {
     const view = makeTwoRecordView();
-    view.rows[1].record_issues = [makeIssue({ issue_id: "iss_split", code: "SHOULD_BE_SPLIT", severity: "warning", individual_review: true, message: "May cover several consumables." })];
+    view.rows[1].record_issues = [makeIssue({ issue_id: "iss_split", code: "SHOULD_BE_SPLIT", severity: "warning", individual_review: true, note_required: true, message: "May cover several consumables." })];
     const chunk = { chunk_id: "rec_0002-c1", kind: "paragraph", text: "synthetic text", location: makeLocation("rec_0002-c1") };
     const { fetchMock, calls } = makeRecordingFetch(makeReviewHandler(() => view, (_method, path) => (path === "/runs/run_0001/chunks/rec_0002-c1" ? { status: 200, body: chunk } : null)));
     renderApp(REVIEW_PATH, fetchMock);
@@ -276,6 +289,69 @@ describe("Resolution panel", () => {
     fireEvent.click(within(panel).getByRole("button", { name: "Save and next issue" }));
     const alert = await within(panel).findByRole("alert");
     expect(alert.textContent).toContain("is not an allowed value for Storage");
+  });
+});
+
+describe("Run issue sources", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  /** A run issue that needs individual review and a note, with these cited locations. */
+  function makeMissedIssue(sources: ReturnType<typeof makeLocation>[]) {
+    return makeIssue({
+      issue_id: "iss_missed",
+      code: "MISSED_CANDIDATES_UNRESOLVED",
+      severity: "warning",
+      individual_review: true,
+      note_required: true,
+      message: "These items may be missing from the results: Synthetic Wash Strip.",
+      sources,
+    });
+  }
+
+  /** Open the run issue from the banner and return the panel. */
+  async function openRunIssue() {
+    const banner = await screen.findByRole("region", { name: "Run messages" });
+    fireEvent.click(within(banner).getByRole("button", { name: /Review/ }));
+    return screen.findByRole("complementary", { name: "Resolution panel" });
+  }
+
+  it("opens the issue's cited passage in the source viewer and accepts only after that", async () => {
+    const location = makeLocation("doc01-c004", { section: "6.2 Plate washing" });
+    const view = makeView(makeTwoRecordView().rows, [makeMissedIssue([location])]);
+    const chunk = { chunk_id: "doc01-c004", kind: "paragraph", text: "Wash with Synthetic Wash Strip.", location };
+    const { fetchMock, calls } = makeRecordingFetch(makeReviewHandler(() => view, (_method, path) => (path === "/runs/run_0001/chunks/doc01-c004" ? { status: 200, body: chunk } : null)));
+    renderApp(REVIEW_PATH, fetchMock);
+    const panel = await openRunIssue();
+    // No manual "checked the documents" box: the source itself must be opened
+    expect(within(panel).queryByRole("checkbox")).toBeNull();
+    const accept = within(panel).getByRole("radio", { name: /Confirm and accept/ }) as HTMLInputElement;
+    expect(accept.disabled).toBe(true);
+    fireEvent.click(within(panel).getByRole("button", { name: /View source/ }));
+    const viewer = await screen.findByRole("dialog");
+    expect(await within(viewer).findByText("Wash with Synthetic Wash Strip.")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close source" }));
+    expect(accept.disabled).toBe(false);
+    fireEvent.click(accept);
+    fireEvent.change(within(panel).getByLabelText(/Note: what you did/), { target: { value: "Added it outside the tool." } });
+    fireEvent.click(within(panel).getByRole("button", { name: "Save and next issue" }));
+    await waitFor(() => expect(findPosts(calls, "/runs/run_0001/changes")).toHaveLength(1));
+    const body = findPosts(calls, "/runs/run_0001/changes")[0].body as { changes: Record<string, unknown>[] };
+    expect(body.changes[0]).toMatchObject({ type: "accept_warning", issue_id: "iss_missed", source_viewed: true, note: "Added it outside the tool." });
+  });
+
+  it("a run issue without sources says so and asks the user to confirm they checked the documents", async () => {
+    const view = makeView(makeTwoRecordView().rows, [makeMissedIssue([])]);
+    const { fetchMock } = makeRecordingFetch(makeReviewHandler(() => view));
+    renderApp(REVIEW_PATH, fetchMock);
+    const panel = await openRunIssue();
+    expect(within(panel).getByText(/No source passage was recorded for these items/)).not.toBeNull();
+    expect(within(panel).queryByRole("button", { name: /View source/ })).toBeNull();
+    const accept = within(panel).getByRole("radio", { name: /Confirm and accept/ }) as HTMLInputElement;
+    expect(accept.disabled).toBe(true);
+    fireEvent.click(within(panel).getByRole("checkbox", { name: "I checked the documents for these items" }));
+    expect(accept.disabled).toBe(false);
   });
 });
 

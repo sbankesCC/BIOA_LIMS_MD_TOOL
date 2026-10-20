@@ -41,3 +41,7 @@ export type BulkPreviewMatch = Schemas["BulkPreviewMatch"];
 export type BulkMode = Schemas["BulkPreview"]["mode"];
 export type VerifyResult = Schemas["VerifyResult"];
 export type RunExport = Schemas["RunExport"];
+
+// Bulk action list and upload limits (API batch)
+export type BulkActionSummary = Schemas["BulkActionSummary"];
+export type UploadLimits = Schemas["UploadLimits"];

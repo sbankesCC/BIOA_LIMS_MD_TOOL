@@ -1,9 +1,10 @@
 // Review screen calls: the review view, the run's fields, one record, source chunks and page
-// images, bulk previews, saving changes, re-checking, Verify and renaming. Each returns data
-// or throws an ApiError.
+// images, bulk previews and the bulk action list, saving changes, re-checking, Verify and
+// renaming. Each returns data or throws an ApiError.
 import type { ApiClient } from "./client";
 import { readApiResult } from "./errors";
 import type {
+  BulkActionSummary,
   BulkMode,
   BulkPreview,
   Change,
@@ -113,5 +114,12 @@ export function getBulkPreview(client: ApiClient, runId: string, request: BulkPr
 export function verifyRun(client: ApiClient, runId: string): Promise<VerifyResult> {
   return readApiResult(
     client.POST("/runs/{run_id}/verify", { params: { path: { run_id: runId } } }),
+  );
+}
+
+/** Return the run's bulk actions, newest first, with whether each was or can be undone. */
+export function listBulkActions(client: ApiClient, runId: string): Promise<BulkActionSummary[]> {
+  return readApiResult(
+    client.GET("/runs/{run_id}/bulk-actions", { params: { path: { run_id: runId } } }),
   );
 }

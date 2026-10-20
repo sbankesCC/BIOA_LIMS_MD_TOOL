@@ -2,7 +2,7 @@
 // issue list, the selected issue expanded with its action, and "Save and next issue".
 // Extension slots let M13 add bulk actions and "Exclude record" without changing this file's flow.
 import { useState, type ReactNode } from "react";
-import type { CellAlternative, CellSource, ReviewCell, ReviewRow, ReviewView, RunDetail, RunField } from "../../api/types";
+import type { CellAlternative, CellSource, ReviewCell, ReviewRow, ReviewView, RunDetail, RunField, SourceLocation } from "../../api/types";
 import {
   buildChoice,
   describeAcceptLabel,
@@ -56,7 +56,8 @@ interface ResolutionPanelProps {
   fields: RunField[];
   selection: Selection;
   session: ReviewSession;
-  onOpenSource: (title: string, sources: CellSource[], fallback: ReviewRow | null, issueId: string | null) => void;
+  // Evidence pairs (quotes highlighted), the issue's cited locations, and the row to fall back on
+  onOpenSource: (title: string, sources: CellSource[], locations: SourceLocation[], fallback: ReviewRow | null, issueId: string | null) => void;
   extensions?: PanelExtensions;
 }
 
@@ -156,8 +157,10 @@ function ExpandedIssue(props: ExpandedIssueProps) {
   const rule = ref !== null ? findActionRule(ref.issue, ref.field !== null) : null;
   const issueId = ref?.issue.issue_id ?? null;
   const isSourceViewed = issueId !== null && session.viewedSourceIssueIds.has(issueId);
+  // The value's evidence, plus the passages the issue itself cites (run issues have only these)
   const sources = collectSources(cell);
-  const hasSources = sources.length > 0 || (row !== null && row.found_in.length > 0);
+  const issueLocations = ref?.issue.sources ?? [];
+  const hasSources = sources.length > 0 || issueLocations.length > 0 || (row !== null && row.found_in.length > 0);
   // Nothing is selected yet: ask the user to pick an issue or a value
   if (ref === null && (fieldKey === null || cell === null)) {
     return <p className="muted panel__empty">Choose an issue above, or click a value in the grid.</p>;
@@ -184,8 +187,8 @@ function ExpandedIssue(props: ExpandedIssueProps) {
         hasSources={hasSources}
         isRunIssue={selection.recordId === null}
         onState={(patch) => setState((current) => ({ ...current, ...patch }))}
-        onViewSource={() => onOpenSource(title, sources, row, issueId)}
-        onShowAlternativeSource={(alternative: CellAlternative) => onOpenSource(`${title}: ${alternative.value}`, alternative.sources, null, issueId)}
+        onViewSource={() => onOpenSource(title, sources, issueLocations, row, issueId)}
+        onShowAlternativeSource={(alternative: CellAlternative) => onOpenSource(`${title}: ${alternative.value}`, alternative.sources, [], null, issueId)}
         extraActions={ref !== null ? extensions?.renderIssueExtras?.({ run: props.run, session, issue: ref, row, choice: result.choice }) : null}
       />
       <footer className="panel__footer">

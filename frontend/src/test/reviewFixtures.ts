@@ -25,7 +25,7 @@ export function makeField(overrides: Partial<RunField> = {}): RunField {
 
 // The synthetic fields: a name, a list field, a number and a blank-for-now field
 export const SYNTHETIC_FIELDS: RunField[] = [
-  makeField({ key: "item_name", column: "Item Name", requirement: "required" }),
+  makeField({ key: "item_name", column: "Item Name", requirement: "required", is_record_name: true }),
   makeField({
     key: "storage",
     column: "Storage",
@@ -100,12 +100,24 @@ export function makeRow(recordId: string, name: string, cells: Partial<Record<st
   };
 }
 
-/** Return a synthetic view of rows, with counts that match them roughly. */
+/**
+ * Return the progress counts as the API makes them: red and yellow issues of included records
+ * and the run, any status (total), and those accepted or resolved (resolved).
+ */
+export function countProgress(rows: ReviewRow[], runIssues: IssueSummary[]) {
+  const included = rows.filter((row) => row.exclusion === null);
+  const issues = [...included.flatMap((row) => [...row.record_issues, ...row.cells.flatMap((cell) => cell.issues)]), ...runIssues];
+  const counted = issues.filter((issue) => issue.severity !== "info");
+  const resolved = counted.filter((issue) => issue.status === "accepted" || issue.status === "resolved");
+  return { resolved_issues: resolved.length, total_issues: counted.length };
+}
+
+/** Return a synthetic view of rows, with issue counts that match them roughly and exact progress. */
 export function makeView(rows: ReviewRow[], runIssues: IssueSummary[] = []): ReviewView {
   return {
     rows,
     run_issues: runIssues,
-    counts: { records: rows.length, to_fix: 1, to_check: 1, excluded: 0, open_errors: 1, open_warnings: 1, resolved_issues: 0, total_issues: 2 },
+    counts: { records: rows.length, to_fix: 1, to_check: 1, excluded: 0, open_errors: 1, open_warnings: 1, ...countProgress(rows, runIssues) },
   };
 }
 
@@ -151,6 +163,7 @@ export function makeReviewHandler(
     if (path === "/runs/run_0001/changes") return { status: 200, body: { saved_change_ids: [], ignored_change_ids: [] } };
     if (path === "/runs/run_0001/recheck") return { status: 200, body: { applied_change_ids: [], counts: getView().counts, judge_calls_made: 0 } };
     if (path === "/runs/run_0001/bulk-preview") return { status: 200, body: makeEmptyPreview() };
+    if (path === "/runs/run_0001/bulk-actions") return { status: 200, body: [] };
     return { status: 404, body: { error: { code: "NOT_FOUND", message: `No mock for ${method} ${path}.`, details: {} } } };
   };
 }

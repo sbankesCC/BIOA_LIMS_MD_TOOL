@@ -1,17 +1,19 @@
-// The upload area of the Start screen: drag and drop, or "Browse files" (UI_SPEC §4.1).
-// It only hands files to its parent; the parent checks types and keeps the list.
+// The upload area of the Start screen: drag and drop, or "Browse files" (UI_SPEC §4.1), with
+// the accepted types and any upload limits. It only hands files to its parent, which checks
+// types and keeps the list.
 import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { ACCEPT_ATTRIBUTE } from "../lib/fileRules";
 import { Icon } from "./Icon";
 import "./UploadArea.css";
 
-/** Props of the upload area: what to do with the files the user adds. */
+/** Props of the upload area: the limit phrases to show and what to do with added files. */
 interface UploadAreaProps {
+  limitPhrases: string[];
   onFilesAdded: (files: File[]) => void;
 }
 
 /** Show a drop zone with a "Browse files" button. */
-export function UploadArea({ onFilesAdded }: UploadAreaProps) {
+export function UploadArea({ limitPhrases, onFilesAdded }: UploadAreaProps) {
   const input = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -51,7 +53,7 @@ export function UploadArea({ onFilesAdded }: UploadAreaProps) {
         <Icon name="upload" size={36} strokeWidth={1.6} />
       </span>
       <div className="upload-area__title">Drag files here</div>
-      <div className="muted">Word (.docx), PDF or Excel (.xlsx)</div>
+      <div className="muted">{["Word (.docx), PDF or Excel (.xlsx)", ...limitPhrases].join(" · ")}</div>
       <button type="button" className="button-secondary" onClick={() => input.current?.click()}>
         Browse files
       </button>

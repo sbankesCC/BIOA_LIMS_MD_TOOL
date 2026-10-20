@@ -10,8 +10,9 @@ import { FileList, type FileEntry } from "../components/FileList";
 import { Icon } from "../components/Icon";
 import { RunListSection } from "../components/RunListSection";
 import { UploadArea } from "../components/UploadArea";
-import { findFileTypeLabel } from "../lib/fileRules";
+import { describeUploadLimits, findFileTypeLabel } from "../lib/fileRules";
 import { RUN_NAME_MAX_LENGTH, suggestRunName } from "../lib/runName";
+import { useUploadLimits } from "../lib/useUploadLimits";
 import "./StartRunPage.css";
 
 // How many runs "Recent runs" shows; the Runs page lists them all
@@ -49,6 +50,7 @@ function NewRunForm() {
   const client = useApiClient();
   const navigate = useNavigate();
   const files = useFileEntries();
+  const limits = useUploadLimits();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -76,7 +78,7 @@ function NewRunForm() {
     <form className="card" aria-labelledby="new-run-heading" onSubmit={handleSubmit}>
       <h2 id="new-run-heading">1. Name the run and add documents</h2>
       <RunNameField value={files.name} onChange={files.setName} />
-      <UploadArea onFilesAdded={files.addFiles} />
+      <UploadArea limitPhrases={describeUploadLimits(limits)} onFilesAdded={files.addFiles} />
       {files.entries.length > 0 && (
         <div className="start-run__files">
           <div className="start-run__files-label">Files</div>

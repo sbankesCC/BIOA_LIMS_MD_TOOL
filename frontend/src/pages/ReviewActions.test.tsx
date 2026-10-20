@@ -1,9 +1,10 @@
 // Tests for the M13 Review actions: bulk actions with their bulk-preview confirmation list,
-// Undo, exclude and restore, the Verify dialog's three cases and the verified label, and export
-// with both downloads. All data is synthetic; the API is a recording fetch mock.
+// Undo from the API's bulk action list, progress, exclude and restore, the Verify dialog's three
+// cases and the verified label, and export with both downloads. All data is synthetic; the API
+// is a recording fetch mock.
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { BulkPreviewMatch, ReviewView, RunDetail } from "../api/types";
+import type { BulkActionSummary, BulkPreviewMatch, ReviewView, RunDetail } from "../api/types";
 import { makeRunDetail, renderApp } from "../test/helpers";
 import {
   makeIssue,
@@ -100,17 +101,6 @@ describe("Bulk actions", () => {
     expect(String(changes[0].bulk_id)).toMatch(/^blk_[0-9a-f]{32}$/);
     expect(changes[1].bulk_id).toBe(changes[0].bulk_id);
     expect(changes[0].change_id).not.toBe(changes[1].change_id);
-  });
-
-  it("Undo sends one undo_bulk change for the whole bulk action, then re-checks", async () => {
-    const calls = await runChangeAll();
-    const bulkId = readSentChanges(calls)[0][0].bulk_id;
-    const note = await screen.findByText(/Last bulk action: Change all: set Amount to “5” \(2 changes\)/);
-    fireEvent.click(within(note.parentElement as HTMLElement).getByRole("button", { name: "Undo" }));
-    await waitFor(() => expect(readSentChanges(calls)).toHaveLength(2));
-    expect(readSentChanges(calls)[1]).toEqual([expect.objectContaining({ type: "undo_bulk", bulk_id: bulkId })]);
-    await waitFor(() => expect(findPosts(calls, "/runs/run_0001/recheck")).toHaveLength(2));
-    await waitFor(() => expect(screen.queryByText(/Last bulk action/)).toBeNull());
   });
 
   it("Fill missing previews with fill_missing and asks a reason for values without an issue", async () => {
@@ -236,6 +226,116 @@ describe("Bulk actions", () => {
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Apply to 2 records" }));
     expect((await within(dialog).findByRole("alert")).textContent).toContain(refusal);
+  });
+});
+
+/** Return a synthetic bulk action of the list, changed by `overrides`. */
+function makeBulkAction(overrides: Partial<BulkActionSummary> = {}): BulkActionSummary {
+  return {
+    bulk_id: "blk_synthetic_1",
+    change_type: "set_value",
+    field: "amount",
+    issue_code: null,
+    record_count: 2,
+    change_count: 2,
+    created_by: "synthetic-reviewer",
+    created_at: "2026-10-16T09:30:00Z",
+    is_pending: false,
+    is_undone: false,
+    undone_by: null,
+    undone_at: null,
+    can_undo: true,
+    ...overrides,
+  };
+}
+
+describe("Undo", () => {
+  it("offers Undo from the API's bulk action list after a bulk action, and reads the list again after undo", async () => {
+    let bulkId: string | null = null;
+    let isUndone = false;
+    const { fetchMock, calls } = makeRecordingFetch(makeReviewHandler(makeAmountView, (method, path, body) => {
+      if (path === "/runs/run_0001/bulk-preview") return makePreview("change_all", AMOUNT_MATCHES, "amount");
+      // The API's list follows the saved changes: the bulk action, then its undo
+      if (method === "POST" && path === "/runs/run_0001/changes") {
+        const [first] = (body as { changes: SentChange[] }).changes;
+        if (first.type === "undo_bulk") isUndone = true;
+        else bulkId = String(first.bulk_id);
+      }
+      if (path === "/runs/run_0001/bulk-actions") {
+        const list = bulkId === null ? [] : [makeBulkAction({ bulk_id: bulkId, is_undone: isUndone, can_undo: !isUndone })];
+        return { status: 200, body: list };
+      }
+      return null;
+    }));
+    renderApp(REVIEW_PATH, fetchMock);
+    const panel = await openCell(/^Amount: five/);
+    // No bulk action yet: no Undo
+    expect(screen.queryByText(/Last bulk action/)).toBeNull();
+    fireEvent.change(within(panel).getByLabelText("Amount"), { target: { value: "5" } });
+    fireEvent.click(await within(panel).findByRole("button", { name: "Change all 3…" }));
+    const dialog = await screen.findByRole("dialog", { name: /Change all/ });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply to 3 records" }));
+    // After the bulk action's re-check, the reloaded list offers its Undo
+    expect(await screen.findByText(/Last bulk action: Set Amount in 2 records · synthetic-reviewer/)).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Undo: Set Amount in 2 records" }));
+    await waitFor(() => expect(readSentChanges(calls)).toHaveLength(2));
+    expect(readSentChanges(calls)[1]).toEqual([expect.objectContaining({ type: "undo_bulk", bulk_id: bulkId })]);
+    await waitFor(() => expect(findPosts(calls, "/runs/run_0001/recheck")).toHaveLength(2));
+    // The list read after the undo says it can no longer be undone
+    await waitFor(() => expect(screen.queryByText(/Last bulk action/)).toBeNull());
+  });
+
+  it("lists only bulk actions with can_undo: the newest first, earlier ones folded", async () => {
+    const actions = [
+      makeBulkAction({ bulk_id: "blk_3", change_type: "accept_warning", field: null, issue_code: "DEFAULT_APPLIED", record_count: 4, change_count: 4 }),
+      makeBulkAction({ bulk_id: "blk_2", is_undone: true, can_undo: false, undone_by: "synthetic-reviewer", undone_at: "2026-10-16T09:40:00Z" }),
+      makeBulkAction({ bulk_id: "blk_1", change_type: "pick_alternative", field: "storage", record_count: 1, change_count: 1 }),
+    ];
+    const { fetchMock, calls } = makeRecordingFetch(makeReviewHandler(makeAmountView, (_method, path) =>
+      path === "/runs/run_0001/bulk-actions" ? { status: 200, body: actions } : null,
+    ));
+    renderApp(REVIEW_PATH, fetchMock);
+    expect(await screen.findByText(/Last bulk action: Accepted “Default applied” warnings in 4 records/)).not.toBeNull();
+    expect(screen.getByText("Earlier bulk actions you can undo (1)")).not.toBeNull();
+    // The undone one is not offered
+    expect(screen.getAllByRole("button", { name: /^Undo:/ })).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Undo: Resolved Storage conflicts in 1 record" }));
+    await waitFor(() => expect(readSentChanges(calls)).toEqual([[expect.objectContaining({ type: "undo_bulk", bulk_id: "blk_1" })]]));
+  });
+
+  it("reads the list again after exclude and its re-check", async () => {
+    const { fetchMock, calls } = makeRecordingFetch(makeReviewHandler(makeAmountView));
+    renderApp(REVIEW_PATH, fetchMock);
+    const panel = await openCell(/^Amount: five/);
+    const listReads = () => calls.filter((call) => call.method === "GET" && call.path === "/runs/run_0001/bulk-actions").length;
+    await waitFor(() => expect(listReads()).toBeGreaterThanOrEqual(1));
+    const before = listReads();
+    fireEvent.click(within(panel).getByRole("button", { name: "Exclude record" }));
+    const dialog = await screen.findByRole("dialog", { name: "Exclude record" });
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "Synthetic reason" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Exclude record" }));
+    await waitFor(() => expect(findPosts(calls, "/runs/run_0001/recheck")).toHaveLength(1));
+    await waitFor(() => expect(listReads()).toBeGreaterThan(before));
+  });
+});
+
+describe("Progress", () => {
+  it("shows issues resolved from the API's counts", async () => {
+    const view = makeView([
+      makeRow("rec_0001", "Synthetic Item 1", {
+        amount: { issues: [makeIssue({ issue_id: "iss_p1", code: "DEFAULT_APPLIED", severity: "warning", status: "accepted" }), makeIssue({ issue_id: "iss_p2", code: "FORMAT_CORRECTED", severity: "info" })] },
+      }),
+      makeRow("rec_0002", "Synthetic Item 2", { storage: { color: "red", issues: [makeIssue({ issue_id: "iss_p3" })] } }, { action_needed: "fix" }),
+    ], [makeIssue({ issue_id: "iss_p4", code: "SCANNED_PAGES", severity: "warning" })]);
+    // Grey issues are not counted: 1 of 3 red and yellow issues is resolved
+    expect(view.counts).toMatchObject({ resolved_issues: 1, total_issues: 3 });
+    const { fetchMock } = makeRecordingFetch(makeReviewHandler(() => view));
+    renderApp(REVIEW_PATH, fetchMock);
+    expect(await screen.findByText("Issues resolved: 1 of 3")).not.toBeNull();
+    const bar = screen.getByRole("progressbar", { name: "Issues resolved" });
+    expect(bar.getAttribute("aria-valuenow")).toBe("1");
+    expect(bar.getAttribute("aria-valuemax")).toBe("3");
+    expect(screen.queryByText(/Records ready/)).toBeNull();
   });
 });
 

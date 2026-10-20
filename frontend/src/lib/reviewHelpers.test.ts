@@ -1,7 +1,8 @@
 // Tests for the Review screen's pure helpers: option ranking, quote highlighting, cell display,
-// issue navigation order and how an action choice becomes a change. Data is synthetic.
+// issue navigation order, the name field, and how an action choice becomes a change (notes and
+// source checks). Data is synthetic.
 import { describe, expect, it } from "vitest";
-import { makeCell, makeIssue, makeRow, makeView, SYNTHETIC_FIELDS } from "../test/reviewFixtures";
+import { makeCell, makeIssue, makeLocation, makeRow, makeView, SYNTHETIC_FIELDS } from "../test/reviewFixtures";
 import { describeCell } from "./cellDisplay";
 import { findQuoteRange, splitIntoSegments } from "./highlight";
 import { buildChoice, makeEmptyActionState, type ChoiceContext } from "./issueActions";
@@ -100,8 +101,11 @@ describe("issue navigation", () => {
     expect(findNeighbourIssue(view, new Set(), "iss_a", -1)?.issue.issue_id).toBe("iss_run");
   });
 
-  it("finds the name field from the row names", () => {
-    expect(findNameField(view, SYNTHETIC_FIELDS)).toBe("item_name");
+  it("the name field is the field flagged is_record_name, wherever it is in the list", () => {
+    expect(findNameField(SYNTHETIC_FIELDS)).toBe("item_name");
+    const flaggedLast = SYNTHETIC_FIELDS.map((field) => ({ ...field, is_record_name: field.key === "amount" }));
+    expect(findNameField(flaggedLast)).toBe("amount");
+    expect(findNameField(SYNTHETIC_FIELDS.map((field) => ({ ...field, is_record_name: false })))).toBeNull();
   });
 });
 
@@ -133,6 +137,28 @@ describe("buildChoice", () => {
       kind: "change",
       change: { type: "accept_warning", issue_id: "iss_w", source_viewed: true, note: null },
     });
+  });
+
+  it("a note is required when the issue says note_required, whatever its action kind", () => {
+    const state = { ...makeEmptyActionState(), option: "accept" as const };
+    const noteless = makeIssue({ severity: "warning", issue_id: "iss_n", note_required: false });
+    expect(buildChoice({ ...base, issue: noteless, kind: "confirm_with_note" }, state).choice).toMatchObject({ change: { note: null } });
+    const noted = makeIssue({ severity: "warning", issue_id: "iss_m", note_required: true });
+    const context = { ...base, issue: noted, kind: "accept_or_change" as const };
+    expect(buildChoice(context, state).hint).toBe("Add a note saying what you did, then accept.");
+    expect(buildChoice(context, { ...state, note: "Checked the method." }).choice).toMatchObject({ change: { note: "Checked the method." } });
+  });
+
+  it("a run issue with sources needs them opened; one without sources needs the documents check", () => {
+    const state = { ...makeEmptyActionState(), option: "accept" as const, note: "Checked." };
+    const withSources = makeIssue({ severity: "warning", individual_review: true, issue_id: "iss_r1", sources: [makeLocation("doc01-c002")] });
+    const runContext = { ...base, recordId: null, field: null, issue: withSources, kind: "confirm_with_note" as const };
+    // Ticking the box does not replace opening the cited source
+    expect(buildChoice(runContext, { ...state, hasCheckedDocuments: true }).hint).toBe("Open the source before accepting this warning.");
+    expect(buildChoice({ ...runContext, isSourceViewed: true }, state).choice).toMatchObject({ change: { source_viewed: true } });
+    const noSources = makeIssue({ severity: "warning", individual_review: true, issue_id: "iss_r2" });
+    expect(buildChoice({ ...runContext, issue: noSources }, state).hint).toBe("Confirm you checked the documents before accepting.");
+    expect(buildChoice({ ...runContext, issue: noSources }, { ...state, hasCheckedDocuments: true }).choice).toMatchObject({ change: { source_viewed: true } });
   });
 
   it("mark not found sends a null value, a conflict pick sends the alternative index", () => {

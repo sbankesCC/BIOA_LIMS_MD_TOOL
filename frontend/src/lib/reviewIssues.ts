@@ -108,17 +108,7 @@ export function filterRows(rows: ReviewRow[], filter: RowFilter): ReviewRow[] {
   return rows;
 }
 
-/**
- * Return the key of the field that names a record: the field whose value is the row's name
- * in every row that has one (the API gives the name but not its field). Null when unknown.
- */
-export function findNameField(view: ReviewView, fields: RunField[]): string | null {
-  const named = view.rows.filter((row) => row.name !== null);
-  if (named.length === 0) {
-    return null;
-  }
-  const match = fields.find((field) =>
-    named.every((row) => findCell(row, field.key)?.value === row.name),
-  );
-  return match?.key ?? null;
+/** Return the key of the field that names a record (`is_record_name` from the run's fields), or null. */
+export function findNameField(fields: RunField[]): string | null {
+  return fields.find((field) => field.is_record_name)?.key ?? null;
 }

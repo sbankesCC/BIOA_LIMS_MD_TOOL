@@ -484,7 +484,8 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   so Save and next stays one change. Fill missing asks the user for a reason when a matched
   record has no open issue (the API requires one); nothing else is filled in for the user.
 - **M13: re-check and undo.** A bulk action, exclude, restore and undo each re-check at once.
-  Undo is shown in the bottom bar for the last bulk action of the screen (see Open questions).
+  Undo was shown for the last bulk action of the screen only (superseded by "Front end
+  2026-10-21: Undo from the bulk action list" below).
 - **M13: Verify.** Saved changes are re-checked first; the dialog groups the view's open issues
   (red, individual-review, other warnings). With nothing open, Verify runs without the dialog. A
   refused answer shows the API's blockers. After saving a change on a verified run the run is
@@ -533,6 +534,43 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   match fail the run (the replies cite chunks those documents do not have), so nothing is made
   up. The replies expect `synthetic_001`'s documents uploaded together in name order (method,
   then worksheet), since chunk IDs follow upload order.
+
+- **Front end 2026-10-21: progress** is "Issues resolved: X of Y" from `counts.resolved_issues`
+  and `counts.total_issues` (mockup 3 wording); the bar is a progressbar named "Issues resolved".
+  The old "Records ready" text and the open-issue counts in the bar are gone (the summary strip
+  shows the open counts).
+- **Front end 2026-10-21: Undo from the bulk action list.** The bottom bar reads
+  `GET /runs/{id}/bulk-actions` and offers Undo only for entries with `can_undo`: the newest one
+  as "Last bulk action: … Undo", earlier undoable ones folded under "Earlier bulk actions you can
+  undo (N)", each with its own Undo (UI_SPEC "each bulk action is one undo"; the mockups show no
+  Undo, so this layout is a choice). Undone entries are not shown. The list is read on open and
+  again whenever the review view is reloaded or the pending state changes (bulk action, undo,
+  exclude, restore, re-check), and right after an undo is saved. Each entry is described from
+  `change_type`, the field's column and the issue code's short label, with who and when.
+- **Front end 2026-10-21: name column** is the field with `is_record_name: true` (the row-name
+  guess is removed). No flagged field: the pinned column is headed "Name" and shows the row's name as text.
+- **Front end 2026-10-21: note required** comes from `issue.note_required` (the action-kind rule
+  is removed). The note box shows for individual-review issues and for issues that need a note.
+- **Front end 2026-10-21: run issue sources.** A run issue with `sources` gets "View source",
+  which opens those locations in the source viewer (no quotes to highlight); an individual-review
+  accept is enabled once it was opened and sends `source_viewed: true`. A field issue with
+  `sources` (e.g. an unreported conflict) shows them first, then the value's evidence. A run
+  issue that needs individual review but has no sources says "No source passage was recorded for
+  these items..." and keeps the "I checked the documents for these items" box, which enables the
+  accept and sends `source_viewed: true` (the API requires it; the user states they checked); the
+  catalogue's `note_required` still asks for the note.
+- **Front end 2026-10-21: upload limits** are read from `GET /settings/upload-limits` and shown
+  after the accepted types ("· 25 MB per file · 10 files per run"); a null limit shows nothing.
+  The browser does not refuse files by size or count (the API checks the limits at start, 413).
+  A failed read shows no limit text and no error.
+- **Front end 2026-10-21: runs table.** A failed run's Needs action shows `failure_reason` and a
+  "Retry" link to its run page (mockup 1); "See why and retry" only when the reason is null. A run
+  in review with `latest_export` shows "Exported · export N" in the Status column in place of the
+  status badge (mockup 1): green with a download icon for a verified export, blue with
+  "(draft)" for a draft.
+- **Front end 2026-10-21: Verify blockers keep empty sources.** `lib/verifyCheck.ts` `toIssueRef`
+  leaves `sources` empty (Verify answers carry chunk IDs, not locations); clicking a blocker
+  selects the issue by ID, and the panel reads its sources from the review view.
 
 ## Progress log
 
@@ -1080,3 +1118,34 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   5. Any other documents make the run fail plainly (the replies cite chunks those documents do
      not have): useful to see the failed state and Retry.
 
+### Front-end workarounds removed (done)
+- Replaced the front-end workarounds with the API batch additions (no back-end, schema, config
+  or doc changes):
+  - Progress: `ActionBar.tsx` shows "Issues resolved: X of Y" from `resolved_issues` /
+    `total_issues`.
+  - Undo: new `components/review/UndoBulk.tsx` and `lib/useBulkActions.ts` on
+    `GET /runs/{id}/bulk-actions` (`listBulkActions` in `api/review.ts`); `describeBulkAction`
+    in `lib/bulkActions.ts`, `findShortLabel` in `lib/issueActions.ts`. The screen-local last
+    bulk (`SavedBulk`, `lastBulk`, `onBulkSaved`) is removed; `ReviewExtensions.tsx` is now a
+    constant set of extensions. `BottomBarContext` gains `fields`.
+  - Name column: `findNameField(fields)` returns the `is_record_name` field.
+  - Note required: `issue.note_required`; `isNoteRequired(kind)` removed.
+  - Run issue sources: `onOpenSource` takes the issue's locations; `needsDocumentsCheck` decides
+    when the manual "I checked the documents" box is still used (run issue, individual review,
+    no sources).
+  - Start screen: `getUploadLimits` in `api/runs.ts`, `lib/useUploadLimits.ts`,
+    `describeUploadLimits` in `lib/fileRules.ts`; `UploadArea` takes the limit phrases.
+  - Runs table: failure reason with Retry, and the Exported badge.
+  - `lib/verifyCheck.ts`: comment only (see decisions).
+- Test fixtures: the synthetic name field has `is_record_name: true`; `makeView` computes
+  `resolved_issues` / `total_issues` like the API (`countProgress`); the review handler answers
+  `bulk-actions` with an empty list; the split-warning test issue has `note_required: true`.
+- Tests: 114 vitest tests in 9 files (13 new: Undo from the list after a bulk action
+  and after reload, Undo list with `can_undo` only, list read again after exclude, progress from
+  counts, name column by `is_record_name` (screen and helper), note required by `note_required`,
+  run issue sources in the viewer gating the accept, run issue without sources, upload limits
+  shown and hidden, failure reason, export badge). The old "Undo of the last bulk action" test
+  was removed and the "name field from row names" helper test rewritten for the flag. Back end
+  unchanged: 542 passed, 1 skipped; ruff, ruff format and pyright clean. vitest passed on the
+  first run (no worker start timeout).
+- Decisions: see "Front end 2026-10-21: ..." in Decisions made during the build.

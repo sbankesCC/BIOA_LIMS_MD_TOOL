@@ -31,7 +31,11 @@ export function checkView(view: ReviewView): VerifyCheck {
   };
 }
 
-/** Return an issue reference for an issue of a Verify answer. */
+/**
+ * Return an issue reference for an issue of a Verify answer. Its sources stay empty: the answer
+ * has chunk IDs only, and opening the issue selects it by ID, so the panel reads its sources
+ * (locations) from the review view.
+ */
 function toIssueRef(issue: RunIssue): IssueRef {
   const summary = {
     issue_id: issue.issue_id,

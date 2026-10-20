@@ -9,13 +9,6 @@ import type { ReviewSession } from "../../lib/useReviewSession";
 import { Dialog } from "../Dialog";
 import { ErrorMessage } from "../ErrorMessage";
 
-/** A bulk action that was saved: its ID (for Undo), what it did and how many changes it sent. */
-export interface SavedBulk {
-  bulkId: string;
-  description: string;
-  count: number;
-}
-
 /** Props of the dialog: the preview, the offer, the session and what closing or saving does. */
 interface BulkConfirmDialogProps {
   preview: BulkPreview;
@@ -23,7 +16,7 @@ interface BulkConfirmDialogProps {
   shortLabel: string;
   session: ReviewSession;
   onClose: () => void;
-  onSaved: (bulk: SavedBulk) => void;
+  onSaved: () => void;
 }
 
 /** Show the confirmation list and send the bulk change when the user confirms. */
@@ -56,7 +49,7 @@ export function BulkConfirmDialog({ preview, offer, shortLabel, session, onClose
       setHasFailed(true);
       return;
     }
-    onSaved({ bulkId, description: `${title} (${changes.length} ${changes.length === 1 ? "change" : "changes"})`, count: changes.length });
+    onSaved();
     await session.recheckNow();
   };
 

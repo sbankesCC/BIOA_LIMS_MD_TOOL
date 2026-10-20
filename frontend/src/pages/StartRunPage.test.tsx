@@ -1,5 +1,6 @@
 // Tests for the Start a run screen: file list and type check, name suggestion, the disabled
-// button, submitting through the API client (mocked fetch), API errors and recent runs.
+// button, submitting through the API client (mocked fetch), API errors, recent runs (failure
+// reason, export badge) and the upload limits.
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { buildRunForm } from "../api/runs";
@@ -153,5 +154,70 @@ describe("Start a run screen errors", () => {
     });
     renderApp("/", makeFetchMock(api));
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Something went wrong on the server"));
+  });
+});
+
+describe("Upload limits", () => {
+  /** An API with no runs and these upload limits. */
+  function makeLimitsApi(limits: { max_file_size_mb: number | null; max_files_per_run: number | null }): MockHandler {
+    return (_method, path) => {
+      if (path === "/settings/upload-limits") return { status: 200, body: limits };
+      return { status: 200, body: [] };
+    };
+  }
+
+  it("shows the limits the API sets next to the accepted types", async () => {
+    renderApp("/", makeFetchMock(makeLimitsApi({ max_file_size_mb: 25, max_files_per_run: 10 })));
+    expect(await screen.findByText("Word (.docx), PDF or Excel (.xlsx) · 25 MB per file · 10 files per run")).not.toBeNull();
+  });
+
+  it("shows only the limits that are set; none when both are null", async () => {
+    const first = renderApp("/", makeFetchMock(makeLimitsApi({ max_file_size_mb: null, max_files_per_run: 1 })));
+    expect(await screen.findByText("Word (.docx), PDF or Excel (.xlsx) · 1 file per run")).not.toBeNull();
+    first.unmount();
+    const fetchMock = makeFetchMock(makeLimitsApi({ max_file_size_mb: null, max_files_per_run: null }));
+    renderApp("/", fetchMock);
+    await waitFor(() => expect(fetchMock.mock.calls.some(([request]) => request.url.endsWith("/settings/upload-limits"))).toBe(true));
+    expect(screen.getByText("Word (.docx), PDF or Excel (.xlsx)")).not.toBeNull();
+    expect(screen.queryByText(/per file|per run/)).toBeNull();
+  });
+});
+
+describe("Runs table", () => {
+  it("a failed run shows its failure reason with Retry; without a reason, the fallback link", async () => {
+    const api: MockHandler = (_method, path) => {
+      if (path !== "/runs") return { status: 404, body: { error: { code: "NOT_FOUND", message: "Not found.", details: {} } } };
+      return {
+        status: 200,
+        body: [
+          makeRunSummary({ run_id: "run_0003", name: "Synthetic failed run", status: "failed", failure_reason: "None of the files could be read. Check the files and start a new run." }),
+          makeRunSummary({ run_id: "run_0002", name: "Synthetic older failure", status: "failed", failure_reason: null }),
+        ],
+      };
+    };
+    renderApp("/", makeFetchMock(api));
+    expect(await screen.findByText(/None of the files could be read/)).not.toBeNull();
+    expect(screen.getByRole("link", { name: "Retry" }).getAttribute("href")).toBe("/runs/run_0003");
+    expect(screen.getByRole("link", { name: "See why and retry" }).getAttribute("href")).toBe("/runs/run_0002");
+  });
+
+  it("an exported run shows the Exported badge with its export number, marked when it was a draft", async () => {
+    const counts = { records: 3, to_fix: 0, to_check: 0, excluded: 0, open_errors: 0, open_warnings: 0, resolved_issues: 4, total_issues: 4 };
+    const verifiedExport = { export_id: "exp_0002", number: 2, is_draft: false, loader_file_name: "synthetic.xlsx", audit_file_name: "synthetic_audit.xlsx", exported_at: "2026-10-16T11:00:00Z", exported_by: "synthetic-reviewer" };
+    const api: MockHandler = (_method, path) => ({
+      status: path === "/runs" ? 200 : 404,
+      body: path === "/runs"
+        ? [
+            makeRunSummary({ run_id: "run_0005", name: "Synthetic verified run", status: "in_review", is_verified: true, counts, latest_export: verifiedExport }),
+            makeRunSummary({ run_id: "run_0004", name: "Synthetic draft run", status: "in_review", counts, latest_export: { ...verifiedExport, export_id: "exp_0001", number: 1, is_draft: true } }),
+            makeRunSummary({ run_id: "run_0003", name: "Synthetic unexported run", status: "in_review", counts }),
+          ]
+        : { error: { code: "NOT_FOUND", message: "Not found.", details: {} } },
+    });
+    renderApp("/", makeFetchMock(api));
+    expect(await screen.findByText("Exported · export 2")).not.toBeNull();
+    expect(screen.getByText("Exported · export 1 (draft)")).not.toBeNull();
+    // A run never exported keeps its status badge
+    expect(screen.getByText("Ready for review")).not.toBeNull();
   });
 });

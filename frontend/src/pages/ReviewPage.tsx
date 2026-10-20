@@ -3,7 +3,7 @@
 // Bulk actions, exclude/restore, Verify and export (M13) plug in through `extensions`.
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import type { CellSource, IssueSummary, ReviewCell, ReviewRow, ReviewView, RunDetail } from "../api/types";
+import type { CellSource, IssueSummary, ReviewCell, ReviewRow, ReviewView, RunDetail, RunField, SourceLocation } from "../api/types";
 import { ErrorMessage } from "../components/ErrorMessage";
 import { RecordsGrid } from "../components/review/RecordsGrid";
 import { ResolutionPanel, type PanelExtensions } from "../components/review/ResolutionPanel";
@@ -20,6 +20,7 @@ import "./ReviewPage.css";
 export interface BottomBarContext {
   run: RunDetail;
   view: ReviewView;
+  fields: RunField[];
   session: ReviewSession;
   reload: () => Promise<unknown>;
   refreshRun: () => Promise<void>;
@@ -101,12 +102,14 @@ function ReviewScreen({ run, view, fieldList, data, extensions }: ReviewScreenPr
   const [filter, setFilter] = useState<RowFilter>("all");
   const [sourceRequest, setSourceRequest] = useState<SourceRequest | null>(null);
   const fields = fieldList.fields;
-  const nameField = findNameField(view, fields);
+  const nameField = findNameField(fields);
   const { selection } = session;
 
-  // Open the source viewer; opening it for an issue counts as "source viewed"
-  const openSource = (title: string, sources: CellSource[], fallback: ReviewRow | null, issueId: string | null) => {
-    setSourceRequest(sources.length > 0 ? makeSourceRequest(title, sources) : makeRowSourceRequest(fallback));
+  // Open the source viewer (the issue's cited locations first, then the value's evidence, else
+  // the record's Found in); opening it for an issue counts as "source viewed"
+  const openSource = (title: string, sources: CellSource[], locations: SourceLocation[], fallback: ReviewRow | null, issueId: string | null) => {
+    const hasAny = sources.length > 0 || locations.length > 0;
+    setSourceRequest(hasAny ? makeSourceRequest(title, sources, locations) : makeRowSourceRequest(fallback));
     if (issueId !== null) session.markSourceViewed(issueId);
   };
 
@@ -140,7 +143,7 @@ function ReviewScreen({ run, view, fieldList, data, extensions }: ReviewScreenPr
           <ResolutionPanel run={run} view={view} fields={fields} selection={selection} session={session} onOpenSource={openSource} extensions={extensions} />
         )}
       </div>
-      {extensions?.renderBottomBar?.({ run, view, session, reload: data.reload, refreshRun: data.refreshRun })}
+      {extensions?.renderBottomBar?.({ run, view, fields, session, reload: data.reload, refreshRun: data.refreshRun })}
       {sourceRequest !== null && <SourceViewer runId={run.run_id} request={sourceRequest} onClose={() => setSourceRequest(null)} />}
     </main>
   );

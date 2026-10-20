@@ -8,14 +8,13 @@ import { findActionRule } from "../../lib/issueActions";
 import { useBulkPreview } from "../../lib/useBulkPreview";
 import type { ReviewSession } from "../../lib/useReviewSession";
 import { ErrorMessage } from "../ErrorMessage";
-import { BulkConfirmDialog, type SavedBulk } from "./BulkConfirmDialog";
+import { BulkConfirmDialog } from "./BulkConfirmDialog";
 import "./BulkActions.css";
 
-/** Props of the bulk actions: the run, the session, the selected issue and what a saved bulk does. */
+/** Props of the bulk actions: the run, the session and the selected issue. */
 interface BulkActionsProps extends BulkOfferContext {
   run: RunDetail;
   session: ReviewSession;
-  onBulkSaved: (bulk: SavedBulk) => void;
 }
 
 /** Show every bulk action the selected issue offers (none for individual-review warnings). */
@@ -39,7 +38,7 @@ interface BulkOfferBoxProps extends BulkActionsProps {
 }
 
 /** One offer: its preview count, its sentence and the button that opens the confirmation list. */
-function BulkOfferBox({ run, session, offer, shortLabel, onBulkSaved }: BulkOfferBoxProps) {
+function BulkOfferBox({ run, session, offer, shortLabel }: BulkOfferBoxProps) {
   const { preview, errorMessage } = useBulkPreview(run.run_id, offer.request);
   const [isConfirming, setIsConfirming] = useState(false);
   if (errorMessage !== null) {
@@ -66,10 +65,7 @@ function BulkOfferBox({ run, session, offer, shortLabel, onBulkSaved }: BulkOffe
           shortLabel={shortLabel}
           session={session}
           onClose={() => setIsConfirming(false)}
-          onSaved={(bulk) => {
-            setIsConfirming(false);
-            onBulkSaved(bulk);
-          }}
+          onSaved={() => setIsConfirming(false)}
         />
       )}
     </div>

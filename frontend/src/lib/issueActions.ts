@@ -52,6 +52,11 @@ const RULES_BY_CODE: Record<string, IssueActionRule> = {
   NUMBER_READ_FROM_TEXT: { kind: "nothing_to_do", shortLabel: "Number read from text" },
 };
 
+/** Return the short label of a catalogue code the UI_SPEC table names, or null for other codes. */
+export function findShortLabel(code: string): string | null {
+  return RULES_BY_CODE[code]?.shortLabel ?? null;
+}
+
 /** Return how an issue is handled: by its code, else by its severity and whether it has a field. */
 export function findActionRule(issue: IssueSummary, hasField: boolean): IssueActionRule {
   const rule = RULES_BY_CODE[issue.code];
@@ -152,9 +157,12 @@ function buildSetValue(context: ChoiceContext, state: ActionState, value: string
   return { choice: { kind: "change", change }, hint: null };
 }
 
-/** Return true when the action kind needs a note to accept (UI_SPEC: split / may be missing). */
-export function isNoteRequired(kind: ActionKind | null): boolean {
-  return kind === "confirm_with_note";
+/**
+ * Return true when the user must confirm by hand that they checked the documents: a run issue
+ * that needs individual review but cites no source passage the viewer could open.
+ */
+export function needsDocumentsCheck(issue: IssueSummary, isRunIssue: boolean): boolean {
+  return isRunIssue && issue.individual_review && issue.sources.length === 0;
 }
 
 /** Return an accept_warning change, or why it cannot be accepted yet. */
@@ -163,17 +171,15 @@ function buildAccept(context: ChoiceContext, state: ActionState): ChoiceResult {
   if (issue === null || issue.severity !== "warning") {
     return waitFor("Only warnings can be accepted. Choose another action.");
   }
-  // Run issues have no source to open: the user confirms they checked the documents
-  const isSourceViewed = context.isSourceViewed || state.hasCheckedDocuments;
+  // The source must be opened first; a run issue without sources is confirmed by hand instead
+  const isManualCheck = needsDocumentsCheck(issue, context.recordId === null);
+  const isSourceViewed = isManualCheck ? state.hasCheckedDocuments : context.isSourceViewed;
   if (issue.individual_review && !isSourceViewed) {
-    return waitFor(
-      context.recordId === null
-        ? "Confirm you checked the documents before accepting."
-        : "Open the source before accepting this warning.",
-    );
+    return waitFor(isManualCheck ? "Confirm you checked the documents before accepting." : "Open the source before accepting this warning.");
   }
+  // The catalogue says which warnings need a note saying what the user did
   const note = state.note.trim();
-  if (isNoteRequired(context.kind) && note.length === 0) {
+  if (issue.note_required && note.length === 0) {
     return waitFor("Add a note saying what you did, then accept.");
   }
   const change: NewChange = {
