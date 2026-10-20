@@ -313,6 +313,19 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
 - **M6: Verify** accepts every remaining open warning of included records (closed by the verifier);
   grey issues stay open and never block. The verified label is removed when a change is saved
   (a resent, ignored change does not remove it).
+- **M7: lookup uploads with problems are not stored.** Every upload returns its check report and
+  is logged, but only an upload with no problems becomes a pending version (UI: "fix the problems
+  and upload again"). A pending upload whose base is no longer current is refused at apply
+  (`UPLOAD_STALE`, 409). The seed cannot be restored as a version; to go back, upload the seed's
+  values on top of the current version.
+- **M7: version names.** Uploads are `upl_0001`, ... per kind; the first apply gives the next `vN`
+  (the seed name `v0-seed-3` is not counted, so the first is `v1`). Reference data versions are
+  named the same way (`v1`, ...). A stored file keeps its uploaded `_metadata`; the version name
+  comes from the database, and downloads write a fresh `_metadata` (version, based on, at, by).
+- **M7: export file names.** "– draft" goes at the end: `run – export 1 – draft.xlsx` and
+  `run – export 1 – audit – draft.xlsx`. Characters Windows forbids in file names become `_`.
+- **M7: audit Values sheet.** Record-level issues (no field) are listed on the record name's row.
+  Issues of every status are listed with their outcome ("accepted by X", "resolved by X").
 
 ## Progress log
 
@@ -484,3 +497,45 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   - Review view: placeholder cells are grey; `written_value` only when it differs from the value;
     cell issues list open and accepted issues, and only open ones tint the cell.
   - Left for M9: `bulk-preview` (same field, code and value) and the API error mapping above.
+
+### M7: Export and admin services (done)
+- `export/loader.py`: `write_loader(template, field_rules, records, target) -> int` copies the DFD
+  template and fills one row per included record from `output.value`; number fields holding a
+  plain number become numbers (else text as written); `blank_for_now` and `system` fields blank;
+  text starting with "=" is kept as text, never a formula.
+- `export/audit_rows.py` (`AuditSource`, `build_audit_rows`) and `export/audit_workbook.py`
+  (`write_audit_workbook`): the five CONTRACTS §8 sheets with header rows; the record name column
+  header is the first field's column (from config).
+- `export/service.py`: `ExportContext(review, template, models)`, `export_run(database, context,
+  run_folder, run_id, user, at) -> ExportInfo` (re-checks if changes are pending, writes both files
+  to the run's `exports/`, `add_export`, audit event `export_created`, log line),
+  `make_export_file_names`.
+- `admin/lookup_checks.py` (every ARCHITECTURE §4.11 check, report, diff), `admin/lookup_lists.py`
+  (`LookupListAdmin`: `download_workbook`, `upload_workbook`, `apply_version` (apply or restore),
+  `list_versions`, `find_current_lookup_lists` for new runs, `load_lookup_lists(version_id)` for a
+  run's captured version). Stored under `STORAGE_DIR/lookup_lists/<upload_id>.xlsx`.
+- `admin/reference_data.py` (`ReferenceDataAdmin`: `upload`, `apply_version`, `list_versions`,
+  `find_current_reference_data`, `load_reference_data(version_id)`): `.xlsx` (first sheet) or `.csv`
+  (UTF-8, BOM allowed); columns from the mapping (missing required = problem, missing optional =
+  warning; a row without name or version = problem); snapshot JSON plus the original file under
+  `STORAGE_DIR/reference_data/<upload_id>/`. `admin/versions.py`, `admin/reports.py`, `admin/errors.py`
+  (`AdminError`: VERSION_NOT_FOUND 404, UPLOAD_STALE 409, VERSION_ALREADY_CURRENT 409).
+- Admin events: `lookup_lists_uploaded`, `lookup_version_applied`, `lookup_version_restored`,
+  `reference_data_uploaded`, `reference_data_applied`, `reference_data_restored`; the user is a parameter.
+- As decided, the seed's Container Tracking Method values ("Individual"/"Together" vs limit 1)
+  give upload warnings and the upload passes (tested).
+- Tests: 385 total, 52 new (`unit/test_export.py`, `test_lookup_admin.py`, `test_reference_admin.py`).
+- Decisions the docs did not cover (significant ones also above):
+  - Export IDs `exp_0001` are numbered per run; file refs are relative to STORAGE_DIR.
+  - Number cells: a decimal with a "." is written as a float ("2.50" shows as 2.5), else an int.
+  - Audit cells holding several sources or issues list them one per line. Times are ISO text
+    (Excel has no time zones). Run issues sheet leaves out resolved issues. Edits list applied
+    changes (undone ones too, plus the undo); an accepted warning shows its issue's record and field.
+  - The audit Summary lists the models from `ExportContext.models` (node → model). The run does
+    not capture its models yet: M8 should store them per run so M9 can pass them.
+  - CONTRACTS §2 says the value as written is in the audit file; the §8 Values columns have no
+    such column, so it appears through the source quote only (no contract change made).
+  - Lookup checks also report exact duplicates and non-text cells (e.g. a number typed in Excel).
+    A deleted sheet no field uses is allowed and shown in the diff as removed.
+  - Reference data: cells keep their text as written (numbers as text, whole floats without ".0");
+    candidate IDs `ref_0001`... in file order. No staleness check (each upload is a full snapshot).
