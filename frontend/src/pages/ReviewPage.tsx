@@ -16,10 +16,19 @@ import { useReviewData } from "../lib/useReviewData";
 import { useReviewSession, type ReviewSession } from "../lib/useReviewSession";
 import "./ReviewPage.css";
 
+/** What the bottom bar gets: the loaded data, the session and the reload calls. */
+export interface BottomBarContext {
+  run: RunDetail;
+  view: ReviewView;
+  session: ReviewSession;
+  reload: () => Promise<unknown>;
+  refreshRun: () => Promise<void>;
+}
+
 /** What M13 can add: panel slots, the excluded row's Restore link and the bottom action bar. */
 export interface ReviewExtensions extends PanelExtensions {
   renderExclusionAction?: (row: ReviewRow, session: ReviewSession) => ReactNode;
-  renderBottomBar?: (context: { run: RunDetail; view: ReviewView; session: ReviewSession }) => ReactNode;
+  renderBottomBar?: (context: BottomBarContext) => ReactNode;
 }
 
 /** Props of the screen: the run and, from M13, its extensions. */
@@ -87,7 +96,8 @@ interface ReviewScreenProps {
 
 /** The loaded screen: everything above the grid, the grid with the panel, and the source viewer. */
 function ReviewScreen({ run, view, fieldList, data, extensions }: ReviewScreenProps) {
-  const session = useReviewSession(run.run_id, view, run.has_pending_changes, data.reload);
+  // A saved change removes a verified label in the API, so the run is read again to show it
+  const session = useReviewSession(run.run_id, view, run.has_pending_changes, data.reload, run.is_verified ? data.refreshRun : undefined);
   const [filter, setFilter] = useState<RowFilter>("all");
   const [sourceRequest, setSourceRequest] = useState<SourceRequest | null>(null);
   const fields = fieldList.fields;
@@ -130,7 +140,7 @@ function ReviewScreen({ run, view, fieldList, data, extensions }: ReviewScreenPr
           <ResolutionPanel run={run} view={view} fields={fields} selection={selection} session={session} onOpenSource={openSource} extensions={extensions} />
         )}
       </div>
-      {extensions?.renderBottomBar?.({ run, view, session })}
+      {extensions?.renderBottomBar?.({ run, view, session, reload: data.reload, refreshRun: data.refreshRun })}
       {sourceRequest !== null && <SourceViewer runId={run.run_id} request={sourceRequest} onClose={() => setSourceRequest(null)} />}
     </main>
   );

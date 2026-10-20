@@ -31,3 +31,13 @@ export type PickAlternativeChange = Schemas["PickAlternativeChange"];
 export type AcceptWarningChange = Schemas["AcceptWarningChange"];
 export type SaveResult = Schemas["SaveResult"];
 export type RecheckResult = Schemas["RecheckResult"];
+
+// Bulk actions, exclude, Verify and export shapes (M13)
+export type ExcludeRecordChange = Schemas["ExcludeRecordChange"];
+export type RestoreRecordChange = Schemas["RestoreRecordChange"];
+export type UndoBulkChange = Schemas["UndoBulkChange"];
+export type BulkPreview = Schemas["BulkPreview"];
+export type BulkPreviewMatch = Schemas["BulkPreviewMatch"];
+export type BulkMode = Schemas["BulkPreview"]["mode"];
+export type VerifyResult = Schemas["VerifyResult"];
+export type RunExport = Schemas["RunExport"];

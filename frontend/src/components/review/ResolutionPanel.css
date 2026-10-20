@@ -154,3 +154,15 @@
   color: var(--color-text-muted);
   text-align: right;
 }
+
+/* "Exclude record" in the footer: a quiet text button (mockup) */
+.panel__exclude {
+  font: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  padding: 10px 2px;
+  cursor: pointer;
+}

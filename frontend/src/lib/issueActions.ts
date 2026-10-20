@@ -1,7 +1,7 @@
 // The actions each issue type offers in the resolution panel (UI_SPEC §4.3 "Issue actions"),
 // and how the user's choice becomes a change for POST /runs/{run_id}/changes.
 // Issue codes are the tool's catalogue contract (backend validation/codes.py), not client data.
-import type { AcceptWarningChange, IssueSummary, PickAlternativeChange, RunField, SetValueChange } from "../api/types";
+import type { Change, IssueSummary, RunField } from "../api/types";
 
 /** The kinds of action component, one per row of the UI_SPEC issue table. */
 export type ActionKind =
@@ -107,11 +107,11 @@ export function makeEmptyActionState(): ActionState {
   };
 }
 
-/** A change as the panel builds it; the change ID is added when it is sent. */
-export type NewChange =
-  | Omit<SetValueChange, "change_id">
-  | Omit<PickAlternativeChange, "change_id">
-  | Omit<AcceptWarningChange, "change_id">;
+/** Remove `change_id` from each change type of a union separately (keeps the `type` link). */
+type WithoutChangeId<T> = T extends unknown ? Omit<T, "change_id"> : never;
+
+/** A change as the screen builds it (any §6 type); the change ID is added when it is sent. */
+export type NewChange = WithoutChangeId<Change>;
 
 /** What "Save and next issue" does: send a change, or just move on (nothing to save). */
 export type IssueChoice = { kind: "change"; change: NewChange } | { kind: "move_on" };

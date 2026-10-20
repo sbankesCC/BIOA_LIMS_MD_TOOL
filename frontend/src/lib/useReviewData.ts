@@ -1,5 +1,6 @@
 // A React hook that loads what the Review screen shows: the run, the review view and the
-// run's fields. `reload` reads them again (after a re-check) and returns the new view.
+// run's fields. `reload` reads them again (after a re-check) and returns the new view;
+// `refreshRun` reads only the run (verified label, exports).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApiClient } from "../api/client";
 import { describeError } from "../api/errors";
@@ -14,6 +15,7 @@ export interface ReviewData {
   fieldList: RunFieldList | null;
   errorMessage: string | null;
   reload: () => Promise<ReviewView | null>;
+  refreshRun: () => Promise<void>;
   replaceRun: (run: RunDetail) => void;
 }
 
@@ -47,6 +49,16 @@ export function useReviewData(runId: string): ReviewData {
     }
   }, [client, runId]);
 
+  // Read only the run again (verified label, exports) after a change or an export
+  const refreshRun = useCallback(async (): Promise<void> => {
+    try {
+      const loadedRun = await getRun(client, runId);
+      if (isMounted.current) setRun(loadedRun);
+    } catch (error) {
+      if (isMounted.current) setErrorMessage(describeError(error));
+    }
+  }, [client, runId]);
+
   // First load when the screen opens
   useEffect(() => {
     isMounted.current = true;
@@ -56,5 +68,5 @@ export function useReviewData(runId: string): ReviewData {
     };
   }, [reload]);
 
-  return { run, view, fieldList, errorMessage, reload, replaceRun: setRun };
+  return { run, view, fieldList, errorMessage, reload, refreshRun, replaceRun: setRun };
 }

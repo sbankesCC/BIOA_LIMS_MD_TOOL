@@ -52,12 +52,16 @@ function reconcileSelection(view: ReviewView, target: Selection): Selection | nu
   return first !== null ? selectionFor(first) : { ...target, issueId: null };
 }
 
-/** Hold the review session for one run; `reload` reads the view again and returns it. */
+/**
+ * Hold the review session for one run; `reload` reads the view again and returns it.
+ * `onChangesSaved` runs after changes are stored (the API then removes a verified label).
+ */
 export function useReviewSession(
   runId: string,
   view: ReviewView | null,
   hasStoredPendingChanges: boolean,
   reload: () => Promise<ReviewView | null>,
+  onChangesSaved?: () => void,
 ): ReviewSession {
   const client = useApiClient();
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -121,6 +125,7 @@ export function useReviewSession(
         const withIds = changes.map((change) => ({ ...change, change_id: makeChangeId() }) as Change);
         await saveChanges(client, runId, withIds);
         setPendingOverride(true);
+        onChangesSaved?.();
         return true;
       } catch (error) {
         setSaveError(describeError(error));
@@ -129,7 +134,7 @@ export function useReviewSession(
         setIsBusy(false);
       }
     },
-    [client, runId],
+    [client, runId, onChangesSaved],
   );
 
   // Save the choice (if it changes anything), then go to the next open issue

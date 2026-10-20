@@ -1,0 +1,138 @@
+/* Bottom action bar: a white card that stays at the bottom of the window (mockup 3), with the
+   undo note above it and the post-export downloads below. */
+
+.action-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-card);
+  padding: var(--space-4) 22px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  box-shadow: 0 -4px 16px rgba(38, 41, 46, 0.06);
+}
+
+.action-bar__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.action-bar__info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  align-items: center;
+}
+
+/* Progress text and bar */
+.action-bar__progress {
+  min-width: 220px;
+}
+
+.action-bar__progress-text {
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+}
+
+.action-bar__track {
+  height: 8px;
+  background: var(--color-blue-tint);
+  border-radius: var(--radius-pill);
+  margin-top: var(--space-2);
+}
+
+.action-bar__fill {
+  height: 8px;
+  background: var(--color-blue);
+  border-radius: var(--radius-pill);
+}
+
+.action-bar__reminder {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  max-width: 460px;
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-text);
+}
+
+.action-bar__reminder svg {
+  flex: 0 0 18px;
+  margin-top: 2px;
+  color: var(--color-blue);
+}
+
+.action-bar__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.action-bar__state {
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+}
+
+/* Undo note of the last bulk action */
+.action-bar__undo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  background: var(--color-blue-wash);
+  border-radius: var(--radius-medium);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-meta);
+}
+
+/* Post-export state */
+.export-downloads {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--font-size-meta);
+}
+
+.export-downloads__latest {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  background: var(--color-green-tint);
+  border-radius: var(--radius-medium);
+  padding: var(--space-3) var(--space-4);
+}
+
+.export-downloads__latest > svg {
+  flex: 0 0 18px;
+  color: var(--color-green);
+  margin-top: 2px;
+}
+
+.export-downloads__files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-1);
+}
+
+.export-downloads__earlier ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.export-downloads__earlier summary {
+  cursor: pointer;
+  color: var(--color-blue);
+  font-weight: 600;
+}

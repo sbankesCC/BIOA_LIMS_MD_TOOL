@@ -106,10 +106,11 @@ export function makeView(rows: ReviewRow[], runIssues: IssueSummary[] = []): Rev
   };
 }
 
-/** One recorded request: method, path (without /api) and parsed JSON body (or null). */
+/** One recorded request: method, path (without /api), query string and parsed JSON body (or null). */
 export interface RecordedCall {
   method: string;
   path: string;
+  query: string;
   body: unknown;
 }
 
@@ -120,10 +121,11 @@ export type ReviewAnswer = { status: number; body: unknown } | Response;
 export function makeRecordingFetch(handler: (method: string, path: string, body: unknown) => ReviewAnswer) {
   const calls: RecordedCall[] = [];
   const fetchMock = vi.fn(async (request: Request) => {
-    const path = new URL(request.url).pathname.replace(/^\/api/, "");
+    const url = new URL(request.url);
+    const path = url.pathname.replace(/^\/api/, "");
     const text = request.method === "GET" ? "" : await request.clone().text();
     const body = text.length > 0 ? JSON.parse(text) : null;
-    calls.push({ method: request.method, path, body });
+    calls.push({ method: request.method, path, query: url.search, body });
     const answer = handler(request.method, path, body);
     if (answer instanceof Response) return answer;
     return new Response(JSON.stringify(answer.body), { status: answer.status, headers: { "Content-Type": "application/json" } });
@@ -145,6 +147,12 @@ export function makeReviewHandler(
     if (path.startsWith("/runs/run_0001/records/")) return { status: 200, body: { record: {}, issues: [], sources: [] } };
     if (path === "/runs/run_0001/changes") return { status: 200, body: { saved_change_ids: [], ignored_change_ids: [] } };
     if (path === "/runs/run_0001/recheck") return { status: 200, body: { applied_change_ids: [], counts: getView().counts, judge_calls_made: 0 } };
+    if (path === "/runs/run_0001/bulk-preview") return { status: 200, body: makeEmptyPreview() };
     return { status: 404, body: { error: { code: "NOT_FOUND", message: `No mock for ${method} ${path}.`, details: {} } } };
   };
+}
+
+/** Return a bulk preview that matches no record (the default answer of the mocked API). */
+export function makeEmptyPreview() {
+  return { mode: "change_all", issue_id: null, code: null, field: null, value: null, count: 0, matches: [] };
 }

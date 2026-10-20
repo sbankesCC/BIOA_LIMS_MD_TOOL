@@ -273,6 +273,13 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   no chunk, so "source viewed" is a checkbox "I checked the documents for these items". (4) There
   is no "who am I" endpoint, so `ChangesRequest.user` is sent empty (the API stores the signed-in
   user, M9). Expose `is_record_name` and `note_required`, and chunk references for run findings?
+- **M13: API gaps found (no change made; the schema is locked).** (1) Progress "issues resolved
+  (9 of 20)": the review view leaves out resolved issues and `ReviewCounts` has no resolved or
+  total issue count, so the bottom bar shows "Records ready: X of Y" (included records with
+  nothing left to do) and the open counts instead. (2) No endpoint lists a run's bulk actions
+  (bulk_id, what it did, undone or not), so Undo is offered only for the last bulk action made
+  on the screen; after leaving the screen it cannot be undone from the UI (the API would still
+  accept `undo_bulk`). Expose resolved/total issue counts and a bulk action list?
 
 ## Decisions made during the build
 - **M1: "N/A" in Manufacturer and Supplier (reversed 2026-10-20).** M1 left BioA's "N/A" entry out of
@@ -496,6 +503,22 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   next finds no issue left, and from "Re-check now" in the pending note. Closing the panel does not.
 - **M12: banner dismissal** stores the dismissed run issue IDs per run (localStorage, try/catch);
   a run issue that appears later shows the banner again.
+- **M13: bulk offers.** Under the selected issue (not individual-review): a conflict offers
+  Resolve repeated conflicts once an alternative is picked; a missing value offers Fill missing;
+  any other value offers Change all; a warning also offers Accept all of a type. Each offer loads
+  its bulk preview and shows only when it reaches another record. Its button (enabled once the
+  value is chosen) opens the confirmation list; the mockup's "Also apply" checkbox was not used,
+  so Save and next stays one change. Fill missing asks the user for a reason when a matched
+  record has no open issue (the API requires one); nothing else is filled in for the user.
+- **M13: re-check and undo.** A bulk action, exclude, restore and undo each re-check at once.
+  Undo is shown in the bottom bar for the last bulk action of the screen (see Open questions).
+- **M13: Verify.** Saved changes are re-checked first; the dialog groups the view's open issues
+  (red, individual-review, other warnings). With nothing open, Verify runs without the dialog. A
+  refused answer shows the API's blockers. After saving a change on a verified run the run is
+  read again, so the label goes away as soon as the API removes it.
+- **M13: export.** Saved changes are re-checked first, then POST /exports, the run is read again,
+  and both files are downloaded at once under the API's file names; the post-export note offers
+  each file again and lists earlier exports. Export is disabled only while it runs.
 
 ## Progress log
 
@@ -974,3 +997,31 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
     current value) before the user types.
   - Possible duplicate shows the matching existing type names from issue details; the
     side-by-side comparison is M14.
+
+### M13: Bulk actions, exclude, Verify, export (done)
+- Built on the M12 extension points (`components/review/ReviewExtensions.tsx`, used by the
+  review route): `BulkActions.tsx` + `BulkConfirmDialog.tsx` (Change all, Fill missing, Accept
+  all of a type, Resolve repeated conflicts; `GET /bulk-preview` with the matching `mode` and
+  params; confirmation list with every record checked and uncheckable; one change list with one
+  `blk_` bulk ID, then re-check), `RecordExclusion.tsx` (Exclude record with a required reason;
+  Restore on excluded rows and in the panel footer), `ActionBar.tsx` (progress, production
+  reminder, verified state, Verify output, gold Export to Excel, Undo of the last bulk action),
+  `VerifyDialog.tsx` (blocked with blockers listed and clickable, "Review the first one";
+  "Accept warnings and verify"; verifies at once with nothing open), `ExportDownloads.tsx`
+  (post-export state, downloads through the API client, earlier exports). Shared `Dialog.tsx`.
+- Helpers: `lib/bulkActions.ts`, `lib/useBulkPreview.ts`, `lib/verifyCheck.ts`,
+  `lib/useRunExport.ts`, `lib/download.ts`; `api/exports.ts`; `getBulkPreview` and `verifyRun`
+  in `api/review.ts`; `makeBulkId` in `lib/ids.ts`; a `download` icon.
+- M12 code touched: extension contexts widened (`renderIssueExtras` gets run, session and the
+  user's current choice; `renderFooterStart` gets the session; `renderBottomBar` gets `reload`
+  and `refreshRun`); `NewChange` covers every §6 change type; `useReviewSession` takes an
+  `onChangesSaved` callback; `useReviewData` has `refreshRun`. Test fixtures record query
+  strings and answer bulk-preview with an empty preview by default.
+- Packages: none added.
+- Tests: 102 vitest tests in 9 files (21 new: `pages/ReviewActions.test.tsx` 15,
+  `lib/bulkActions.test.ts` 6). Back end unchanged: 528 passed, 1 skipped. vitest hit the known
+  cold-start worker timeout once before passing.
+- Decisions the docs did not cover: see "M13: ..." in Decisions made during the build; API gaps
+  in Open questions. Also: bulk accept sends `source_viewed: false` and no note; the dialog
+  primary buttons are blue (gold stays for Export); the Verify dialog says any later change
+  removes the label (the mockup's "locks the values" contradicts UI_SPEC §4.4).

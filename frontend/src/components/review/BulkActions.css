@@ -1,0 +1,66 @@
+/* Bulk action offers under the selected issue, and the confirmation list in their dialog. */
+
+.bulk-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.bulk-actions__offer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--color-blue-wash);
+  border-radius: var(--radius-medium);
+  padding: var(--space-3);
+}
+
+.bulk-actions__text {
+  margin: 0;
+  font-size: var(--font-size-meta);
+}
+
+.bulk-actions__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-meta);
+}
+
+.bulk-actions__row .button-secondary:disabled {
+  color: var(--color-text-faint);
+  border-color: var(--color-border);
+  cursor: not-allowed;
+}
+
+/* Confirmation list: one checkbox per record, scrolling when long */
+.bulk-confirm__count {
+  margin: 0;
+}
+
+.bulk-confirm__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+}
+
+.bulk-confirm__list li + li {
+  border-top: 1px solid var(--color-divider);
+}
+
+.bulk-confirm__item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+}
+
+.bulk-confirm__item input {
+  margin-top: 4px;
+}

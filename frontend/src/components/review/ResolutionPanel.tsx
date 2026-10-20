@@ -9,6 +9,7 @@ import {
   findActionRule,
   makeEmptyActionState,
   type ActionState,
+  type IssueChoice,
 } from "../../lib/issueActions";
 import {
   findCell,
@@ -27,10 +28,25 @@ import { SeverityIcon } from "./ActionNeeded";
 import { IssueAction } from "./IssueActions";
 import "./ResolutionPanel.css";
 
+/** What the issue extras get: the run, the session, the issue, its record and the user's choice (if ready). */
+export interface IssueExtrasContext {
+  run: RunDetail;
+  session: ReviewSession;
+  issue: IssueRef;
+  row: ReviewRow | null;
+  choice: IssueChoice | null;
+}
+
+/** What the footer's left side gets: the session and the record (null for run issues). */
+export interface FooterContext {
+  session: ReviewSession;
+  row: ReviewRow | null;
+}
+
 /** What M13 can add to the panel: extra actions under an issue, and the footer's left side. */
 export interface PanelExtensions {
-  renderIssueExtras?: (context: { issue: IssueRef; row: ReviewRow | null }) => ReactNode;
-  renderFooterStart?: (context: { row: ReviewRow | null }) => ReactNode;
+  renderIssueExtras?: (context: IssueExtrasContext) => ReactNode;
+  renderFooterStart?: (context: FooterContext) => ReactNode;
 }
 
 /** Props of the panel. */
@@ -170,10 +186,10 @@ function ExpandedIssue(props: ExpandedIssueProps) {
         onState={(patch) => setState((current) => ({ ...current, ...patch }))}
         onViewSource={() => onOpenSource(title, sources, row, issueId)}
         onShowAlternativeSource={(alternative: CellAlternative) => onOpenSource(`${title}: ${alternative.value}`, alternative.sources, null, issueId)}
-        extraActions={ref !== null ? extensions?.renderIssueExtras?.({ issue: ref, row }) : null}
+        extraActions={ref !== null ? extensions?.renderIssueExtras?.({ run: props.run, session, issue: ref, row, choice: result.choice }) : null}
       />
       <footer className="panel__footer">
-        <div>{extensions?.renderFooterStart?.({ row })}</div>
+        <div>{extensions?.renderFooterStart?.({ session, row })}</div>
         <div className="panel__save">
           <button type="button" className="panel__save-button" disabled={result.choice === null || session.isBusy} onClick={() => result.choice !== null && void session.saveAndNext(result.choice)}>
             {session.isBusy ? "Working…" : "Save and next issue"}

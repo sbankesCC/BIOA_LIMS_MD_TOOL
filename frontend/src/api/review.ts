@@ -1,8 +1,11 @@
 // Review screen calls: the review view, the run's fields, one record, source chunks and page
-// images, saving changes, re-checking and renaming. Each returns data or throws an ApiError.
+// images, bulk previews, saving changes, re-checking, Verify and renaming. Each returns data
+// or throws an ApiError.
 import type { ApiClient } from "./client";
 import { readApiResult } from "./errors";
 import type {
+  BulkMode,
+  BulkPreview,
   Change,
   ChunkSource,
   RecheckResult,
@@ -11,6 +14,7 @@ import type {
   RunDetail,
   RunFieldList,
   SaveResult,
+  VerifyResult,
 } from "./types";
 
 /** Return the flattened review grid: rows, run issues and counts. */
@@ -77,5 +81,37 @@ export function recheckRun(client: ApiClient, runId: string): Promise<RecheckRes
 export function renameRun(client: ApiClient, runId: string, name: string): Promise<RunDetail> {
   return readApiResult(
     client.PATCH("/runs/{run_id}", { params: { path: { run_id: runId } }, body: { name } }),
+  );
+}
+
+/** What a bulk preview starts from: the mode and the parameters that mode needs. */
+export interface BulkPreviewRequest {
+  mode: BulkMode;
+  issueId?: string | null;
+  field?: string | null;
+  alternativeIndex?: number | null;
+}
+
+/** Return the records a bulk action would touch (excluded records never match). */
+export function getBulkPreview(client: ApiClient, runId: string, request: BulkPreviewRequest): Promise<BulkPreview> {
+  return readApiResult(
+    client.GET("/runs/{run_id}/bulk-preview", {
+      params: {
+        path: { run_id: runId },
+        query: {
+          mode: request.mode,
+          issue_id: request.issueId ?? undefined,
+          field: request.field ?? undefined,
+          alternative_index: request.alternativeIndex ?? undefined,
+        },
+      },
+    }),
+  );
+}
+
+/** Re-check, then set the verified label; or return the issues that block it. */
+export function verifyRun(client: ApiClient, runId: string): Promise<VerifyResult> {
+  return readApiResult(
+    client.POST("/runs/{run_id}/verify", { params: { path: { run_id: runId } } }),
   );
 }

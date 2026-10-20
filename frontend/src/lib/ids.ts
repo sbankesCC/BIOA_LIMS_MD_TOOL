@@ -15,3 +15,8 @@ function makeRandomHex(): string {
 export function makeChangeId(): string {
   return `chg_${makeRandomHex()}`;
 }
+
+/** Return a new bulk ID such as `blk_3f2a…`; every change of one bulk action shares it. */
+export function makeBulkId(): string {
+  return `blk_${makeRandomHex()}`;
+}

@@ -8,6 +8,7 @@ export type IconName =
   | "clock"
   | "help"
   | "upload"
+  | "download"
   | "file"
   | "close"
   | "arrow-right"
@@ -32,6 +33,7 @@ const ICON_PATHS: Record<IconName, string[]> = {
     "M12 17h.01",
   ],
   upload: ["M12 15V4", "M7.5 8.5 12 4l4.5 4.5", "M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"],
+  download: ["M12 4v11", "M7.5 10.5 12 15l4.5-4.5", "M4 18h16"],
   file: ["M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z", "M14 3v5h5"],
   close: ["M6 6l12 12M18 6 6 18"],
   "arrow-right": ["M5 12h14M13 6l6 6-6 6"],
