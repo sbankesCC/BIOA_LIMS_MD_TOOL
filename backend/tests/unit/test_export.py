@@ -16,9 +16,10 @@ from app.config.dfd_template import SHEET_NAME
 from app.config.field_rules import FieldRule
 from app.contracts.chunk import Chunk
 from app.contracts.export import ExportInfo
-from app.contracts.extraction import Evidence, ExtractedField
-from app.contracts.record import StoredRecord
+from app.contracts.extraction import Alternative, Evidence, ExtractedField
+from app.contracts.record import FieldOutput, StoredField, StoredRecord
 from app.export import audit_workbook
+from app.export.audit_rows import find_written_text
 from app.export.service import ExportContext, export_run, make_export_file_names
 from app.review.errors import RunNotInReviewError
 from app.review.service import ReviewContext
@@ -302,7 +303,7 @@ def test_audit_workbook_has_five_sheets_with_columns(
     }
     for title, headers in expected_headers.items():
         assert list(read_rows(open_sheet(path, title))[0]) == headers
-    assert len(audit_workbook.make_value_headers(name_column)) == 13
+    assert len(audit_workbook.make_value_headers(name_column)) == 14
     assert len(audit_workbook.make_edit_headers(name_column)) == 11
 
 
@@ -317,11 +318,50 @@ def test_audit_values_cover_every_field_of_included_records(
     assert len(rows) == 2 * field_count
     assert {row[0] for row in rows} == {"rec_0001", "rec_0003"}
     cited = next(row for row in rows if row[0] == "rec_0001" and row[2] == text_rule(bundle).column)
-    assert (cited[5], cited[6], cited[7]) == (
+    # Value as written sits just before the exported value
+    assert (cited[3], cited[4]) == ("synthetic", "synthetic")
+    assert (cited[6], cited[7], cited[8]) == (
         DOCUMENT_NAME,
         f"{DOCUMENT_NAME}, Synthetic section",
         QUOTE,
     )
+
+
+def multi_value_rule(bundle: ConfigBundle) -> FieldRule:
+    """Return the first extracted field that holds several values."""
+    return find_rule(bundle.field_rules, lambda rule: rule.multi_value)
+
+
+def stored_extraction(extraction: ExtractedField) -> StoredField:
+    """Return a stored field holding only this extraction (output left empty)."""
+    return StoredField(extraction=extraction, output=FieldOutput(origin="extracted"))
+
+
+def test_written_value_joins_a_multi_value_with_the_field_separator(bundle: ConfigBundle) -> None:
+    """A list as written is joined with the field's separator."""
+    rule = multi_value_rule(bundle)
+    stored = stored_extraction(ExtractedField(status="found", value=["syn-1", "syn-2"]))
+    assert find_written_text(rule, stored) == f"syn-1{rule.separator}syn-2"
+
+
+def test_written_value_of_a_conflict_lists_every_alternative(bundle: ConfigBundle) -> None:
+    """A conflicting field shows every alternative as written, joined like multi-values."""
+    rule = multi_value_rule(bundle)
+    evidence = [Evidence(chunk_id=CHUNK_ID, quote=QUOTE)]
+    alternatives = [
+        Alternative(value=["syn-1"], evidence=evidence),
+        Alternative(value=["syn-2"], evidence=evidence),
+    ]
+    stored = stored_extraction(ExtractedField(status="conflicting", alternatives=alternatives))
+    assert find_written_text(rule, stored) == f"syn-1{rule.separator}syn-2"
+
+
+def test_written_value_is_blank_when_not_found_or_not_extracted(bundle: ConfigBundle) -> None:
+    """A not-found field and a field the tool does not fill have no value as written."""
+    rule = text_rule(bundle)
+    not_found = stored_extraction(ExtractedField(status="not_found"))
+    assert find_written_text(rule, not_found) is None
+    assert find_written_text(unfilled_rules(bundle)[0], None) is None
 
 
 def test_audit_lists_edits_exclusions_summary_and_run_issues(

@@ -32,7 +32,7 @@ from app.contracts.issue import Issue
 from app.contracts.record import StoredField, StoredRecord
 from app.contracts.run import RunInfo
 from app.export.loader import find_export_text
-from app.review.view import SourceLocation, SourceLocator
+from app.review.view import SourceLocation, SourceLocator, format_written
 from app.storage.review_db import StoredChangeRow
 from app.storage.run_store import DocumentInfo
 from app.validation.duplicates import find_name_rule, read_name
@@ -166,7 +166,7 @@ def build_value_row(
     issues: Sequence[Issue],
     locator: SourceLocator,
 ) -> AuditValueRow:
-    """Return one Values row: exported value, origin, sources, checks and issues."""
+    """Return one Values row: value as written, exported value, origin, sources, checks, issues."""
     stored = record.fields.get(rule.key)
     evidence = find_field_evidence(stored)
     locations = [locator.locate(pair.chunk_id) for pair in evidence]
@@ -176,6 +176,7 @@ def build_value_row(
         record_id=record.record_id,
         consumable_type=read_name(record, name_rule),
         field=rule.column,
+        written_value=find_written_text(rule, stored),
         exported_value=find_export_text(rule, record),
         origin=stored.output.origin if stored is not None else rule.role,
         source_document=join_lines(unique(loc.file_name for loc in locations if loc.file_name)),
@@ -187,6 +188,24 @@ def build_value_row(
         issue_codes=join_lines(issue.code for issue in issues),
         issue_outcome=join_lines(describe_outcome(issue) for issue in issues),
     )
+
+
+def find_written_text(rule: FieldRule, stored: StoredField | None) -> str | None:
+    """Return the value as written in the document; a conflict's alternatives are all listed.
+
+    Several values (a list, or the alternatives) are joined with the field's separator, as for
+    multi-value fields. A field that was not found or not extracted gives None (an empty cell).
+    """
+    if stored is None or stored.extraction is None:
+        return None
+    extraction = stored.extraction
+    if extraction.value is not None:
+        return format_written(rule, extraction.value)
+    # A conflicting field has no single value: every alternative as written is listed
+    texts = [
+        format_written(rule, alternative.value) or "" for alternative in extraction.alternatives
+    ]
+    return format_written(rule, texts) if texts else None
 
 
 def find_field_evidence(stored: StoredField | None) -> list[Evidence]:

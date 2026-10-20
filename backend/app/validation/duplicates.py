@@ -2,7 +2,8 @@
 
 Against the reference data: an exact name match is EXISTS_IN_LABVANTAGE; a normalized match
 (case, spaces, degree sign) is POSSIBLE_DUPLICATE; otherwise similar names are shortlisted and
-the duplicate judge decides. The record name is the first loader field (the LabVantage key).
+the duplicate judge decides. The record name field and the fields the judge sees are flagged
+in the field rules (`is_record_name`, `sent_to_duplicate_judge`).
 """
 
 from collections import defaultdict
@@ -18,7 +19,6 @@ from app.contracts.record import StoredRecord
 from app.contracts.reference import ReferenceData, ReferenceType
 from app.transform.lookup_matching import BOOLEAN_VALUES, normalize_for_match
 from app.validation import codes
-from app.validation.field_checks import is_checked_field
 from app.validation.issues import IssueDraft
 from app.validation.judge_cache import JudgeRequest, JudgeRunner
 
@@ -40,8 +40,8 @@ class ReferenceCheck(BaseModel):
 
 
 def find_name_rule(field_rules: FieldRules) -> FieldRule:
-    """Return the field that names a record: the first loader field, the LabVantage key."""
-    return field_rules.fields[0]
+    """Return the field that names a record: the one flagged `is_record_name` in the config."""
+    return field_rules.record_name_field()
 
 
 def read_name(record: StoredRecord, name_rule: FieldRule) -> str | None:
@@ -79,12 +79,15 @@ def find_run_duplicates(records: Sequence[StoredRecord], name_rule: FieldRule) -
 
 
 def find_identifying_values(record: StoredRecord, field_rules: FieldRules) -> dict[str, str | None]:
-    """Return the record's extracted values by field key: what the judge sees and the cache keys."""
-    return {
-        rule.key: record.fields[rule.key].output.value
-        for rule in field_rules.fields
-        if is_checked_field(rule) and rule.key in record.fields
-    }
+    """Return the values of the fields flagged `sent_to_duplicate_judge`: what the judge sees.
+
+    The judge cache key is built from exactly these values. A field missing from the record is None.
+    """
+    values: dict[str, str | None] = {}
+    for rule in field_rules.duplicate_judge_fields():
+        stored = record.fields.get(rule.key)
+        values[rule.key] = stored.output.value if stored is not None else None
+    return values
 
 
 def is_exact_match(name: str, existing: ReferenceType, rules: ReferenceRules) -> bool:

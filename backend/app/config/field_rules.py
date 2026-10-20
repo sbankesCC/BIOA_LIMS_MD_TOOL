@@ -1,6 +1,7 @@
 """Field rules (`field_rules.yaml`): loader fields, their roles and checks, and condition groups.
 
-Field order here is the column order of the DFD loader. Cross-file checks live in `bundle.py`.
+Field order here is the column order of the DFD loader. Flags mark the record name field and the
+fields sent to the duplicate judge. Cross-file checks live in `bundle.py`.
 """
 
 import re
@@ -40,6 +41,8 @@ class FieldRule(BaseModel):
     disallowed_characters: list[DisallowedCharacters] = []
     notes: str | None = None
     extraction_guidance: str | None = None
+    is_record_name: bool = False
+    sent_to_duplicate_judge: bool = False
 
 
 class OneOfGroup(BaseModel):
@@ -85,11 +88,23 @@ class FieldRules(BaseModel):
         """Return the DFD column names in loader order."""
         return [field.column for field in self.fields]
 
+    def record_name_field(self) -> FieldRule:
+        """Return the field flagged `is_record_name` (loading checks exactly one has it)."""
+        return next(field for field in self.fields if field.is_record_name)
+
+    def duplicate_judge_fields(self) -> list[FieldRule]:
+        """Return the fields sent to the duplicate judge (and its cache key), in loader order."""
+        return [field for field in self.fields if field.sent_to_duplicate_judge]
+
 
 def load_field_rules(path: Path) -> FieldRules:
     """Load `field_rules.yaml` and check it on its own; raise ConfigError on any problem."""
     rules = parse_model(FieldRules, read_yaml(path), FILE_NAME)
-    problems = find_field_problems(rules) + find_condition_group_problems(rules)
+    problems = (
+        find_field_problems(rules)
+        + find_flag_problems(rules)
+        + find_condition_group_problems(rules)
+    )
     if problems:
         raise ConfigError(problems)
     return rules
@@ -132,6 +147,26 @@ def find_settings_problems(field: FieldRule) -> list[str]:
     # Lookup lists hold text values, so a lookup field must be text
     if field.lookup_sheet and field.type != "text":
         problems.append(f"{name} has a lookup_sheet but its type is {field.type}, not text.")
+    return problems
+
+
+def find_flag_problems(rules: FieldRules) -> list[str]:
+    """Check exactly one field names a record and that field is sent to the duplicate judge."""
+    problems: list[str] = []
+    name_fields = [field for field in rules.fields if field.is_record_name]
+    # Duplicate checks, review and audit need exactly one record name field
+    if len(name_fields) != 1:
+        problems.append(
+            f"{FILE_NAME}: exactly one field must have is_record_name: true, "
+            f"but {len(name_fields)} do. Mark the field that names a record, and only that one."
+        )
+    # The judge compares names, so the name must be among the fields it sees
+    for field in name_fields:
+        if not field.sent_to_duplicate_judge:
+            problems.append(
+                f"{FILE_NAME}: field '{field.key}' has is_record_name but not "
+                "sent_to_duplicate_judge. Add sent_to_duplicate_judge: true to it."
+            )
     return problems
 
 

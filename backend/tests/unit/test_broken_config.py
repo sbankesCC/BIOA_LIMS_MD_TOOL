@@ -75,6 +75,39 @@ def test_extracted_field_without_guidance_is_reported(config_copy: Path) -> None
     assert_config_error(config_copy, "has no extraction_guidance")
 
 
+def test_no_record_name_field_is_reported(config_copy: Path) -> None:
+    """A config where no field has is_record_name is rejected."""
+
+    def change(data: Any) -> None:
+        for field in data["fields"]:
+            field.pop("is_record_name", None)
+
+    edit_yaml(config_copy / "field_rules.yaml", change)
+    assert_config_error(config_copy, "exactly one field must have is_record_name: true, but 0 do")
+
+
+def test_two_record_name_fields_are_reported(config_copy: Path) -> None:
+    """A config where two fields have is_record_name is rejected."""
+
+    def change(data: Any) -> None:
+        unflagged = next(field for field in data["fields"] if not field.get("is_record_name"))
+        unflagged.update(is_record_name=True, sent_to_duplicate_judge=True)
+
+    edit_yaml(config_copy / "field_rules.yaml", change)
+    assert_config_error(config_copy, "exactly one field must have is_record_name: true, but 2 do")
+
+
+def test_record_name_not_sent_to_judge_is_reported(config_copy: Path) -> None:
+    """The record name field must also be sent to the duplicate judge."""
+
+    def change(data: Any) -> None:
+        name_field = next(field for field in data["fields"] if field.get("is_record_name"))
+        name_field.pop("sent_to_duplicate_judge", None)
+
+    edit_yaml(config_copy / "field_rules.yaml", change)
+    assert_config_error(config_copy, "has is_record_name but not sent_to_duplicate_judge")
+
+
 def test_conditional_field_outside_any_group_is_reported(config_copy: Path) -> None:
     """A conditional field must belong to a condition group."""
     edit_yaml(config_copy / "field_rules.yaml", lambda data: data.update(condition_groups={}))

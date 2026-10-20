@@ -1,8 +1,9 @@
 """Duplicate judge interface, its result cache, and the per-pass call limit.
 
 The judge (an LLM agent, built in M8) sits behind the `DuplicateJudge` protocol. Results are
-cached by the record's identifying values, the reference data version and the prompt version,
-so a re-check calls the judge again only when one of those changed (ARCHITECTURE §4.8).
+cached by the record's identifying values (the fields flagged `sent_to_duplicate_judge`, exactly
+what the judge is sent), the reference data version and the prompt version, so a re-check calls
+the judge again only when one of those changed (ARCHITECTURE §4.8).
 """
 
 import hashlib

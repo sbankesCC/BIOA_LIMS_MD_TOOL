@@ -285,12 +285,10 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   NOT_IN_LOOKUP. Booleans accept only Y or N in any case; words such as "Yes" are kept as written.
 - **M4: defaults** fill not-found fields (and found values that clean to empty), never conflicting
   fields, and are applied literally (no lookup matching). An empty extracted field has origin `extracted`.
-- **M5: record name field.** The record's name (for DUPLICATE_IN_RUN, EXISTS_IN_LABVANTAGE,
-  POSSIBLE_DUPLICATE and the judge shortlist) is the first field in `field_rules.yaml` (the first
-  DFD column, the LabVantage key). The config has no explicit "name" flag; this keeps names out of code.
-- **M5: judge cache key** uses every `extracted` field's current output value (not only the six
-  identifying fields ARCHITECTURE §4.8 lists, which exist only in a prompt comment). Safe: it can only
-  cause extra judge calls, never a stale result. A config flag could narrow it later.
+- **M5: record name field** (superseded by "Review 2026-10-21: record name flag" below). Was the
+  first field in `field_rules.yaml`.
+- **M5: judge cache key** (superseded by "Review 2026-10-21: judge fields from config" below). Was
+  every `extracted` field's current output value.
 - **M5: duplicate judge limit** applies per validation pass (graph end, each re-check); cached
   results do not count. The service takes the limit and returns `judge_calls_made`.
 - **M5: shortlist** = existing types whose normalized name (case, spaces, "°" removed) has a difflib
@@ -326,6 +324,18 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   `run – export 1 – audit – draft.xlsx`. Characters Windows forbids in file names become `_`.
 - **M7: audit Values sheet.** Record-level issues (no field) are listed on the record name's row.
   Issues of every status are listed with their outcome ("accepted by X", "resolved by X").
+- **Review 2026-10-21: record name flag.** The record's name (DUPLICATE_IN_RUN, EXISTS_IN_LABVANTAGE,
+  POSSIBLE_DUPLICATE, judge shortlist, review view, audit and export name column) is the field with
+  `is_record_name: true` in `field_rules.yaml` (`consumable_type`), not the first field. Loading checks
+  exactly one field has it. Field rules version `0.3`.
+- **Review 2026-10-21: judge fields from config: `sent_to_duplicate_judge` flag** (design choice so
+  code reads the six ARCHITECTURE §4.8 fields from config: name, description, class, manufacturer,
+  catalog number, target concentration). The judge request's `values` and the judge cache key are
+  exactly these fields' current output values (plus reference data and prompt versions). Loading
+  checks the record name field is also flagged.
+- **Review 2026-10-21: value as written column.** The audit Values sheet has "Value as written" just
+  before "Exported value" (CONTRACTS §8 updated): the extraction value, a list joined with the field's
+  separator; for a conflict, every alternative joined the same way; blank when not found or not extracted.
 
 ## Progress log
 
@@ -505,7 +515,7 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   text starting with "=" is kept as text, never a formula.
 - `export/audit_rows.py` (`AuditSource`, `build_audit_rows`) and `export/audit_workbook.py`
   (`write_audit_workbook`): the five CONTRACTS §8 sheets with header rows; the record name column
-  header is the first field's column (from config).
+  header is the record name field's column (from config; flag since the 2026-10-21 review).
 - `export/service.py`: `ExportContext(review, template, models)`, `export_run(database, context,
   run_folder, run_id, user, at) -> ExportInfo` (re-checks if changes are pending, writes both files
   to the run's `exports/`, `add_export`, audit event `export_created`, log line),
@@ -533,9 +543,23 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
     changes (undone ones too, plus the undo); an accepted warning shows its issue's record and field.
   - The audit Summary lists the models from `ExportContext.models` (node → model). The run does
     not capture its models yet: M8 should store them per run so M9 can pass them.
-  - CONTRACTS §2 says the value as written is in the audit file; the §8 Values columns have no
-    such column, so it appears through the source quote only (no contract change made).
+  - The value as written in the audit file (CONTRACTS §2): fixed in the 2026-10-21 review, now a
+    Values column.
   - Lookup checks also report exact duplicates and non-text cells (e.g. a number typed in Excel).
     A deleted sheet no field uses is allowed and shown in the diff as removed.
   - Reference data: cells keep their text as written (numbers as text, whole floats without ".0");
     candidate IDs `ref_0001`... in file order. No staleness check (each upload is a full snapshot).
+
+### Review fixes 2026-10-21 (done)
+- `clients/bioa/field_rules.yaml` (version `0.3`): `is_record_name: true` on `consumable_type`;
+  `sent_to_duplicate_judge: true` on `consumable_type`, `description`, `consumable_class`,
+  `manufacturer`, `catalog_no`, `target_concentration`.
+- `config/field_rules.py`: both flags on `FieldRule` (default false); `FieldRules.record_name_field()`
+  and `duplicate_judge_fields()`; `find_flag_problems` (exactly one name field; it must be a judge field).
+- `validation/duplicates.py`: `find_name_rule` reads the flag; `find_identifying_values` (judge
+  request values and cache key) uses only the judge fields. Export, review view and audit go
+  through `find_name_rule`, so they follow the flag.
+- Audit Values sheet: "Value as written" column before "Exported value" (`AuditValueRow.written_value`,
+  `audit_rows.find_written_text`); CONTRACTS §8 lists it.
+- Tests: 396 total, 11 new (flag config errors and lookup, judge request and cache key fields,
+  reference/prompt versions, value as written).

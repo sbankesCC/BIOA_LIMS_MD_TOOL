@@ -3,16 +3,18 @@
 Field keys and lookup values are read from the client config, never written here.
 """
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 import pytest
 
 from app.config.bundle import ConfigBundle
+from app.config.field_rules import FieldRule
 from app.contracts.issue import Issue, IssueSeverity, IssueStatus
 from app.contracts.record import Exclusion
 from app.validation import codes
 from app.validation.action_needed import compute_action_needed
-from app.validation.duplicates import build_shortlist
+from app.validation.duplicates import build_shortlist, find_name_rule
 from app.validation.judge_cache import InMemoryJudgeCache, make_judge_cache_key
 from tests.unit.validation_helpers import (
     FakeJudge,
@@ -39,14 +41,60 @@ def test_cache_hit_skips_the_judge_on_recheck(bundle: ConfigBundle) -> None:
 
 
 def test_changed_identifying_value_misses_the_cache(bundle: ConfigBundle) -> None:
-    """Changing an extracted value the judge sees calls the judge again."""
+    """Changing a value of a field flagged sent_to_duplicate_judge calls the judge again."""
     judge, cache = FakeJudge("different"), InMemoryJudgeCache()
     record = make_record(bundle, name=SIMILAR_NAME)
     run_validation(bundle, [record], reference=REFERENCE, judge=judge, cache=cache)
-    rule = bundle.field_rules.extracted_fields()[1]
+    rule = find_rule(bundle.field_rules, is_judge_field_not_name(bundle))
     changed = set_output(record, rule.key, "synthetic other", "user_edited")
     run_validation(bundle, [changed], reference=REFERENCE, judge=judge, cache=cache)
     assert len(judge.requests) == 2
+
+
+def is_judge_field_not_name(bundle: ConfigBundle) -> Callable[[FieldRule], bool]:
+    """Return a test for judge fields other than the record name."""
+    name_key = find_name_rule(bundle.field_rules).key
+    return lambda rule: rule.sent_to_duplicate_judge and rule.key != name_key
+
+
+def test_changed_non_judge_value_hits_the_cache(bundle: ConfigBundle) -> None:
+    """Changing a field the judge is not sent keeps the cache key: no new judge call."""
+    judge, cache = FakeJudge("same"), InMemoryJudgeCache()
+    record = make_record(bundle, name=SIMILAR_NAME)
+    run_validation(bundle, [record], reference=REFERENCE, judge=judge, cache=cache)
+    rule = find_rule(bundle.field_rules, lambda rule: not rule.sent_to_duplicate_judge)
+    changed = set_output(record, rule.key, "synthetic other", "user_edited")
+    result = run_validation(bundle, [changed], reference=REFERENCE, judge=judge, cache=cache)
+    assert (result.judge_calls_made, len(judge.requests)) == (0, 1)
+    assert len(issues_with_code(result, codes.POSSIBLE_DUPLICATE)) == 1
+
+
+def test_judge_request_carries_only_flagged_fields(bundle: ConfigBundle) -> None:
+    """The judge is sent exactly the fields flagged sent_to_duplicate_judge."""
+    judge = FakeJudge("different")
+    record = make_record(bundle, name=SIMILAR_NAME)
+    run_validation(bundle, [record], reference=REFERENCE, judge=judge)
+    flagged = {rule.key for rule in bundle.field_rules.duplicate_judge_fields()}
+    assert set(judge.requests[0].values) == flagged
+    assert flagged < {rule.key for rule in bundle.field_rules.extracted_fields()}
+
+
+def test_new_reference_or_prompt_version_calls_the_judge_again(bundle: ConfigBundle) -> None:
+    """The same values with a new reference data version or prompt version miss the cache."""
+    judge, cache = FakeJudge("different"), InMemoryJudgeCache()
+    records = [make_record(bundle, name=SIMILAR_NAME)]
+    newer_reference = REFERENCE.model_copy(update={"version": "ref-synthetic-2"})
+    run_validation(bundle, records, reference=REFERENCE, judge=judge, cache=cache)
+    run_validation(bundle, records, reference=newer_reference, judge=judge, cache=cache)
+    run_validation(
+        bundle,
+        records,
+        reference=newer_reference,
+        judge=judge,
+        cache=cache,
+        prompt_version="test-prompt-2",
+    )
+    assert len(judge.requests) == 3
 
 
 def test_cache_key_changes_with_reference_and_prompt_version() -> None:

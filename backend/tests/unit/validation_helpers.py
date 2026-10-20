@@ -122,10 +122,11 @@ def run_validation(
     call_limit: int | None = None,
     findings: ProcessingFindings | None = None,
     previous_issues: Sequence[Issue] = (),
+    prompt_version: str = JUDGE_PROMPT_VERSION,
 ) -> ValidationResult:
     """Run the validation service with test defaults (empty reference data, no call limit)."""
     runner = JudgeRunner(
-        judge or FakeJudge(), cache or InMemoryJudgeCache(), JUDGE_PROMPT_VERSION, call_limit
+        judge or FakeJudge(), cache or InMemoryJudgeCache(), prompt_version, call_limit
     )
     return validate_run(
         records,

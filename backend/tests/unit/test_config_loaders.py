@@ -1,6 +1,11 @@
 """Happy-path tests: the real client config loads and holds what the contracts expect."""
 
-from app.config.bundle import ConfigBundle
+from pathlib import Path
+from typing import Any
+
+from app.config.bundle import ConfigBundle, load_config_bundle
+from app.validation.duplicates import find_name_rule
+from tests.conftest import edit_yaml
 
 
 def test_field_rules_have_22_fields_and_17_extracted(bundle: ConfigBundle) -> None:
@@ -48,3 +53,26 @@ def test_versions_cover_every_config_file(bundle: ConfigBundle) -> None:
     assert versions.reference_data_mapping == bundle.reference_mapping.version
     assert versions.dfd_template.startswith("sha256:")
     assert set(versions.prompts) == set(bundle.prompts)
+
+
+def test_record_name_field_is_found_by_its_flag_not_its_position(config_copy: Path) -> None:
+    """Moving the name flag to the last judge field makes that field the name, not the first."""
+
+    def change(data: Any) -> None:
+        for field in data["fields"]:
+            field.pop("is_record_name", None)
+        judge_fields = [field for field in data["fields"] if field.get("sent_to_duplicate_judge")]
+        judge_fields[-1]["is_record_name"] = True
+
+    edit_yaml(config_copy / "field_rules.yaml", change)
+    field_rules = load_config_bundle(config_copy).field_rules
+    name_rule = find_name_rule(field_rules)
+    assert name_rule.key == field_rules.duplicate_judge_fields()[-1].key
+    assert name_rule.key != field_rules.fields[0].key
+
+
+def test_record_name_field_is_sent_to_the_duplicate_judge(bundle: ConfigBundle) -> None:
+    """The real config flags one name field, and it is among the duplicate judge fields."""
+    judge_fields = bundle.field_rules.duplicate_judge_fields()
+    assert find_name_rule(bundle.field_rules) in judge_fields
+    assert all(field.role == "extracted" for field in judge_fields)

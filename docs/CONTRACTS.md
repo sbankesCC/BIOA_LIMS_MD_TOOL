@@ -305,7 +305,7 @@ File: `[run name] – export [n] – audit.xlsx` (draft exports add "– draft")
 | Sheet | One row per | Columns |
 |---|---|---|
 | Summary | Setting (label/value) | Run name, run ID, export number, draft or verified, exported by/at, verified by/at, documents (name + SHA-256), versions (field rules, issue catalogue, lookup lists, reference data, prompts, models), open issue counts |
-| Values | Record × field (all 22, excluded records not included) | Record ID, Consumable Type, field (column name), exported value, origin, source document, location (section / page / sheet+rows), source quote, extraction status, citation check, verification verdict, issue codes, issue outcome |
+| Values | Record × field (all 22, excluded records not included) | Record ID, Consumable Type, field (column name), value as written (blank if not found; a conflict lists its alternatives), exported value, origin, source document, location (section / page / sheet+rows), source quote, extraction status, citation check, verification verdict, issue codes, issue outcome |
 | Edits | Applied change | Change ID, record ID, Consumable Type, field, type, old value, new value, reason, user, time, bulk ID |
 | Excluded | Excluded record | Record ID, name, found in, excluded by, at, reason |
 | Run issues | Run-level issue | Code, message |

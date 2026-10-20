@@ -30,6 +30,7 @@ class AuditValueRow(ContractModel):
     record_id: str
     consumable_type: str | None
     field: str
+    written_value: str | None
     exported_value: str | None
     origin: str
     source_document: str | None
