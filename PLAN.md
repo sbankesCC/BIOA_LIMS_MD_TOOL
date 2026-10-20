@@ -1,0 +1,253 @@
+# Build plan: LabVantage Consumable Type Extractor pilot (BioA)
+
+After approval, this plan is saved as `PLAN.md` at the repo root. It is the first commit of milestone 1.
+
+## Context
+BioA lab staff create LabVantage Consumable Types by hand from methods, study plans and worksheets.
+This pilot reads those documents, proposes records with their sources, guides a user through fixing
+problems, and writes the DFD loader plus an audit workbook. The design is complete: `docs/`
+(ARCHITECTURE, CONTRACTS, UI_SPEC, mockups) and `clients/bioa/` (config). This plan sets the build
+order, file layout, interfaces, tests and how each milestone is checked.
+
+Rules the plan follows:
+- Contracts, config loaders and deterministic code are built and tested before any LLM code.
+- Every milestone ends with passing tests, a commit, and a stop for review. Each starts in a fresh session.
+- The back end comes first. Its OpenAPI schema is reviewed and locked before front-end work starts.
+
+## Decisions taken in the interview
+1. **Settings and what blank means.** The app starts with every blank setting.
+   - Blank means no limit: `MAX_FILE_SIZE_MB`, `MAX_FILES_PER_RUN`, `MAX_INPUT_TOKENS`, `MAX_DUPLICATE_JUDGE_CALLS`.
+   - Blank keeps everything: `LLM_TRACE_RETENTION_DAYS`.
+   - `MAX_REEXTRACT=1` (the documented default).
+   - No usable blank meaning: `LLM_PROVIDER`, `OPENAI_API_KEY`, `EXTRACTION_MODEL`, `VERIFICATION_MODEL`,
+     `DUPLICATE_JUDGE_MODEL`, `LLM_RETRIES`, `PILOT_USER`, `PILOT_USER_ROLES` (comma list, e.g. `user,admin`).
+     The app still starts. The feature that needs one fails with a plain message naming it
+     ("Set PILOT_USER in .env, then restart the app").
+   - `REVIEW_DB=./data/review.sqlite` (a path value, like `CHECKPOINT_DB`).
+   - The committed `env.example` lists only `CLIENT_CONFIG_DIR`, `STORAGE_DIR`, `CHECKPOINT_DB` and the LLM settings.
+     M1 adds the others with the meanings above: the limits, retention, `LLM_RETRIES` and `PILOT_USER*` blank,
+     `MAX_REEXTRACT=1`, and `REVIEW_DB` as above. Each gets a comment saying what blank means.
+     Tests set their own values.
+2. **Issue catalogue: one-time edit allowed.** In milestone 5 I add the missing codes to
+   `clients/bioa/issue_catalogue.yaml`, bump it to `0.5` and show you the diff. Proposed codes:
+
+   | Code | Level | Severity | Flags | Message (draft) |
+   |---|---|---|---|---|
+   | `POSSIBLE_DUPLICATE_IN_RUN` | record | warning | | "This may be the same material as {other}. Exclude one, or confirm they are different." |
+   | `UNREPORTED_CONFLICT` | field | warning | individual_review | "Another source may give a different {field}. Open the source and check." |
+   | `RECORD_DROPPED_ON_REEXTRACTION` | record | warning | | "Re-extraction did not return this record. Check it, or exclude it." |
+   | `EXCLUDED_ITEM_CHALLENGED` | run | warning | individual_review, note_required | "These left-out items may be consumables: {items}. Add them outside the tool or confirm, and note what you did." |
+   | `REFERENCE_DATA_MISSING` | run | warning | | "No existing Consumable Types were uploaded, so the check against LabVantage was skipped. Upload them in Admin, or check names in LabVantage." |
+   | `NO_READABLE_DOCUMENTS` | run | error | | "None of the files could be read. Check the files and start a new run." |
+   | `EXTRACTION_FAILED` | run | error | | "The extraction could not be completed. Retry the run; if it fails again, contact support." |
+
+## Proposals (approve or change with the plan)
+- **PDF library: `pypdfium2`** (Apache-2.0/BSD): per-page text extraction, plus rendering of scanned
+  pages to PNG (with Pillow). Not PyMuPDF, because its AGPL license is a risk for a client tool.
+- **Word: `python-docx`**. **Excel: `openpyxl`**. **Checkpointer: `langgraph-checkpoint-sqlite`**.
+  **Multipart: `python-multipart`**. **OpenAI: `openai`**. Dev only: `fpdf2` (writes synthetic text PDFs
+  for tests), `httpx` (TestClient).
+- **Layout:** `pyproject.toml` and `uv.lock` at the repo root, with the package in `backend/app`
+  (hatchling `packages = ["backend/app"]`). `uv run pytest` and the eval command work from the root,
+  and `uv run uvicorn app.main:app` works from `backend/`. CLAUDE.md commands are updated to match.
+- **Front end:** plain React + TypeScript + Vite. No component library. Hand-written components with
+  global CSS variables taken from the mockups (`tokens.css`) and one CSS file per component. Dependencies:
+  `react`, `react-dom`, `react-router-dom`, `openapi-fetch`. Dev: `openapi-typescript`, `vitest`,
+  `@testing-library/react`, `jsdom`. The searchable dropdown, dialogs and grid are built by hand.
+- **Token estimate (no network):** characters / 3.5 for text, plus a fixed cost per page image based
+  on the OpenAI image-tile formula. It is conservative on purpose. The constants live in one module.
+- **OpenAI call shape:** Responses API with structured outputs (strict JSON schema generated from
+  Pydantic plus `field_rules.yaml`). Text and images go in one user message.
+
+## Repository layout (target)
+```
+pyproject.toml, uv.lock, env.example, PLAN.md
+backend/
+  app/
+    main.py                 # FastAPI app factory, startup config validation
+    settings.py             # env settings; require_setting(name) helper
+    logging_setup.py        # JSON-lines logger (CONTRACTS §11)
+    ids.py                  # prefixed IDs, issue_id key hash
+    config/                 # loaders + validators: field_rules, issue_catalogue, lookup_lists,
+                            #   dfd_template, reference_mapping, prompts; ConfigBundle with versions
+    contracts/              # Pydantic models: chunk, extraction, verification, judge, record,
+                            #   issue, changes, run, export, trace, api (request/response)
+    llm_schema.py           # JSON Schemas for the LLM, from models + field rules
+    status_rules.py         # CONTRACTS §2 status table check
+    storage/                # run_store.py (files), review_db.py (SQLite, schema + queries)
+    ingest/                 # docx.py, pdf.py, xlsx.py, chunking.py, loader_detection.py, ingest.py
+    transform/              # cleaning.py, lookup_matching.py, numbers.py, transform.py
+    verification/           # citation_check.py
+    validation/             # field_checks.py, conditions.py, findings_to_issues.py,
+                            #   duplicates.py (exact/normalized/shortlist), judge_cache.py,
+                            #   action_needed.py, service.py
+    llm/                    # client.py (interface), fake_client.py, openai_client.py,
+                            #   tracing.py, prompt_builder.py, token_estimate.py
+    agents/                 # extraction.py, extraction_verification.py, duplicate_judge.py
+    graph/                  # state.py, nodes.py, routing.py (only routing), build.py
+    review/                 # service.py (changes, recheck, verify, undo), view.py (flattened grid)
+    export/                 # loader.py, audit_workbook.py, service.py
+    admin/                  # lookup_lists.py, reference_data.py
+    api/                    # auth.py (placeholder dependency), errors.py, routes_*.py
+    evals/                  # __main__.py, case_loader.py, scoring.py, report.py
+  tests/                    # unit/, integration/, fixtures/ (all synthetic), conftest.py
+  openapi.json              # locked schema (milestone 9)
+frontend/                   # Vite app (milestones 11–14)
+evals/cases/synthetic_001/  # one synthetic case so the harness runs
+```
+
+## Milestones
+
+### M1: Project skeleton, settings, config loaders, startup validation
+- `pyproject.toml` (ruff with `D` docstring and `N` naming rules, pyright strict on `backend/app`),
+  `uv add` the approved packages, `.gitignore` additions, `env.example` gets the new blank settings.
+- `settings.py`: every setting optional. Blank limit settings give `None`, meaning no limit. `require_setting()` raises
+  `MissingSettingError` with a message naming the setting, for settings with no usable blank meaning.
+- `config/`: Pydantic models and loaders for every file in CONTRACTS §12. Validation covers 22 fields
+  in order, roles, lookup sheets exist, DFD headers equal field-rule columns, catalogue severities,
+  prompt headers and placeholders, and the `_metadata` version. `ConfigBundle` holds a version per file.
+- `main.py` + `GET /health`. Startup loads and validates config and fails with a clear message if it is broken.
+- `logging_setup.py`: JSON lines, with ID, count and duration fields only.
+- **Tests:** loader happy paths. Broken-config cases (built in tmp dirs from copies). **Config consistency
+  test** against `source/BAL_Consumable_Type_Definitions.xlsx`: field list, order, type, M/O, limits,
+  List/Boolean, defaults, seed lookup values, with an explicit allowed-differences list and reasons
+  (blank_for_now fields; "Fields to add" rows; the removed blank Consumable Class entry; the leading
+  line break removed from Manufacturer and Supplier; the Mandatory/conditional mapping). **No-client-literals
+  test**: no file under `backend/` contains a lookup value or a field column name from `clients/bioa/`.
+  The app starts with every setting blank.
+- **Verify:** `uv run pytest`, `ruff check`, `ruff format --check`, `pyright`. Start uvicorn and `GET /health`.
+
+### M2: Contracts and LLM schema generation
+- All Pydantic models for CONTRACTS §1–§11, plus the stored record with all 22 fields.
+- `llm_schema.py`: builds the extraction schema with one property per `extracted` field (list for
+  `multi_value`), plus the verification and judge schemas. All are strict-mode compatible.
+- `status_rules.py`: the §2 table, `found_in` ≥ 1, chunk IDs exist, every extracted field present,
+  and no non-extracted fields.
+- `ids.py`: `rec_0001` counters, and `issue_id` = `iss_` + a short stable hash of (code, record_id, field, value).
+- **Tests:** CONTRACTS examples parse. The schema has exactly the 17 extracted fields. Each status-rule
+  violation is reported (`test_conflicting_without_two_alternatives_is_violation`, …). Issue IDs are stable.
+
+### M3: Run store and ingestion
+- `run_store.py`: `STORAGE_DIR/runs/<run_id>/{uploads,chunks.json,pages/,llm/,exports/}` with a SHA-256 per file.
+- Ingest: `.docx` paragraphs grouped by heading path, tables as `table_rows` (row groups keep a table
+  whole; very large tables are split into header-repeated groups). `.pdf` text per page. A page with no
+  text is rendered to PNG and becomes a `page_image` chunk, with run issue `SCANNED_PAGES`. `.xlsx` is split
+  per sheet and row range (`doc03-sReagents-r12-20`). Loader detection: header row matches the DFD
+  columns, so the file is skipped with `LOADER_FILE_UPLOADED`. An unreadable file gets `FILE_UNREADABLE`.
+  Stable chunk IDs.
+- Synthetic fixtures are generated by `tests/fixtures/make_documents.py` (python-docx, openpyxl, fpdf2,
+  Pillow image-only PDF), each labeled `synthetic` in its content and file name.
+- **Tests:** chunk IDs and kinds for each format. A reagent table stays in one chunk. A scanned page becomes
+  an image chunk with no text in state. Loader detection. Rejected extensions. Chunk IDs are the same on re-ingest.
+
+### M4: Transformation and citation check
+- Cleaning (trim, collapse spaces, remove control characters). Lookup matching (exact, then one case-insensitive
+  match, then a normalized match ignoring case/spaces/°), which gives `FORMAT_CORRECTED` or `NOT_IN_LOOKUP`. Boolean Y/N.
+  Numbers from text (`1e4 cps/uL` → `10000`, giving `NUMBER_READ_FROM_TEXT`; unreadable → kept as written and later `WRONG_TYPE`).
+  Catalog No joined with ", ". Defaults only on empty fields (`DEFAULT_APPLIED`). `blank_for_now`/`system` origins. The output section only.
+- Citation check per CONTRACTS §2: `verified` / `not_verified` / `not_checkable`.
+- Transformation records its notes (FORMAT_CORRECTED etc.) as "transform notes" in the output section's
+  `changes`. Validation turns them into issues, so only validation creates issues.
+- **Tests:** every rule above, plus `test_transformation_never_overwrites_user_value` and
+  `test_container_tracking_default_is_applied_literally`.
+
+### M5: Validation service (deterministic) + catalogue edit
+- Add the 7 catalogue codes (diff shown, version 0.5).
+- Field checks: required, type, max length, lookup, disallowed characters (Greek, control). Condition groups.
+  Verification findings become issues (verdict → code map). Name unique in run. Reference data: exact match gives
+  `EXISTS_IN_LABVANTAGE` (ignoring the active flag). Normalized match gives `POSSIBLE_DUPLICATE`. Shortlist of up to `shortlist_size`.
+  A `DuplicateJudge` protocol plus a cache keyed on identifying fields + reference version + prompt version.
+  Over `MAX_DUPLICATE_JUDGE_CALLS` gives `DUPLICATE_CHECK_SKIPPED`. No reference data gives `REFERENCE_DATA_MISSING`.
+  `OR_EQUIVALENT` once per record. Not-found optionals give `OPTIONAL_NOT_FOUND`. `action_needed`.
+- Issue lifecycle: same key keeps the same ID and its accepted state. A changed value resolves the old issue.
+- **Tests:** one test per issue code; cache hit/miss; judge limit; validation never changes a value.
+  Expected and documented: every record gets `TOO_LONG` on Container Tracking Method ("Individual" vs limit 1), as the workbook says.
+
+### M6: Review database and review service
+- `review_db.py`: the tables in CONTRACTS §7 plus `duplicate_judgments`, `lookup_versions`,
+  `reference_versions`, `admin_events`. Plain `sqlite3` with a schema version.
+- Review service: store changes as pending (dedupe by `change_id`; `set_value` reason rule; list values must
+  be current lookup values; an individual-review accept needs `source_viewed` and a note when required).
+  Re-check applies the pending changes and calls Validation. Undo bulk. Exclude and restore. Verify: re-check, then
+  blockers or the label; other warnings are accepted by the verifier. Any change clears the label. Audit events.
+- Flattened review view (grid rows, cells with display value, "TEST VALUE" placeholder, color, sources, alternatives).
+- **Tests:** each change type; resend is ignored; bulk accept of an individual-review issue is rejected; Verify
+  blocked or allowed; the label is removed by a later change; undo bulk.
+
+### M7: Export and admin services
+- Export: re-check if changes are pending. The loader comes from the template, with 22 columns, `output.value` only, and excluded records left out.
+  The audit workbook has its 5 sheets. Numbered file names with en dashes and "– draft".
+- Lookup admin: download current (with `_metadata`), upload checks (all from ARCHITECTURE §4.11), diff,
+  pending version, apply as the next `vN`, restore. The seed in `clients/bioa/` is never written; admin versions are
+  stored under `STORAGE_DIR/lookup_lists/`. New runs pick up the current version.
+- Reference data admin: `.xlsx`/`.csv`, column check via the mapping, versioned snapshot, apply.
+- **Tests:** the loader round-trips through openpyxl with the right headers and rows; audit sheet columns;
+  every upload check failure (stale version, case-only duplicates, renamed used sheet…); restore.
+
+### M8: LLM client, agents and LangGraph flow
+- `LLMClient` protocol: `complete(request) -> response` with text and image parts and a JSON schema.
+  `FakeLLMClient` returns fixtures by node and attempt. `OpenAIClient` needs `OPENAI_API_KEY` and the model setting
+  for that node (via `require_setting`). Every call is traced to the run store (CONTRACTS §10). Retries use `LLM_RETRIES`.
+- Prompt builder fills `{field_section}`, `{reextraction_section}`, `{chunks}`, `{citation_results}`,
+  `{records}`, `{excluded_items}`, `{record}`, `{candidates}`. Static text comes first. HTML comments are removed.
+  Prompt-version bumps are reported to you.
+- Agents: extraction (token estimate gate, schema and status checks with a retry), verification, duplicate judge (plugged into M5's protocol).
+- Graph: nodes with state limited to references; `routing.py` holds every edge rule; re-extract only affected
+  records and missed candidates, keeping `record_id`s and flagging dropped ones. The SQLite checkpointer uses
+  `thread_id = run_id`. The end node writes to the review DB, and the status becomes `in_review`. Status is updated per node.
+- **Tests (fake LLM only):** happy path; re-extract loop and limit; schema violation retry then failure; too large
+  with no call; dropped record kept; no readable document leads to failed; state never contains chunk text; logs hold no values.
+  A manual `openai` smoke test is skipped unless the env is set.
+
+### M9: API layer, then **STOP for OpenAPI review and lock**
+- Every endpoint in CONTRACTS §13. Placeholder auth dependency (`PILOT_USER`/`PILOT_USER_ROLES`; 403
+  for non-admin). One error shape with plain messages. Upload limits (413) only when the limit is set. The background graph runs in a thread.
+  Retry creates `retry_of`.
+- Export `backend/openapi.json`. A test fails if the generated schema differs from the committed file (this is the lock).
+- **Tests:** every endpoint through TestClient with the fake LLM, end to end from upload to export download.
+- **Verify:** you review `openapi.json` and approve it. It is then locked.
+
+### M10: Eval harness foundation
+- `python -m app.evals run --suite cases`: loads cases, flags a field-rules version mismatch, runs the same graph
+  3 times, scores records, fields, status, citations and seeded errors, and writes JSON + CSV to `evals/reports/`.
+- One synthetic case (`evals/cases/synthetic_001/`) with fake-LLM fixtures.
+- **Tests:** scoring functions; an unlabeled key is not counted as wrong; description excluded; report shape.
+
+### M11: Front end foundation
+- Vite + React + TS in `frontend/`; `npm run generate:api` (openapi-typescript from `backend/openapi.json`);
+  `openapi-fetch` client; `tokens.css` (Clarkston blue, gold, neutrals, status colors, fonts with fallbacks, spacing).
+  Top bar, router, "How it works" popup (first visit in localStorage). The `StatusBadge` component always shows icon + word.
+- Screens: Start a run (name pre-fill, upload rules, file list, recent runs) and Processing (6 steps mapped from status, failed + Retry).
+- **Tests:** vitest component tests; `npm run typecheck`, `npm run build`.
+
+### M12: Review screen: grid and resolution panel
+- Header, run banner (dismissal remembered per run in localStorage), summary strip and filters. A read-only grid with sticky
+  header, pinned columns, "Found in" links, source viewer with highlight, "as written → exported" pairs, and "TEST VALUE".
+- Panel: issue navigation across records, issue list, one expanded issue, an action component per issue type (UI_SPEC table),
+  searchable dropdown (closest matches first), Save and next, re-check when the user moves to another record.
+
+### M13: Bulk actions, exclude, Verify, export
+- Change all, Fill missing, Accept all of a type, Resolve repeated conflicts (bulk-preview with a confirmation list);
+  undo; exclude dialog with a reason; restore; Verify dialog (three cases); export and post-export state with downloads.
+
+### M14: Admin screens and finish
+- Lookup lists (current card, upload report, diff, Apply as vN, history, Restore) and Reference data (same pattern).
+- Possible-duplicate side-by-side comparison. A final pass against the mockups. A manual end-to-end run with the fake provider and screenshots.
+
+## Verification (every milestone)
+`uv run pytest`, `uv run ruff check . && uv run ruff format --check .`, `uv run pyright`; front-end milestones also
+`npm run typecheck`, `npm test`, `npm run build`. Real command output is shown, then a commit, then a stop.
+The real OpenAI path stays unverified until you fill in `.env` and run the smoke test. Extraction quality stays
+unverified until labeled BioA cases exist (ARCHITECTURE §9).
+
+## Confirmed in review
+- Container Tracking Method stays literal: limit 1 vs "Individual"/"Together", so every record is red `TOO_LONG`
+  until BioA edits the workbook.
+- A vendor not on the Manufacturer/Supplier list is red `NOT_IN_LOOKUP` (intended).
+- Source "Mandatory" for Expected Amount Unit and Expected No of Containers is read as conditional.
+- Issue message wording is a draft and is fine for the pilot.
+- Fonts: the fallbacks (Libre Franklin from Google Fonts, as in the mockups).
+- The first admin lookup apply after `v0-seed-2` becomes `v1`.
+
+## Open questions
+- None yet. New ones found during the build are recorded here.
