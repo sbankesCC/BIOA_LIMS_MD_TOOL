@@ -94,11 +94,13 @@ def check_bulk_preview(api: ApiHarness, view: dict[str, Any]) -> None:
     """Check a field issue both records share previews both records."""
     issue = find_shared_issue(view)
     response = api.client.get(
-        f"/runs/{RUN_ID}/bulk-preview", params={"issue_id": issue["issue_id"]}
+        f"/runs/{RUN_ID}/bulk-preview",
+        params={"mode": "change_all", "issue_id": issue["issue_id"]},
     )
     assert response.status_code == 200, response.text
     preview = response.json()
     assert preview["code"] == issue["code"]
+    assert preview["count"] == 2
     assert [match["record_id"] for match in preview["matches"]] == ["rec_0001", "rec_0002"]
 
 

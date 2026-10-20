@@ -11,10 +11,10 @@ from fastapi.responses import FileResponse
 from app.api.auth import CurrentUser
 from app.api.dependencies import WorkspaceDependency, current_time
 from app.api.errors import error_responses
-from app.contracts.export import ExportInfo
+from app.contracts.api import RunExport
 from app.export.service import export_run
 from app.runs.contexts import load_export_context
-from app.runs.queries import ExportFileKind, find_export_file, list_run_exports
+from app.runs.queries import ExportFileKind, find_export_file, list_run_exports, make_run_export
 
 router = APIRouter(prefix="/runs", tags=["exports"], responses=error_responses(403, 500, 503))
 
@@ -32,20 +32,19 @@ XLSX_RESPONSE: dict[int | str, dict[str, Any]] = {
     status_code=status.HTTP_201_CREATED,
     responses=error_responses(404, 409, 422),
 )
-def create_export(user: CurrentUser, workspace: WorkspaceDependency, run_id: str) -> ExportInfo:
+def create_export(user: CurrentUser, workspace: WorkspaceDependency, run_id: str) -> RunExport:
     """Re-check if changes are pending, then write the loader and the audit file.
 
     An unverified run gives a draft export.
     """
     context = load_export_context(workspace, run_id)
     folder = workspace.run_store.open_run(run_id)
-    return export_run(workspace.database, context, folder, run_id, user.name, current_time())
+    export = export_run(workspace.database, context, folder, run_id, user.name, current_time())
+    return make_run_export(export)
 
 
 @router.get("/{run_id}/exports", summary="List exports", responses=error_responses(404, 422))
-def list_exports(
-    user: CurrentUser, workspace: WorkspaceDependency, run_id: str
-) -> list[ExportInfo]:
+def list_exports(user: CurrentUser, workspace: WorkspaceDependency, run_id: str) -> list[RunExport]:
     """Return the run's exports in number order."""
     return list_run_exports(workspace.database, run_id)
 

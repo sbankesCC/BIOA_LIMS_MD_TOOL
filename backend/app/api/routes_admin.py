@@ -9,18 +9,23 @@ from fastapi import APIRouter, File, UploadFile
 from fastapi.responses import Response
 
 from app.admin.history import (
+    describe_data_version,
+    describe_lookup_upload,
+    describe_reference_upload,
     list_lookup_versions,
     list_reference_versions,
     make_lookup_download_name,
 )
-from app.admin.lookup_lists import LookupUploadResult
-from app.admin.reference_data import ReferenceUploadResult
 from app.api.auth import CurrentAdmin
 from app.api.dependencies import WorkspaceDependency, current_time
 from app.api.errors import error_responses
 from app.api.routes_exports import XLSX_MEDIA_TYPE, XLSX_RESPONSE
-from app.contracts.api import DataVersionList
-from app.storage.review_db import DataVersion
+from app.contracts.api import (
+    DataVersionInfo,
+    DataVersionList,
+    LookupUploadResponse,
+    ReferenceUploadResponse,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"], responses=error_responses(403, 500, 503))
 
@@ -54,11 +59,12 @@ def download_current_lookup_lists(admin: CurrentAdmin, workspace: WorkspaceDepen
 @router.post("/lookup-lists", summary="Upload lookup lists", responses=error_responses(422))
 def upload_lookup_lists(
     admin: CurrentAdmin, workspace: WorkspaceDependency, file: UploadedWorkbook
-) -> LookupUploadResult:
+) -> LookupUploadResponse:
     """Check an edited workbook: report and changes; without problems it becomes pending."""
-    return workspace.lookup_admin().upload_workbook(
+    result = workspace.lookup_admin().upload_workbook(
         file.filename or "", file.file.read(), admin.name, current_time()
     )
+    return describe_lookup_upload(result)
 
 
 @router.post(
@@ -68,9 +74,10 @@ def upload_lookup_lists(
 )
 def apply_lookup_lists(
     admin: CurrentAdmin, workspace: WorkspaceDependency, version_id: str
-) -> DataVersion:
+) -> DataVersionInfo:
     """Make a pending upload (by upload ID) current as the next vN, or restore an older version."""
-    return workspace.lookup_admin().apply_version(version_id, admin.name, current_time())
+    version = workspace.lookup_admin().apply_version(version_id, admin.name, current_time())
+    return describe_data_version(version)
 
 
 @router.get("/lookup-lists/versions", summary="List lookup list versions")
@@ -102,11 +109,12 @@ def download_lookup_list_version(
 @router.post("/reference-data", summary="Upload reference data", responses=error_responses(422))
 def upload_reference_data(
     admin: CurrentAdmin, workspace: WorkspaceDependency, file: UploadedWorkbook
-) -> ReferenceUploadResult:
+) -> ReferenceUploadResponse:
     """Check an export of existing Consumable Types; without problems it becomes pending."""
-    return workspace.reference_admin().upload(
+    result = workspace.reference_admin().upload(
         file.filename or "", file.file.read(), admin.name, current_time()
     )
+    return describe_reference_upload(result)
 
 
 @router.post(
@@ -116,9 +124,10 @@ def upload_reference_data(
 )
 def apply_reference_data(
     admin: CurrentAdmin, workspace: WorkspaceDependency, version_id: str
-) -> DataVersion:
+) -> DataVersionInfo:
     """Make a pending upload (by upload ID) current as the next vN, or restore an older version."""
-    return workspace.reference_admin().apply_version(version_id, admin.name, current_time())
+    version = workspace.reference_admin().apply_version(version_id, admin.name, current_time())
+    return describe_data_version(version)
 
 
 @router.get("/reference-data/versions", summary="List reference data versions")

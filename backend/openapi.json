@@ -519,6 +519,88 @@
         }
       }
     },
+    "/runs/{run_id}/fields": {
+      "get": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Get the run's fields",
+        "description": "Return every loader field in loader order, with the values its dropdown may offer.\n\nList values come from the lookup list version the run captured at its start.",
+        "operationId": "get_run_fields",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunFieldList"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/runs/{run_id}/records/{record_id}": {
       "get": {
         "tags": [
@@ -699,13 +781,99 @@
         }
       }
     },
+    "/runs/{run_id}/chunks/{chunk_id}/image": {
+      "get": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Get a scanned page image",
+        "description": "Return the PNG of a scanned-page (`page_image`) chunk; a text chunk is 404.",
+        "operationId": "get_chunk_image",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chunk_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The scanned page as a PNG image",
+            "content": {
+              "image/png": {}
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/runs/{run_id}/bulk-preview": {
       "get": {
         "tags": [
           "review"
         ],
         "summary": "Preview a bulk change",
-        "description": "Return the records with an open issue of the same code, on the same field, same value.",
+        "description": "Return the records the bulk action would touch (excluded records never match).",
         "operationId": "get_bulk_preview",
         "parameters": [
           {
@@ -717,14 +885,72 @@
             }
           },
           {
-            "name": "issue_id",
+            "name": "mode",
             "in": "query",
             "required": true,
             "schema": {
+              "enum": [
+                "change_all",
+                "fill_missing",
+                "accept_type",
+                "resolve_conflicts"
+              ],
               "type": "string",
-              "description": "The issue the bulk change starts from."
+              "description": "The bulk action to preview."
             },
-            "description": "The issue the bulk change starts from."
+            "description": "The bulk action to preview."
+          },
+          {
+            "name": "issue_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The issue it starts from (change_all, accept_type, resolve_conflicts)."
+            },
+            "description": "The issue it starts from (change_all, accept_type, resolve_conflicts)."
+          },
+          {
+            "name": "field",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The field key whose missing values to fill (fill_missing)."
+            },
+            "description": "The field key whose missing values to fill (fill_missing)."
+          },
+          {
+            "name": "alternative_index",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The chosen alternative of the issue's record (resolve_conflicts)."
+            },
+            "description": "The chosen alternative of the issue's record (resolve_conflicts)."
           }
         ],
         "responses": {
@@ -1131,7 +1357,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ExportInfo"
+                  "$ref": "#/components/schemas/RunExport"
                 }
               }
             }
@@ -1223,7 +1449,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/ExportInfo"
+                    "$ref": "#/components/schemas/RunExport"
                   }
                 }
               }
@@ -1526,7 +1752,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LookupUploadResult"
+                  "$ref": "#/components/schemas/LookupUploadResponse"
                 }
               }
             }
@@ -1598,7 +1824,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DataVersion"
+                  "$ref": "#/components/schemas/DataVersionInfo"
                 }
               }
             }
@@ -1820,7 +2046,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReferenceUploadResult"
+                  "$ref": "#/components/schemas/ReferenceUploadResponse"
                 }
               }
             }
@@ -1892,7 +2118,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DataVersion"
+                  "$ref": "#/components/schemas/DataVersionInfo"
                 }
               }
             }
@@ -2142,14 +2368,44 @@
       },
       "BulkPreview": {
         "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "change_all",
+              "fill_missing",
+              "accept_type",
+              "resolve_conflicts"
+            ]
+          },
           "issue_id": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "code": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "field": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "value": {
             "anyOf": [
@@ -2161,6 +2417,9 @@
               }
             ]
           },
+          "count": {
+            "type": "integer"
+          },
           "matches": {
             "items": {
               "$ref": "#/components/schemas/BulkPreviewMatch"
@@ -2170,13 +2429,15 @@
         },
         "type": "object",
         "required": [
+          "mode",
           "issue_id",
           "code",
           "field",
           "value",
+          "count",
           "matches"
         ],
-        "description": "The selected issue's code, field and value, and every matching record (itself included)."
+        "description": "The selection (mode, issue, code, field, its current value) and every matching record."
       },
       "BulkPreviewMatch": {
         "properties": {
@@ -2194,16 +2455,44 @@
             ]
           },
           "issue_id": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alternative_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
         "required": [
           "record_id",
           "name",
-          "issue_id"
+          "issue_id",
+          "value"
         ],
-        "description": "One record a bulk action would touch, with its matching issue."
+        "description": "One record a bulk action would touch, with its matching issue and current value.\n\n`alternative_index` (resolve conflicts only) is the chosen value's index in this record's\nown alternatives list."
       },
       "CellAlternative": {
         "properties": {
@@ -2372,7 +2661,7 @@
         ],
         "description": "The version of each config file; prompts are versioned one by one."
       },
-      "DataVersion": {
+      "DataVersionInfo": {
         "properties": {
           "upload_id": {
             "type": "string"
@@ -2393,10 +2682,9 @@
               "pending",
               "current",
               "superseded"
-            ],
-            "default": "pending"
+            ]
           },
-          "file_ref": {
+          "file_name": {
             "type": "string"
           },
           "based_on_version": {
@@ -2441,19 +2729,24 @@
             "additionalProperties": {
               "$ref": "#/components/schemas/JsonValue"
             },
-            "type": "object",
-            "default": {}
+            "type": "object"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "upload_id",
-          "file_ref",
+          "version_id",
+          "status",
+          "file_name",
+          "based_on_version",
           "uploaded_by",
-          "uploaded_at"
+          "uploaded_at",
+          "applied_by",
+          "applied_at",
+          "summary"
         ],
-        "description": "One admin upload of lookup lists or reference data, and whether it is current.\n\n`upload_id` names the upload; `version_id` (e.g. `v1`) is given when it is first applied.\n`file_ref` is relative to STORAGE_DIR. `summary` holds the check report or diff counts."
+        "description": "One admin upload of lookup lists or reference data as the API shows it (no storage path).\n\n`file_name` is the name the file was uploaded with; `summary` holds the check report or\ndiff counts."
       },
       "DataVersionList": {
         "properties": {
@@ -2469,7 +2762,7 @@
           },
           "versions": {
             "items": {
-              "$ref": "#/components/schemas/DataVersion"
+              "$ref": "#/components/schemas/DataVersionInfo"
             },
             "type": "array"
           }
@@ -2594,44 +2887,6 @@
           "reason"
         ],
         "description": "Who excluded a record, when, and why."
-      },
-      "ExportInfo": {
-        "properties": {
-          "export_id": {
-            "type": "string"
-          },
-          "number": {
-            "type": "integer"
-          },
-          "is_draft": {
-            "type": "boolean"
-          },
-          "loader_file": {
-            "type": "string"
-          },
-          "audit_file": {
-            "type": "string"
-          },
-          "exported_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "exported_by": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "export_id",
-          "number",
-          "is_draft",
-          "loader_file",
-          "audit_file",
-          "exported_at",
-          "exported_by"
-        ],
-        "description": "One export of a run: its number, draft or verified, and its two files."
       },
       "ExtractedField": {
         "properties": {
@@ -3004,7 +3259,7 @@
         ],
         "description": "The check report of one upload: passed checks, problems, warnings and changes."
       },
-      "LookupUploadResult": {
+      "LookupUploadResponse": {
         "properties": {
           "report": {
             "$ref": "#/components/schemas/LookupUploadReport"
@@ -3012,7 +3267,7 @@
           "version": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/DataVersion"
+                "$ref": "#/components/schemas/DataVersionInfo"
               },
               {
                 "type": "null"
@@ -3020,12 +3275,13 @@
             ]
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "report",
           "version"
         ],
-        "description": "An upload's check report, and the pending version created when it has no problems."
+        "description": "A lookup list upload's check report, and its pending version when it has no problems."
       },
       "PickAlternativeChange": {
         "properties": {
@@ -3226,7 +3482,7 @@
         ],
         "description": "The check report of one upload: rows read, passed checks, problems and warnings."
       },
-      "ReferenceUploadResult": {
+      "ReferenceUploadResponse": {
         "properties": {
           "report": {
             "$ref": "#/components/schemas/ReferenceUploadReport"
@@ -3234,7 +3490,7 @@
           "version": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/DataVersion"
+                "$ref": "#/components/schemas/DataVersionInfo"
               },
               {
                 "type": "null"
@@ -3242,12 +3498,13 @@
             ]
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "report",
           "version"
         ],
-        "description": "An upload's check report, and the pending version created when it has no problems."
+        "description": "A reference data upload's check report, and its pending version when it has no problems."
       },
       "RenameRunRequest": {
         "properties": {
@@ -3654,7 +3911,7 @@
           },
           "exports": {
             "items": {
-              "$ref": "#/components/schemas/ExportInfo"
+              "$ref": "#/components/schemas/RunExport"
             },
             "type": "array"
           }
@@ -3733,6 +3990,154 @@
           "status"
         ],
         "description": "One uploaded document of a run (never its contents)."
+      },
+      "RunExport": {
+        "properties": {
+          "export_id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "is_draft": {
+            "type": "boolean"
+          },
+          "loader_file_name": {
+            "type": "string"
+          },
+          "audit_file_name": {
+            "type": "string"
+          },
+          "exported_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "exported_by": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "export_id",
+          "number",
+          "is_draft",
+          "loader_file_name",
+          "audit_file_name",
+          "exported_at",
+          "exported_by"
+        ],
+        "description": "One export of a run as the API shows it: file names only, never storage paths.\n\nThe files download through the export's `loader` and `audit` endpoints."
+      },
+      "RunField": {
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "column": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "extracted",
+              "blank_for_now",
+              "system"
+            ]
+          },
+          "requirement": {
+            "type": "string",
+            "enum": [
+              "required",
+              "conditional",
+              "optional"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "decimal",
+              "integer",
+              "boolean"
+            ]
+          },
+          "max_length": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "has_lookup_list": {
+            "type": "boolean"
+          },
+          "is_boolean": {
+            "type": "boolean"
+          },
+          "multi_value": {
+            "type": "boolean"
+          },
+          "separator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "allowed_values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "column",
+          "role",
+          "requirement",
+          "type",
+          "max_length",
+          "has_lookup_list",
+          "is_boolean",
+          "multi_value",
+          "separator",
+          "allowed_values"
+        ],
+        "description": "One loader field of a run's captured config, for the review screen's inputs.\n\n`allowed_values` comes from the run's own lookup list version for a list field, is the\naccepted values for a boolean field, and is empty for any other field."
+      },
+      "RunFieldList": {
+        "properties": {
+          "field_rules_version": {
+            "type": "string"
+          },
+          "lookup_lists_version": {
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/RunField"
+            },
+            "type": "array"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "field_rules_version",
+          "lookup_lists_version",
+          "fields"
+        ],
+        "description": "Every loader field of a run, in loader order, with the versions they come from."
       },
       "RunSummary": {
         "properties": {

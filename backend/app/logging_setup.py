@@ -25,6 +25,7 @@ LogEvent = Literal[
     "export_created",
     "lookup_version_applied",
     "reference_data_applied",
+    "runs_interrupted",
 ]
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR"]

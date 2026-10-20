@@ -42,7 +42,7 @@ from tests.unit.validation_helpers import (
     update_field,
 )
 
-# Codes raised outside validation: ingest (M3) and the graph (M8)
+# Codes raised outside validation: ingest (M3), the graph (M8) and app start (interrupted runs)
 CODES_RAISED_ELSEWHERE = {
     "FILE_UNREADABLE",
     "SCANNED_PAGES",
@@ -51,6 +51,7 @@ CODES_RAISED_ELSEWHERE = {
     "DOCUMENT_SET_TOO_LARGE",
     "NO_READABLE_DOCUMENTS",
     "EXTRACTION_FAILED",
+    "PROCESSING_INTERRUPTED",
 }
 
 EVIDENCE = Evidence(chunk_id="doc01-c001", quote="synthetic quote")

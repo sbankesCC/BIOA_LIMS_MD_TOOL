@@ -250,11 +250,9 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
 - The first admin lookup apply after the seed (`v0-seed-3` since 2026-10-20) becomes `v1`.
 
 ## Open questions
-- **M9 (for the OpenAPI review): scanned page images in "Show source".** `GET /runs/{run_id}/chunks/{chunk_id}`
-  returns a `page_image` chunk with `text: null` and its location, but CONTRACTS §13 has no endpoint
-  that serves the page PNG, so the UI cannot show a scanned page. Options: add
-  `GET /runs/{run_id}/chunks/{chunk_id}/image` (a contract change), or show only the location for
-  scanned pages in the pilot. Not built; decide before the schema is locked.
+- **OpenAPI review: `runs_interrupted` log event.** The start-up check logs one line with event
+  `runs_interrupted` and `details.run_count`. CONTRACTS §11 lists the log events and does not name
+  it (only §13 edits were approved). Add it to the §11 list?
 
 ## Decisions made during the build
 - **M1: "N/A" in Manufacturer and Supplier (reversed 2026-10-20).** M1 left BioA's "N/A" entry out of
@@ -402,6 +400,51 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   run queries, contexts built from a run's captured versions, and the background runner. The
   duplicate judge in review is built lazily, so saving changes and re-checks without judge calls
   need no LLM settings.
+
+- **OpenAPI review 2026-10-21: page image errors.** `GET /runs/{run_id}/chunks/{chunk_id}/image`
+  answers 404 `PAGE_IMAGE_NOT_FOUND` for a text chunk (and for a page image missing from storage);
+  unknown run or chunk keep RUN_NOT_FOUND/CHUNK_NOT_FOUND. The PNG is sent as stored (`image/png`).
+- **OpenAPI review 2026-10-21: run fields.** `GET /runs/{run_id}/fields` returns
+  `{field_rules_version, lookup_lists_version, fields}`; each field has key, column, role,
+  requirement, type, max_length, `has_lookup_list`, `is_boolean`, multi_value, separator and
+  `allowed_values` (the run's captured lookup version; `BOOLEAN_VALUES` from code for booleans;
+  empty otherwise). Field rules are the loaded file (the only one there is), as review and
+  validation use; the lookup sheet name is not exposed.
+- **OpenAPI review 2026-10-21: bulk preview modes.** Query params `mode` (required), `issue_id`,
+  `field`, `alternative_index` (≥ 0). A missing param the mode needs is 400 BULK_NOT_POSSIBLE;
+  params a mode does not use are ignored. Response: `{mode, issue_id, code, field, value, count,
+  matches}`; each match has record_id, name, issue_id (or null), current `value` and
+  `alternative_index` (resolve_conflicts only). Excluded records never match.
+  - `change_all` from `issue_id`: as before (open, same code, same field, same current value).
+  - `fill_missing` from `field` (UI_SPEC: "Supplier is missing in N records"): included records
+    whose output value is null or blank, not an unresolved conflict (those are resolved by
+    picking an alternative). Only `extracted` fields (else 400). A missing value counts as
+    flagged; `issue_id` is the field's first open issue on that record, or null.
+  - `accept_type` from `issue_id`: open warnings of the same code on any field (record-level
+    ones too) of included records, never individual-review ones. Individual-review issue 409
+    BULK_ACCEPT_NOT_ALLOWED; an error or info issue 400 BULK_NOT_POSSIBLE (only warnings can be
+    accepted). A record can appear once per matching issue.
+  - `resolve_conflicts` from `issue_id` + `alternative_index` (an index into that issue's record's
+    alternatives): open issues of the same code on the same field whose extraction is
+    `conflicting` with the same set of alternative values (order ignored; a list value compared
+    as written). Each match gives the chosen value's index in its own list. A non-conflict or
+    out-of-range index is 400 BULK_NOT_POSSIBLE.
+  - Run-level issues are 400 BULK_NOT_POSSIBLE in every mode; record-level ones only work in
+    `accept_type`.
+- **OpenAPI review 2026-10-21: interrupted runs.** At app start, when CLIENT_CONFIG_DIR and
+  REVIEW_DB are set, every run in `created`, `ingesting`, `extracting`, `verifying_extraction`,
+  `transforming` or `validating` is set to `failed` with the run issue PROCESSING_INTERRUPTED
+  (history "opened"; other issues kept) and can be retried. `rechecking` is not used, so it is not
+  included. One log line `runs_interrupted` with `run_count` (see Open questions). No audit event:
+  processing failures write none (audit events are user and admin actions). Catalogue `0.6`.
+  This replaces the M9 note that such a run "cannot be retried".
+- **OpenAPI review 2026-10-21: no storage paths in responses.** Internal models keep their refs
+  (`ExportInfo`, `DataVersion`); the API returns separate models: `RunExport` (`loader_file_name`,
+  `audit_file_name`: the stored files' names) and `DataVersionInfo` (`file_name`: the uploaded
+  file's name from the summary). Upload answers are `LookupUploadResponse` and
+  `ReferenceUploadResponse`. Reference data summaries no longer store `original_file` (a storage
+  path); the original stays in the upload's folder. A test checks no response or schema property
+  is a storage-path key.
 
 ## Progress log
 
@@ -755,3 +798,21 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
     with problems or not. The lookup workbook downloads as `lookup_lists <version>.xlsx`.
   - 422 lists each problem's location, message and type, never the sent values. Unknown addresses
     are 404 NOT_FOUND in the error shape.
+
+### OpenAPI review changes (done; awaiting review)
+- New endpoints: `GET /runs/{run_id}/chunks/{chunk_id}/image` (PNG of a scanned page;
+  `runs/queries.find_page_image`) and `GET /runs/{run_id}/fields` (`runs/fields.py`). 27 endpoints
+  (`/health` plus 26 in CONTRACTS §13).
+- `GET /runs/{run_id}/bulk-preview` takes `mode` (change_all, fill_missing, accept_type,
+  resolve_conflicts) with `issue_id`, `field`, `alternative_index`; returns `count` and per-match
+  value and alternative index (`review/bulk_preview.py`, rewritten).
+- Start-up marks interrupted runs failed (`runs/interrupted.py`, called from
+  `AppResources.start`); catalogue code PROCESSING_INTERRUPTED, version `0.6` (the only
+  `clients/bioa/` edit); log event `runs_interrupted`.
+- Responses hold file names, not storage paths: `RunExport`, `DataVersionInfo`,
+  `LookupUploadResponse`, `ReferenceUploadResponse` (`contracts/api.py`, `admin/history.py`).
+- CONTRACTS §13 updated (two rows added, bulk preview, export and version rows, interrupted
+  runs line). `backend/openapi.json` regenerated with `uv run python -m app.api`.
+- Tests: 527 total (526 passed, 1 skipped: the manual OpenAI smoke test), 16 new
+  (`unit/test_bulk_preview.py`, `integration/test_api_review_additions.py`); existing bulk preview,
+  admin, catalogue-code and lock tests updated.

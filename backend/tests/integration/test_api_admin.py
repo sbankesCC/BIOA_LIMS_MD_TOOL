@@ -69,6 +69,8 @@ def test_lookup_lists_download_upload_apply_and_history(
         ).json()
         assert upload["report"]["problems"] == []
         assert upload["version"]["upload_id"] == "upl_0001"
+        assert upload["version"]["file_name"] == "lookup_lists.xlsx"
+        assert "file_ref" not in upload["version"]
         applied = client.post("/admin/lookup-lists/upl_0001/apply").json()
         assert applied["version_id"] == "v1"
         assert applied["status"] == "current"
@@ -100,3 +102,7 @@ def test_reference_data_upload_apply_and_history(tmp_path: Path, bundle: ConfigB
         assert applied["version_id"] == "v1"
         history = client.get("/admin/reference-data/versions").json()
         assert history["current_version"] == "v1"
+        [version] = history["versions"]
+        assert version["file_name"] == "synthetic existing.csv"
+        assert "file_ref" not in version
+        assert "original_file" not in version["summary"]

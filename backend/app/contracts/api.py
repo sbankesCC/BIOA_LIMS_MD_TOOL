@@ -9,16 +9,18 @@ from typing import Annotated
 
 from pydantic import JsonValue, StringConstraints
 
+from app.admin.lookup_checks import LookupUploadReport
+from app.admin.reference_data import ReferenceUploadReport
 from app.config.bundle import ConfigVersions
+from app.config.field_rules import FieldRole, FieldType, Requirement
 from app.contracts.base import ContractModel
 from app.contracts.chunk import ChunkKind
-from app.contracts.export import ExportInfo
 from app.contracts.issue import Issue
 from app.contracts.record import StoredRecord
 from app.contracts.run import RunStatus
 from app.ingest.file_types import FileType
 from app.review.view import ReviewCounts, SourceLocation
-from app.storage.review_db import DataVersion
+from app.storage.review_db import DataVersionStatus
 from app.storage.run_store import DocumentStatus
 
 # A run name: surrounding spaces removed, never empty
@@ -78,6 +80,21 @@ class RunDocument(ContractModel):
     status: DocumentStatus
 
 
+class RunExport(ContractModel):
+    """One export of a run as the API shows it: file names only, never storage paths.
+
+    The files download through the export's `loader` and `audit` endpoints.
+    """
+
+    export_id: str
+    number: int
+    is_draft: bool
+    loader_file_name: str
+    audit_file_name: str
+    exported_at: datetime
+    exported_by: str
+
+
 class RunDetail(ContractModel):
     """One run: status, current step, verified label, versions, documents, exports, run issues.
 
@@ -101,7 +118,7 @@ class RunDetail(ContractModel):
     counts: ReviewCounts
     documents: list[RunDocument]
     run_issues: list[Issue]
-    exports: list[ExportInfo]
+    exports: list[RunExport]
 
 
 class RecordDetail(ContractModel):
@@ -124,8 +141,69 @@ class ChunkSource(ContractModel):
     location: SourceLocation
 
 
+class RunField(ContractModel):
+    """One loader field of a run's captured config, for the review screen's inputs.
+
+    `allowed_values` comes from the run's own lookup list version for a list field, is the
+    accepted values for a boolean field, and is empty for any other field.
+    """
+
+    key: str
+    column: str
+    role: FieldRole
+    requirement: Requirement
+    type: FieldType
+    max_length: int | None
+    has_lookup_list: bool
+    is_boolean: bool
+    multi_value: bool
+    separator: str | None
+    allowed_values: list[str]
+
+
+class RunFieldList(ContractModel):
+    """Every loader field of a run, in loader order, with the versions they come from."""
+
+    field_rules_version: str
+    lookup_lists_version: str
+    fields: list[RunField]
+
+
+class DataVersionInfo(ContractModel):
+    """One admin upload of lookup lists or reference data as the API shows it (no storage path).
+
+    `file_name` is the name the file was uploaded with; `summary` holds the check report or
+    diff counts.
+    """
+
+    upload_id: str
+    version_id: str | None
+    status: DataVersionStatus
+    file_name: str
+    based_on_version: str | None
+    uploaded_by: str
+    uploaded_at: datetime
+    applied_by: str | None
+    applied_at: datetime | None
+    summary: dict[str, JsonValue]
+
+
 class DataVersionList(ContractModel):
     """Version history of lookup lists or reference data, and the version new runs use."""
 
     current_version: str | None
-    versions: list[DataVersion]
+    versions: list[DataVersionInfo]
+
+
+class LookupUploadResponse(ContractModel):
+    """A lookup list upload's check report, and its pending version when it has no problems."""
+
+    report: LookupUploadReport
+    version: DataVersionInfo | None
+
+
+class ReferenceUploadResponse(ContractModel):
+    """A reference data upload's check report, and its pending version when it has no problems."""
+
+    report: ReferenceUploadReport
+    version: DataVersionInfo | None

@@ -153,7 +153,9 @@ def test_unknown_run_record_chunk_and_export_are_404(
         assert_error(client.get("/runs/run_0001/records/rec_9999"), 404, "RECORD_NOT_FOUND")
         assert_error(client.get("/runs/run_0001/chunks/doc09-c001"), 404, "CHUNK_NOT_FOUND")
         assert_error(client.get("/runs/run_0001/exports/exp_0009/audit"), 404, "EXPORT_NOT_FOUND")
-        preview = client.get("/runs/run_0001/bulk-preview", params={"issue_id": "iss_unknown"})
+        preview = client.get(
+            "/runs/run_0001/bulk-preview", params={"mode": "change_all", "issue_id": "iss_unknown"}
+        )
         assert_error(preview, 404, "ISSUE_NOT_FOUND")
         assert_error(client.get("/no-such-address"), 404, "NOT_FOUND")
 
@@ -187,6 +189,7 @@ def test_bulk_preview_refuses_an_individual_review_issue(
         record = api.client.get("/runs/run_0001/records/rec_0001").json()
         issue = next(issue for issue in record["issues"] if issue["individual_review"])
         response = api.client.get(
-            "/runs/run_0001/bulk-preview", params={"issue_id": issue["issue_id"]}
+            "/runs/run_0001/bulk-preview",
+            params={"mode": "change_all", "issue_id": issue["issue_id"]},
         )
         assert_error(response, 409, "BULK_ACCEPT_NOT_ALLOWED")

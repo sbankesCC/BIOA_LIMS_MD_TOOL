@@ -292,7 +292,7 @@ class ReferenceDataAdmin:
                 file_ref=make_file_ref(self.storage_dir, snapshot),
                 uploaded_by=user,
                 uploaded_at=at,
-                summary=summarize_upload(result.report, make_file_ref(self.storage_dir, original)),
+                summary=summarize_upload(result.report),
             )
             self.database.add_data_version(KIND, version)
         return version
@@ -315,11 +315,10 @@ class ReferenceDataAdmin:
         return applied.version
 
 
-def summarize_upload(report: ReferenceUploadReport, original_ref: str) -> dict[str, JsonValue]:
-    """Return what the version history shows: file name, row count, original file, report."""
+def summarize_upload(report: ReferenceUploadReport) -> dict[str, JsonValue]:
+    """Return what the version history shows: file name, row count and report (no paths)."""
     return {
         "file_name": report.file_name,
         "row_count": report.row_count,
-        "original_file": original_ref,
         "report": report.model_dump(mode="json"),
     }

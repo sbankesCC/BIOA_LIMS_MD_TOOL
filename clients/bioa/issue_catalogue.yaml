@@ -16,7 +16,7 @@
 #   changes or marks it not found, one at a time. Open ones block the verified label.
 # note_required: true means accepting it needs a short note saying how it was handled.
 
-version: "0.5"
+version: "0.6"
 
 record_issues:
 
@@ -147,3 +147,6 @@ run_issues:
   EXTRACTION_FAILED:
     severity: error
     message: "The extraction could not be completed. Retry the run; if it fails again, contact support."
+  PROCESSING_INTERRUPTED:
+    severity: error
+    message: "Processing stopped before it finished (the app was restarted). Retry the run."

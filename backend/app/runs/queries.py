@@ -1,19 +1,28 @@
 """Run queries for the API: runs, run detail, review view, record, chunk, bulk preview, exports.
 
+Also the stored PNG of a scanned page.
+
 Read only: nothing here changes a run.
 """
 
 from collections.abc import Sequence
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Literal
 
-from app.contracts.api import ChunkSource, RecordDetail, RunDetail, RunDocument, RunSummary
+from app.contracts.api import (
+    ChunkSource,
+    RecordDetail,
+    RunDetail,
+    RunDocument,
+    RunExport,
+    RunSummary,
+)
 from app.contracts.chunk import Chunk
 from app.contracts.export import ExportInfo
 from app.contracts.issue import Issue
 from app.contracts.record import StoredRecord
 from app.contracts.run import RunInfo, RunStatus
-from app.review.bulk_preview import BulkPreview, find_bulk_matches
+from app.review.bulk_preview import BulkPreview, BulkRequest, find_bulk_matches
 from app.review.view import ReviewCounts, ReviewView, SourceLocator, build_review_view, count_review
 from app.runs.errors import RunRequestError
 from app.runs.workspace import Workspace
@@ -80,7 +89,7 @@ def describe_run(workspace: Workspace, run_id: str) -> RunDetail:
         counts=count_run(database, run_id),
         documents=[make_run_document(document) for document in folder.read_documents()],
         run_issues=find_run_issues(database, run_id),
-        exports=database.list_exports(run_id),
+        exports=[make_run_export(export) for export in database.list_exports(run_id)],
     )
 
 
@@ -157,30 +166,56 @@ def find_cited_chunk_ids(record: StoredRecord) -> list[str]:
     return list(dict.fromkeys(chunk_ids))
 
 
-def find_chunk_source(workspace: Workspace, run_id: str, chunk_id: str) -> ChunkSource:
-    """Return one chunk's text and location for "Show source"."""
-    workspace.database.read_run(run_id)
-    folder = workspace.run_store.open_run(run_id)
-    chunks = read_chunks(folder)
+def find_chunk(chunks: Sequence[Chunk], chunk_id: str, run_id: str) -> Chunk:
+    """Return one chunk by ID; raise RunRequestError if the run has no such chunk."""
     chunk = next((chunk for chunk in chunks if chunk.chunk_id == chunk_id), None)
     if chunk is None:
         raise RunRequestError(
             "CHUNK_NOT_FOUND", f"Source {chunk_id} is not in run {run_id}. Reload the run."
         )
+    return chunk
+
+
+def find_chunk_source(workspace: Workspace, run_id: str, chunk_id: str) -> ChunkSource:
+    """Return one chunk's text and location for "Show source"."""
+    workspace.database.read_run(run_id)
+    folder = workspace.run_store.open_run(run_id)
+    chunks = read_chunks(folder)
+    chunk = find_chunk(chunks, chunk_id, run_id)
     locator = SourceLocator(chunks, folder.read_documents())
     return ChunkSource(
         chunk_id=chunk.chunk_id, kind=chunk.kind, text=chunk.text, location=locator.locate(chunk_id)
     )
 
 
-def preview_bulk_change(workspace: Workspace, run_id: str, issue_id: str) -> BulkPreview:
-    """Return the records a "Change all" from one issue would touch."""
+def find_page_image(workspace: Workspace, run_id: str, chunk_id: str) -> Path:
+    """Return the stored PNG of a scanned-page chunk; a text chunk has none."""
+    workspace.database.read_run(run_id)
+    folder = workspace.run_store.open_run(run_id)
+    chunk = find_chunk(read_chunks(folder), chunk_id, run_id)
+    if chunk.image_ref is None:
+        raise RunRequestError(
+            "PAGE_IMAGE_NOT_FOUND",
+            f"Source {chunk_id} is text, not a scanned page, so it has no page image. "
+            "Show its text instead.",
+        )
+    path = workspace.run_store.resolve_ref(chunk.image_ref)
+    if not path.is_file():
+        raise RunRequestError(
+            "PAGE_IMAGE_NOT_FOUND",
+            f"The page image of source {chunk_id} is missing from storage. Retry the run.",
+        )
+    return path
+
+
+def preview_bulk_change(workspace: Workspace, run_id: str, request: BulkRequest) -> BulkPreview:
+    """Return the records a bulk action (any of the four modes) would touch."""
     database = workspace.database
     database.read_run(run_id)
     return find_bulk_matches(
         database.read_records(run_id),
         database.read_issues(run_id),
-        issue_id,
+        request,
         workspace.bundle.field_rules,
     )
 
@@ -188,17 +223,31 @@ def preview_bulk_change(workspace: Workspace, run_id: str, issue_id: str) -> Bul
 # ----- Exports -----
 
 
-def list_run_exports(database: ReviewDatabase, run_id: str) -> list[ExportInfo]:
-    """Return a run's exports in number order."""
+def make_run_export(export: ExportInfo) -> RunExport:
+    """Return what the API shows of an export: its file names, never their storage paths."""
+    return RunExport(
+        export_id=export.export_id,
+        number=export.number,
+        is_draft=export.is_draft,
+        loader_file_name=PurePath(export.loader_file).name,
+        audit_file_name=PurePath(export.audit_file).name,
+        exported_at=export.exported_at,
+        exported_by=export.exported_by,
+    )
+
+
+def list_run_exports(database: ReviewDatabase, run_id: str) -> list[RunExport]:
+    """Return a run's exports in number order, as the API shows them."""
     database.read_run(run_id)
-    return database.list_exports(run_id)
+    return [make_run_export(export) for export in database.list_exports(run_id)]
 
 
 def find_export_file(
     workspace: Workspace, run_id: str, export_id: str, kind: ExportFileKind
 ) -> Path:
     """Return the path of an export's loader or audit file."""
-    exports = list_run_exports(workspace.database, run_id)
+    workspace.database.read_run(run_id)
+    exports = workspace.database.list_exports(run_id)
     export = find_export(exports, export_id, run_id)
     ref = export.loader_file if kind == "loader" else export.audit_file
     path = workspace.run_store.resolve_ref(ref)

@@ -1,6 +1,7 @@
 """Route dependencies: the app's shared resources and the workspace each run request uses.
 
-Resources open lazily, so the app starts with every setting blank; a request that needs a
+Resources open lazily, so the app starts with every setting blank (at start, runs a restart
+interrupted are marked failed when the config and REVIEW_DB are set); a request that needs a
 blank setting gets the error that names it. Tests override `get_llm_client_factory` (fake LLM)
 and `get_task_runner` (a runner they can wait on).
 """
@@ -15,6 +16,7 @@ from app.config.bundle import ConfigBundle, load_config_bundle
 from app.llm.client import LLMClient
 from app.llm.provider import make_llm_client
 from app.runs.background import TaskRunner, ThreadTaskRunner
+from app.runs.interrupted import fail_interrupted_runs
 from app.runs.workspace import LLMClientFactory, Workspace
 from app.settings import MissingSettingError, Settings
 from app.storage.review_db import ReviewDatabase
@@ -33,9 +35,15 @@ class AppResources:
         self.lock = Lock()
 
     def start(self) -> None:
-        """Load the config (blank CLIENT_CONFIG_DIR loads none) and start the background runner."""
+        """Load the config, fail runs a restart interrupted, start the background runner.
+
+        A blank CLIENT_CONFIG_DIR loads no config; a blank REVIEW_DB skips the interrupted runs.
+        """
         if self.settings.client_config_dir is not None:
             self.config = load_config_bundle(self.settings.require_path("CLIENT_CONFIG_DIR"))
+        # Runs a restart stopped midway can only be retried; needs the config and REVIEW_DB
+        if self.config is not None and self.settings.review_db is not None:
+            fail_interrupted_runs(self.open_database(), self.config, current_time())
         self.task_runner = ThreadTaskRunner()
 
     def close(self) -> None:
