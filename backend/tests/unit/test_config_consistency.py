@@ -29,10 +29,6 @@ ALLOWED_DIFFERENCES = {
     "blank_lookup_entry_removed": (
         "A blank entry in a List Values column is not a value; it was left out of the seed."
     ),
-    "not_applicable_entry_removed": (
-        "An 'N/A' entry in a List Values column is a placeholder, not a value; it is left out "
-        "of the seed, so 'N/A' in a document is NOT_IN_LOOKUP (decided in M1 review)."
-    ),
     "lookup_value_whitespace_trimmed": (
         "A leading line break in a List Values cell is a copy artefact; it was removed."
     ),
@@ -44,7 +40,6 @@ LIST_VALUES_SHEET = "List Values"
 FIELDS_TO_ADD_MARKER = "Fields to add:"
 DEFAULT_NOTE_PATTERN = re.compile(r"Default\s*=\s*(.+)$")
 DATA_TYPES = {"Char": "text", "Decimal": "decimal", "Number": "integer"}
-NOT_APPLICABLE_ENTRIES = {"N/A"}
 
 
 @dataclass
@@ -171,9 +166,6 @@ def clean_source_values(source_values: list[str], comparison: Comparison) -> lis
     for value in source_values:
         if not value.strip():
             comparison.used_rules.add("blank_lookup_entry_removed")
-            continue
-        if value.strip() in NOT_APPLICABLE_ENTRIES:
-            comparison.used_rules.add("not_applicable_entry_removed")
             continue
         if value != value.strip():
             comparison.used_rules.add("lookup_value_whitespace_trimmed")

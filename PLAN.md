@@ -247,18 +247,18 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
 - Source "Mandatory" for Expected Amount Unit and Expected No of Containers is read as conditional.
 - Issue message wording is a draft and is fine for the pilot.
 - Fonts: the fallbacks (Libre Franklin from Google Fonts, as in the mockups).
-- The first admin lookup apply after `v0-seed-2` becomes `v1`.
+- The first admin lookup apply after the seed (`v0-seed-3` since 2026-10-20) becomes `v1`.
 
 ## Open questions
-- **M7 lookup upload check vs Container Tracking Method (found in M1).** The planned upload check
-  "max length per field" would reject every upload: the Container Tracking Method values ("Individual",
-  "Together") are longer than its 1-character limit. Options: skip the length check for that case,
-  report it as a warning, or wait for BioA to fix the workbook. Decide before M7.
+- None open.
 
 ## Decisions made during the build
-- **M1: "N/A" in Manufacturer and Supplier.** BioA's List Values sheet has an "N/A" entry the seed
-  `lookup_lists.xlsx` leaves out. Treated as a placeholder, not a value: a named allowed difference in
-  the config consistency test. "N/A" in a document gives `NOT_IN_LOOKUP`.
+- **M1: "N/A" in Manufacturer and Supplier (reversed 2026-10-20).** M1 left BioA's "N/A" entry out of
+  the seed. Reversed by your decision: "N/A" is back in both seed lists at its source position, the
+  allowed difference is removed from the consistency test, and the seed version is `v0-seed-3`.
+- **M7 lookup upload vs length limits (decided 2026-10-20).** A lookup value longer than its field's
+  length limit is a warning in the upload report, not a rejection. Records still get `TOO_LONG`.
+- **M5 issue catalogue edit approved** as listed above (7 codes, version 0.5); diff reviewed after commit.
 - **M1: blank `CLIENT_CONFIG_DIR`.** The app starts with no config loaded; `/health` names the setting.
   A set but broken config stops startup with the list of problems.
 - **M1: DFD template version** is a short SHA-256 of the file (`sha256:…`), since the file has no version.
@@ -266,3 +266,5 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   lookup values and column names. One-character values (`Y`, `%`, `L`) are left out as generic tokens.
 - **M1: packages.** `pydantic-settings` (reads env and `.env`) and dev `types-pyyaml` were added
   beyond the approved list.
+
+## Progress log
