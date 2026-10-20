@@ -58,7 +58,6 @@
       "Bash(git merge *)",
       "Bash(git rebase *)",
       "Bash(git pull *)",
-      "Bash(git push *)",
       "Bash(git tag *)",
       "Bash(rm *)",
       "Bash(curl *)",
@@ -81,6 +80,8 @@
       "Edit(./.env)",
       "Edit(./.env.*)",
       "Read(~/.ssh/**)"
+      "Bash(git push *)",
+      "Bash(git push)"
     ]
   }
 }

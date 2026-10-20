@@ -56,7 +56,7 @@ LabVantage, so accuracy and traceability (every value shows its source) matter m
 
 ### Not part of this build
 - Writing to LabVantage. The tool's job ends at the filled template and audit file.
-- Deployment, cloud storage and production job processing. The pilot runs locally. The user will provide OpenAI API keys. 
+- Deployment, cloud storage and production job processing. The pilot runs locally. The user will provide OpenAI API keys.
 
 ### Constraints
 - Everything in CLAUDE.md section 5.
