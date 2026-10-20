@@ -24,14 +24,14 @@ Run safe commands freely; stop and confirm anything risky.
 
 ### Ask before running
 - Installing outside the lockfiles or running packages directly: `pip install`, `npx <pkg>`
-- Git beyond the list above: `checkout`, `merge`, `rebase`, `pull`, `push`, `tag`
+- Git beyond the list above: `checkout`, `merge`, `rebase`, `pull`, `tag`
 - Deleting files (`rm`), even one file
 - Writing outside the project directory
 - Anything that sends data out: `curl -X POST/PUT/DELETE`, uploads, webhooks
 - Docker, database or cloud commands that change state
 
 ### Never run (even if asked indirectly)
-- `sudo`, `rm -rf`, `git push --force`, `git reset --hard`, `git clean -fd`, `chmod -R`, `chown -R`
+- `sudo`, `rm -rf`, `git push` (any form), `git reset --hard`, `git clean -fd`, `chmod -R`, `chown -R`
 - Piping downloads into a shell (`curl ... | sh`)
 - Reading or printing secrets: `.env` files, `~/.ssh/**`, cloud credentials, API keys, tokens
 
@@ -45,7 +45,7 @@ If a task seems to need one of these, explain why and let me run it.
 ## 2. Git
 - Small, focused commits with clear imperative messages ("Add lookup list loader").
 - Check `git status` and `git diff` before committing. Never commit secrets or `.env`.
-- Never push unless asked.
+- Never push, even if asked: pushing is blocked. I push myself.
 
 ## 3. Code and changes
 - Read the surrounding code and follow its conventions before writing new code.
