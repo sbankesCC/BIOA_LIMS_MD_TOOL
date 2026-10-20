@@ -1,6 +1,6 @@
 // A React hook that reads the details of a record's issues (GET /runs/{id}/records/{record_id})
-// or of the run's issues (from the run), for the panel's extra lines: the checker's note,
-// matching existing types, other records with the same name.
+// or of the run's issues (from the run), for the panel's extra lines: the checker's note and
+// other records with the same name (matching existing types go to the comparison table).
 import { useEffect, useState } from "react";
 import { useApiClient } from "../api/client";
 import { describeError } from "../api/errors";
@@ -42,22 +42,11 @@ export function describeIssueDetails(issue: RunIssue | undefined, nameOf: (recor
   if (typeof details.note === "string" && details.note.length > 0) {
     lines.push(`Checker's note: ${details.note}`);
   }
-  // Existing Consumable Types with a matching or similar name
-  if (Array.isArray(details.candidates)) {
-    const names = details.candidates.map(readCandidateName).filter((name): name is string => name !== null);
-    if (names.length > 0) lines.push(`Existing types: ${names.join("; ")}`);
-  }
+  // Matching existing types are shown in the side-by-side comparison (DuplicateComparison)
   // Other records of this run with the same name
   if (Array.isArray(details.records)) {
     const others = details.records.filter((id): id is string => typeof id === "string").map(nameOf);
     if (others.length > 0) lines.push(`Same name as: ${others.join("; ")}`);
   }
   return lines;
-}
-
-/** Return the name of a matching existing type from the issue details, or null. */
-function readCandidateName(candidate: unknown): string | null {
-  if (typeof candidate !== "object" || candidate === null) return null;
-  const name = (candidate as { name?: unknown }).name;
-  return typeof name === "string" ? name : null;
 }

@@ -1,12 +1,26 @@
 /* Records grid: scrolls both ways inside its card; the header row sticks to the top and the
    Action needed and name columns stick to the left. */
 
-.records-grid__scroll {
-  overflow: auto;
-  max-height: 70vh;
+/* The white card around the table and the hint line under it */
+.records-grid__card {
   background: var(--color-surface);
   border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-card);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.records-grid__scroll {
+  overflow: auto;
+  max-height: 70vh;
+}
+
+.records-grid__hint {
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-divider);
 }
 
 .records-grid {
@@ -36,10 +50,12 @@
   white-space: nowrap;
 }
 
-/* Pinned columns: Action needed, then the record name */
+/* Pinned columns: Action needed, then the record name; widths include the padding so the
+   name column's `left` offset matches the Action needed column exactly */
 .records-grid__pin {
   position: sticky;
   z-index: 1;
+  box-sizing: border-box;
 }
 
 .records-grid thead .records-grid__pin {
@@ -55,6 +71,7 @@
 
 .records-grid__pin--name {
   left: 120px;
+  width: 200px;
   min-width: 200px;
   max-width: 200px;
   border-right: 1px solid var(--color-border);
@@ -62,6 +79,24 @@
 
 .records-grid__name {
   font-weight: 700;
+}
+
+/* Table cells ignore min-width, so an empty block in each pinned header holds the column at its
+   width (width minus the 16 px padding on each side); otherwise a narrow window shrinks the
+   Action needed column and the scrolled columns show through the gap before the name column */
+.records-grid thead .records-grid__pin--action::before,
+.records-grid thead .records-grid__pin--name::before {
+  content: "";
+  display: block;
+  height: 0;
+}
+
+.records-grid thead .records-grid__pin--action::before {
+  width: 88px;
+}
+
+.records-grid thead .records-grid__pin--name::before {
+  width: 168px;
 }
 
 /* Selected record: blue wash and a blue bar on the left */

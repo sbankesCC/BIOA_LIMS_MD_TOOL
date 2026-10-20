@@ -45,3 +45,13 @@ export type RunExport = Schemas["RunExport"];
 // Bulk action list and upload limits (API batch)
 export type BulkActionSummary = Schemas["BulkActionSummary"];
 export type UploadLimits = Schemas["UploadLimits"];
+
+// Admin screens: lookup list and reference data uploads and versions (M14)
+export type DataVersionInfo = Schemas["DataVersionInfo"];
+export type DataVersionList = Schemas["DataVersionList"];
+export type LookupUploadResponse = Schemas["LookupUploadResponse"];
+export type LookupUploadReport = Schemas["LookupUploadReport"];
+export type ReferenceUploadResponse = Schemas["ReferenceUploadResponse"];
+export type ReferenceUploadReport = Schemas["ReferenceUploadReport"];
+export type UploadFinding = Schemas["UploadFinding"];
+export type SheetChange = Schemas["SheetChange"];

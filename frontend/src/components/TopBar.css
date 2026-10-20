@@ -83,3 +83,11 @@
   padding: 9px var(--space-4);
   font-weight: 600;
 }
+
+/* On the admin screens Admin is filled white with blue text (mockup 4) */
+.top-bar__admin--active,
+.top-bar__admin--active:hover {
+  color: var(--color-blue);
+  background: var(--color-surface);
+  font-weight: 700;
+}

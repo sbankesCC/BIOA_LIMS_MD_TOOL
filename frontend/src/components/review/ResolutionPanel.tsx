@@ -1,6 +1,7 @@
 // The resolution panel (UI_SPEC §4.3): Previous / Next issue across the run, the record's
 // issue list, the selected issue expanded with its action, and "Save and next issue".
 // Extension slots let M13 add bulk actions and "Exclude record" without changing this file's flow.
+// Issues naming existing types show the side-by-side duplicate comparison.
 import { useState, type ReactNode } from "react";
 import type { CellAlternative, CellSource, ReviewCell, ReviewRow, ReviewView, RunDetail, RunField, SourceLocation } from "../../api/types";
 import {
@@ -20,11 +21,13 @@ import {
   listRunIssues,
   type IssueRef,
 } from "../../lib/reviewIssues";
+import { readDuplicateCandidates } from "../../lib/duplicateCandidates";
 import { describeIssueDetails, useIssueDetails } from "../../lib/useIssueDetails";
 import { selectionFor, type ReviewSession, type Selection } from "../../lib/useReviewSession";
 import { ErrorMessage } from "../ErrorMessage";
 import { Icon } from "../Icon";
 import { SeverityIcon } from "./ActionNeeded";
+import { DuplicateComparison } from "./DuplicateComparison";
 import { IssueAction } from "./IssueActions";
 import "./ResolutionPanel.css";
 
@@ -167,7 +170,9 @@ function ExpandedIssue(props: ExpandedIssueProps) {
   }
   const result = buildChoice({ issue: ref?.issue ?? null, kind: rule?.kind ?? null, recordId: selection.recordId, field, isSourceViewed }, state);
   const nameOf = (recordId: string) => findRow(view, recordId)?.name ?? recordId;
-  const detailLines = describeIssueDetails(detailIssues.find((issue) => issue.issue_id === issueId), nameOf);
+  const detailIssue = detailIssues.find((issue) => issue.issue_id === issueId);
+  const detailLines = describeIssueDetails(detailIssue, nameOf);
+  const candidates = readDuplicateCandidates(detailIssue?.details);
   const title = columnOf(fieldKey);
   return (
     <section className="panel__expanded" aria-label="Selected issue">
@@ -176,6 +181,8 @@ function ExpandedIssue(props: ExpandedIssueProps) {
       {detailLines.map((line) => (
         <p key={line} className="panel__detail">{line}</p>
       ))}
+      {/* Possible duplicates: this record next to the existing types the issue names */}
+      <DuplicateComparison row={row} candidates={candidates} referenceVersion={props.run.reference_data_version} />
       <IssueAction
         kind={rule?.kind ?? null}
         acceptLabel={rule !== null ? describeAcceptLabel(rule) : ""}

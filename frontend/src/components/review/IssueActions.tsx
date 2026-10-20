@@ -1,11 +1,11 @@
 // The action component of the selected issue (UI_SPEC §4.3 issue table): one view per action
-// kind, all editing one ActionState that buildChoice turns into a change. Exclude record,
-// bulk "also apply" and the duplicate comparison come with later milestones (extension slots).
+// kind, all editing one ActionState that buildChoice turns into a change. Exclude record and
+// bulk "also apply" come through extension slots; the duplicate comparison sits above (ResolutionPanel).
 import type { ReactNode } from "react";
 import type { CellAlternative, IssueSummary, ReviewCell, RunField } from "../../api/types";
 import type { ActionKind, ActionOption, ActionState } from "../../lib/issueActions";
 import { needsDocumentsCheck } from "../../lib/issueActions";
-import { formatLocation } from "../../lib/sourceLocation";
+import { formatShortLocation } from "../../lib/sourceLocation";
 import { Icon } from "../Icon";
 import { ValueInput } from "./ValueInput";
 import "./IssueActions.css";
@@ -129,7 +129,7 @@ function AlternativesAction(props: IssueActionProps) {
           <span className="issue-action__option-body">
             <strong>{alternative.value}</strong>
             <span className="muted">
-              {alternative.sources[0] !== undefined ? formatLocation(alternative.sources[0].location) : "No source recorded"}
+              {alternative.sources[0] !== undefined ? formatShortLocation(alternative.sources[0].location) : "No source recorded"}
               {alternative.sources.length > 0 && (
                 <>
                   {" · "}

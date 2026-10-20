@@ -253,6 +253,19 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
 - **M11: page counts before upload.** Page counts are only known after upload (`RunDocument`),
   so the Start screen file list shows name, type and size only. Expose them some other way, or
   keep it as is?
+- **M14: existing type details for the duplicate comparison.** POSSIBLE_DUPLICATE and
+  EXISTS_IN_LABVANTAGE details carry only `candidate_id`, `name`, `match` and `reason` per
+  existing type. The reference data keeps description, class, active flag, version and version
+  status, but no endpoint returns them, so the side-by-side shows names, how each matched and the
+  checker's reason only (with a note to check the rest in LabVantage). Add those attributes to
+  the issue details (or a reference data lookup endpoint) if a fuller comparison is wanted?
+- **M14: reference data download and current card.** There is no reference data download
+  endpoint (lookup lists have two) and no "current" endpoint, so the Reference data screen has
+  no Download buttons and builds its current card from `GET /admin/reference-data/versions`.
+  Add a download, or keep it as is?
+- **M14: history "Changes" from `summary`.** `DataVersionInfo.summary` is an untyped object;
+  the history reads `added_values` / `removed_values` (lookup lists) and `row_count` (reference
+  data) when they are numbers and shows "—" otherwise. Type these counts in the schema?
 
 ## Decisions made during the build
 - **M1: "N/A" in Manufacturer and Supplier (reversed 2026-10-20).** M1 left BioA's "N/A" entry out of
@@ -571,6 +584,32 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
 - **Front end 2026-10-21: Verify blockers keep empty sources.** `lib/verifyCheck.ts` `toIssueRef`
   leaves `sources` empty (Verify answers carry chunk IDs, not locations); clicking a blocker
   selects the issue by ID, and the panel reads its sources from the review view.
+
+- **M14: admin access without "who am I".** The app makes one admin call at start
+  (`GET /admin/lookup-lists/versions`); only a 403 hides the Admin link (any other failure keeps
+  it, UI_SPEC §3). An admin screen that gets a 403 shows "You do not have access to the admin
+  screens" with what to do, and hides the link too. Known for the session only (a reload asks
+  again).
+- **M14: admin routes.** `/admin` is Lookup lists and `/admin/reference-data` is Reference data,
+  with the two section pills of mockup 4. The history lists applied versions (with a `vN`) newest
+  first; pending uploads are not listed (the upload card shows the last one). The built-in seed
+  has no history row (the API lists uploads only); the current card names it ("The starting
+  lists that come with the tool"). "Apply updates as vN" shows the next number after the highest
+  `vN` (the API's rule, M7); the result message uses the name the API returns. Restore asks in a
+  dialog first. Warnings (e.g. over-length values) are listed in an amber box and never block
+  Apply; problems disable it with "Fix the N problems and upload again...". The mockup's
+  "before activating" is "before applying" (UI_SPEC wording rule).
+- **M14: duplicate comparison** is a table in the panel under the issue message for any issue
+  with `details.candidates` (POSSIBLE_DUPLICATE, EXISTS_IN_LABVANTAGE): this record (name, first
+  Found in) next to each existing type (name, "LabVantage (reference data vN)", how it matched,
+  the checker's reason). The match words come from the tool's contract (`exact`, `normalized`,
+  `same`, `unsure`). Nothing else is shown about existing types (see Open questions).
+- **M14: base `.card` loads after component styles**, so a component that adds a class to a
+  `.card` must use both classes (`.summary-strip.card`) to change its layout. This was the cause
+  of the stacked summary strip seen in the end-to-end run.
+- **M14: Found in shows the last heading** of a Word section path ("file · 6.2 Reagents") in the
+  grid, the alternatives and the comparison; the full path is the link's tooltip and stays in
+  the source viewer.
 
 ## Progress log
 
@@ -1149,3 +1188,80 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   unchanged: 542 passed, 1 skipped; ruff, ruff format and pyright clean. vitest passed on the
   first run (no worker start timeout).
 - Decisions: see "Front end 2026-10-21: ..." in Decisions made during the build.
+
+### M14: Admin screens and finish (done)
+- Admin screens (`pages/AdminPage.tsx`, `components/admin/`: `CurrentVersionCard`, `UploadCard`,
+  `ChangesTable`, `VersionHistory`, `Admin.css`): Lookup lists (current card with version, who,
+  date, file and value counts, "Download current workbook"; upload with "Checked just now",
+  passed checks, problems (red, sheet and row) and warnings (amber, do not block), changes by
+  list with "View every added and removed value", "Apply updates as vN" disabled with the reason
+  while problems remain; history with Current / Superseded, Download and "Restore vN" with a
+  confirmation) and Reference data (same pattern; rows read; no download, see Open questions).
+  API calls in `api/admin.ts` (downloads keep the API's file name from Content-Disposition);
+  state in `lib/useAdminData.ts`; helpers in `lib/adminVersions.ts`.
+- Admin access: `lib/adminAccess.ts` (context; one admin call at start; a 403 hides the Admin
+  link; the screens show a plain "no access" message). `TopBar` takes `isAdminShown`; the Admin
+  button is filled white on the admin screens (mockup 4).
+- Possible-duplicate side-by-side: `components/review/DuplicateComparison.tsx` (+ CSS) and
+  `lib/duplicateCandidates.ts`, shown by `ResolutionPanel`; the old "Existing types: ..." detail
+  line is removed from `useIssueDetails`.
+- Packages: none added.
+- Tests: 132 vitest tests in 11 files (18 new: `pages/AdminPage.test.tsx` 11 (current card and
+  history, problems vs warnings with Apply disabled, warnings-only apply and history reload,
+  diff and every value, restore with confirmation, stale apply message, download file name,
+  reference data upload and apply, 403 message and hidden link, link kept on other errors, link
+  hidden after a 403 at start), `components/review/DuplicateComparison.test.tsx` 5 (comparison
+  table, none without candidates, candidate and admin helpers, download header), 2 in
+  `pages/ReviewPage.test.tsx` for the mockup pass). Back end unchanged: 542 passed, 1 skipped;
+  ruff, ruff format and pyright clean. vitest passed on the first run.
+- **Mockup pass** (end-to-end screenshots at 1440 px compared with `docs/ui_mockups/`):
+  - Changed: summary strip was stacked and centered (base `.card` overrode its row layout);
+    the processing card gap had the same cause; the pinned Action needed column shrank under
+    its width, so scrolled columns showed through a gap before the name column (now held at
+    120 px and 200 px); Found in shows the last section heading, not the whole path; the bottom
+    action bar wrapped onto two rows at 1440 px (now one row, as in mockup 3); the grid has the
+    mockup's hint line ("Showing N of M records · Scroll for more records and columns · Click
+    any value to open it with its source"); the Admin button is filled on the admin screens.
+  - Still different, on purpose or by data: Processing has no rename pencil and no per-step
+    detail lines ("3 files read, 128 sections labeled": not in the API); the Verify dialog
+    keeps its M13 wording (UI_SPEC wins over "locks the values") and lists the blockers; Save
+    and next and dialog buttons stay blue (gold only for Export); no "Also apply to N" checkbox
+    (M13 decision); the Verify button has no shield icon; "[n] lists · [n] values" on the
+    lookup current card is not available (the card shows file name and value changes); a record
+    issue whose code has no UI rule (e.g. CONDITION_UNMET) is labeled "Problem"; fonts render
+    with the machine's Franklin Gothic where the mockup PNGs used a fallback.
+- **End-to-end run with the fake provider** (2026-10-20, all synthetic): back end on port 8001
+  and Vite on 5174 (8000 and 5173 were already in use by other processes, left untouched;
+  `API_PROXY_TARGET=http://127.0.0.1:8001`), settings as environment variables only
+  (`CLIENT_CONFIG_DIR=clients/bioa`, `STORAGE_DIR`/`CHECKPOINT_DB`/`REVIEW_DB` under
+  `data/m14_e2e/`, `PILOT_USER=synthetic.user`, `PILOT_USER_ROLES=user,admin`,
+  `LLM_PROVIDER=fake`, `FAKE_LLM_REPLIES_DIR=evals/cases/synthetic_001/fake_llm`,
+  `LLM_RETRIES=0`, plus `MAX_REEXTRACT=1` for the case's re-extraction). Driven in headless
+  Chrome (already installed) over the DevTools protocol with Python `websockets` (already in the
+  environment); every request went through the Vite proxy and every screen was loaded by its
+  SPA route. Steps:
+  1. Admin, Reference data: uploaded a synthetic CSV (2 types), report "Rows read: 2", applied
+     as v1.
+  2. Start: How it works popup, method .docx then worksheet .xlsx, Start extraction; the run
+     reached review in a few seconds (3 records, 17 red/yellow issues).
+  3. Fix: picked the method's value for the storage conflict, Save and next.
+  4. Possible duplicate (from the reference data): side-by-side shown, "Not a duplicate" saved
+     (issues resolved 2 of 17 after the re-check).
+  5. Bulk: "Accept all 6" Default applied warnings, confirmation list, applied (8 of 17); Undo
+     from the bar (back to 2 of 17).
+  6. Excluded a record with a reason (Excluded 1, struck-through row with Restore), restored it.
+  7. Verify: dialog blocked with 9 issues to fix and 6 warnings; Keep reviewing.
+  8. Export to Excel: draft export 1; both files downloaded (loader 22 columns, 3 records;
+     audit workbook with its 5 sheets); the runs list shows "Exported · export 1 (draft)".
+  9. Admin, Lookup lists: downloaded the current workbook (v0-seed-3); an upload with a
+     leading-space value showed 1 problem and 3 over-length warnings, Apply disabled; a clean
+     upload (warnings only) applied as v1; a second one applied as v2; Restore v1 (dialog) made
+     v1 current; Download from the history gave `lookup_lists v2.xlsx`.
+  10. A second back end with `PILOT_USER_ROLES=user` answered the admin list with 403
+      FORBIDDEN (checked with curl; the screen behavior is covered by the vitest tests).
+  - Artifacts (git-ignored, left in place): `data/m14_e2e/screens/` (27 screenshots),
+    `data/m14_e2e/downloads/` (exports and lookup workbooks), `data/m14_e2e/inputs/` (synthetic
+    reference CSV and lookup edits), `data/m14_e2e/scripts/` (the driver scripts), logs, the
+    run's storage and databases, and `data/m14_e2e/chrome-profile/`. All servers and the
+    headless browser were stopped afterwards.
+- Decisions: see "M14: ..." in Decisions made during the build; new Open questions above.

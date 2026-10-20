@@ -29,13 +29,17 @@
   --color-red-icon: #a3271f;
   --color-red-tint: #fbeceb;
   --color-red-border: #e3b4ae;
+  --color-red-wash: #fdf5f4;
   --color-amber: #8a5a00;
   --color-amber-text: #6e4800;
   --color-amber-tint: #fdf6e3;
+  --color-amber-border: #e8d3a0;
   --color-green: #0b5f56;
   --color-green-tint: #e1f3f0;
   --color-grey: #555b63;
   --color-grey-tint: #eef0f2;
+  --color-grey-strong: #4a4f56;
+  --color-disabled: #e3e7eb;
 
   /* Highlight of a quoted passage in the source viewer */
   --color-highlight: #fbe3a6;

@@ -1,6 +1,7 @@
-/* Summary strip: counts on the left, filter pills on the right. */
+/* Summary strip: counts on the left, filter pills on the right (`.summary-strip.card` beats the
+   base `.card` column layout, which loads later). */
 
-.summary-strip {
+.summary-strip.card {
   flex-direction: row;
   flex-wrap: wrap;
   justify-content: space-between;

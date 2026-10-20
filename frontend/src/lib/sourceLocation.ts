@@ -18,3 +18,12 @@ export function formatLocation(location: SourceLocation): string {
   }
   return parts.join(" · ");
 }
+
+// Word section paths are written "Heading > Subheading > Section"
+const SECTION_PATH_SEPARATOR = " > ";
+
+/** Return the location with only the last heading of a section path, for narrow places (grid, panel). */
+export function formatShortLocation(location: SourceLocation): string {
+  const section = location.section?.split(SECTION_PATH_SEPARATOR).pop() ?? location.section;
+  return formatLocation({ ...location, section });
+}

@@ -1,0 +1,310 @@
+/* Admin screens (mockup 4): section pills, current version card, upload card with its
+   check report, and the version history table. */
+
+/* Section pills under the heading */
+.admin-tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: 10px;
+}
+
+.admin-tabs__tab,
+.admin-tabs__tab:hover {
+  text-decoration: none;
+  font-weight: 600;
+  color: var(--color-blue);
+  background: var(--color-surface);
+  border: 1px solid var(--color-blue);
+  border-radius: var(--radius-pill);
+  padding: 7px var(--space-4);
+}
+
+.admin-tabs__tab--active,
+.admin-tabs__tab--active:hover {
+  font-weight: 700;
+  color: var(--color-surface);
+  background: var(--color-blue);
+}
+
+/* The admin cards are a little tighter than the default card */
+.admin-page .card {
+  padding: 26px 30px;
+  gap: var(--space-5);
+}
+
+/* Notice after an apply or restore */
+.admin-notice {
+  margin: 0;
+  background: var(--color-green-tint);
+  color: var(--color-green);
+  font-weight: 600;
+  border-radius: var(--radius-medium);
+  padding: var(--space-3) var(--space-4);
+}
+
+/* Current version card: text on the left, download on the right */
+.admin-page .admin-current {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.admin-current__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* Blue filled button (gold stays for the main action of the run screens) */
+.admin-button {
+  font: inherit;
+  font-weight: 700;
+  color: var(--color-surface);
+  background: var(--color-blue);
+  border: none;
+  border-radius: var(--radius-medium);
+  padding: var(--space-3) var(--space-5);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.admin-button:disabled {
+  color: var(--color-text-faint);
+  background: var(--color-disabled);
+  cursor: not-allowed;
+}
+
+/* The chosen file row */
+.admin-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+  padding: var(--space-3) var(--space-4);
+}
+
+.admin-file__icon {
+  color: var(--color-blue);
+  display: inline-flex;
+}
+
+.admin-file__text {
+  flex: 1 1 auto;
+  min-width: 200px;
+}
+
+.admin-file__name {
+  font-weight: 600;
+}
+
+.admin-file__meta {
+  font-size: var(--font-size-small);
+}
+
+/* Report: checks on the left, changes on the right; they stack on narrow screens */
+.admin-report {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  align-items: flex-start;
+}
+
+.admin-report h3 {
+  margin: 0;
+  font-size: var(--font-size-large);
+}
+
+.admin-report__checks {
+  flex: 1 1 480px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.admin-report__changes {
+  flex: 1 1 380px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.admin-report__rows {
+  margin: 0;
+}
+
+.admin-report__passed {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--color-green);
+  font-weight: 600;
+}
+
+/* Problems (red) and warnings (amber): a tinted box with a heading and a list */
+.admin-findings {
+  border-radius: var(--radius-large);
+  padding: 14px var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-findings--problem {
+  border: 1px solid var(--color-red-border);
+  background: var(--color-red-wash);
+}
+
+.admin-findings--warning {
+  border: 1px solid var(--color-amber-border);
+  background: var(--color-amber-tint);
+}
+
+.admin-findings__heading {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  font-weight: 700;
+}
+
+.admin-findings--problem .admin-findings__heading {
+  color: var(--color-red);
+}
+
+.admin-findings--warning .admin-findings__heading {
+  color: var(--color-amber-text);
+}
+
+.admin-findings__list {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Changes and history tables */
+.admin-table__scroll {
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-meta);
+}
+
+.admin-table--history {
+  min-width: 720px;
+}
+
+.admin-table th {
+  text-align: left;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  padding: var(--space-2) 10px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.admin-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-table--history td,
+.admin-table--history th {
+  padding: var(--space-3);
+}
+
+.admin-table__version {
+  font-weight: 600;
+}
+
+.admin-table__actions {
+  display: flex;
+  gap: 14px;
+}
+
+/* History links are underlined text buttons, not bold */
+.admin-link {
+  font-weight: 400;
+}
+
+.admin-link:disabled {
+  color: var(--color-text-faint);
+  cursor: not-allowed;
+}
+
+/* Current (green) and Superseded (grey) pills */
+.admin-status {
+  background: var(--color-grey-tint);
+  color: var(--color-grey-strong);
+  border-radius: var(--radius-pill);
+  padding: 3px 10px;
+  font-size: var(--font-size-small);
+  font-weight: 600;
+}
+
+.admin-status--current {
+  background: var(--color-green-tint);
+  color: var(--color-green);
+}
+
+/* Every added and removed value */
+.admin-changes__toggle {
+  align-self: flex-start;
+}
+
+.admin-changes__all {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-medium);
+  padding: var(--space-3) var(--space-4);
+}
+
+.admin-changes__sheet h4 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-body);
+}
+
+.admin-changes__values {
+  margin: 0;
+  font-size: var(--font-size-meta);
+}
+
+.admin-changes__label {
+  font-weight: 600;
+}
+
+/* Apply bar: the reason on the left of the disabled button */
+.admin-apply {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  border-top: 1px solid var(--color-border-soft);
+  padding-top: 18px;
+}
+
+.admin-apply__why {
+  font-size: var(--font-size-meta);
+  color: var(--color-red);
+  font-weight: 600;
+}

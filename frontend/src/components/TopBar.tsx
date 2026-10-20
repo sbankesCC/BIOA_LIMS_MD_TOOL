@@ -3,9 +3,10 @@ import { NavLink } from "react-router-dom";
 import { Icon } from "./Icon";
 import "./TopBar.css";
 
-/** Props of the top bar: what to do when "How it works" is clicked. */
+/** Props of the top bar: what "How it works" does, and whether to show Admin (hidden after a 403). */
 interface TopBarProps {
   onOpenHowItWorks: () => void;
+  isAdminShown: boolean;
 }
 
 /** Return the class of a main navigation link, marking the current page. */
@@ -13,8 +14,13 @@ function makeNavClass({ isActive }: { isActive: boolean }): string {
   return isActive ? "top-bar__link top-bar__link--active" : "top-bar__link";
 }
 
+/** Return the class of the Admin button: filled white on the admin screens (mockup 4). */
+function makeAdminClass({ isActive }: { isActive: boolean }): string {
+  return isActive ? "top-bar__admin top-bar__admin--active" : "top-bar__admin";
+}
+
 /** Show the blue top bar with the main navigation. */
-export function TopBar({ onOpenHowItWorks }: TopBarProps) {
+export function TopBar({ onOpenHowItWorks, isAdminShown }: TopBarProps) {
   return (
     <header className="top-bar">
       <div className="top-bar__inner">
@@ -32,15 +38,17 @@ export function TopBar({ onOpenHowItWorks }: TopBarProps) {
             </NavLink>
           </nav>
         </div>
-        {/* Right: help popup and Admin (always visible in the pilot) */}
+        {/* Right: help popup and Admin (shown unless the API refused an admin call with 403) */}
         <div className="top-bar__right">
           <button type="button" className="top-bar__help" onClick={onOpenHowItWorks}>
             <Icon name="help" />
             How it works
           </button>
-          <NavLink to="/admin" className="top-bar__admin">
-            Admin
-          </NavLink>
+          {isAdminShown && (
+            <NavLink to="/admin" className={makeAdminClass}>
+              Admin
+            </NavLink>
+          )}
         </div>
       </div>
     </header>

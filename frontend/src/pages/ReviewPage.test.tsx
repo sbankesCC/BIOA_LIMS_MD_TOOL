@@ -371,3 +371,22 @@ describe("Review header", () => {
     expect(calls.find((call) => call.method === "PATCH")?.body).toEqual({ name: "Renamed synthetic run" });
   });
 });
+
+describe("Review grid wording (mockup pass)", () => {
+  it("shows how many records are shown under the grid, and the filter changes the count", async () => {
+    const { fetchMock } = makeRecordingFetch(makeReviewHandler(makeTwoRecordView));
+    renderApp(REVIEW_PATH, fetchMock);
+    expect(await screen.findByText(/^Showing 2 of 2 records · Scroll for more records and columns/)).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^Excluded/ }));
+    expect(await screen.findByText(/^Showing 0 of 2 records/)).not.toBeNull();
+  });
+
+  it("Found in shows the last heading of a section path, with the full path as its title", async () => {
+    const view = makeTwoRecordView();
+    view.rows[0].found_in = [makeLocation("doc01-c001", { section: "Synthetic Method > 6 Materials > 6.2 Reagents" })];
+    const { fetchMock } = makeRecordingFetch(makeReviewHandler(() => view));
+    renderApp(REVIEW_PATH, fetchMock);
+    const link = await screen.findByText("synthetic_method.docx · 6.2 Reagents");
+    expect(link.closest("button")?.title).toBe("synthetic_method.docx · Synthetic Method > 6 Materials > 6.2 Reagents");
+  });
+});

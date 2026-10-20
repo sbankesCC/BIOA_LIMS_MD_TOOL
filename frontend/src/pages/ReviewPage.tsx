@@ -131,6 +131,7 @@ function ReviewScreen({ run, view, fieldList, data, extensions }: ReviewScreenPr
       <div className={selection !== null ? "review__body review__body--with-panel" : "review__body"}>
         <RecordsGrid
           rows={filterRows(view.rows, filter)}
+          totalCount={view.rows.length}
           fields={fields}
           nameField={nameField}
           selectedRecordId={selection?.recordId ?? null}

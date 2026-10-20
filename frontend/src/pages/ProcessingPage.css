@@ -27,7 +27,7 @@
   font-weight: 600;
 }
 
-.processing__card {
+.card.processing__card {
   max-width: 760px;
   gap: 22px;
 }

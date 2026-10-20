@@ -1,5 +1,5 @@
-// Small screens around the main ones: the Runs list, the Admin placeholder, the run and
-// review route wrappers and "page not found". The Admin screens come in a later milestone.
+// Small screens around the main ones: the Runs list, the run and review route wrappers and
+// "page not found". The Admin screens are in AdminPage.tsx.
 import { Link, useParams } from "react-router-dom";
 import { RunListSection } from "../components/RunListSection";
 import { ReviewWithActions } from "../components/review/ReviewExtensions";
@@ -28,19 +28,6 @@ export function RunRoute() {
 export function ReviewRoute() {
   const { runId = "" } = useParams();
   return <ReviewWithActions key={runId} runId={runId} />;
-}
-
-/** Admin placeholder until the lookup list and reference data screens are built. */
-export function AdminPage() {
-  return (
-    <main className="page">
-      <div className="page-heading">
-        <div className="eyebrow">Admin</div>
-        <h1>Admin</h1>
-        <p>The lookup list and reference data screens are not available yet.</p>
-      </div>
-    </main>
-  );
 }
 
 /** Shown for an address the app does not know. */

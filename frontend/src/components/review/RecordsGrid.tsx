@@ -5,7 +5,7 @@ import { Fragment, type KeyboardEvent, type ReactNode } from "react";
 import type { ReviewCell, ReviewRow, RunField, SourceLocation } from "../../api/types";
 import { describeCell } from "../../lib/cellDisplay";
 import { findCell } from "../../lib/reviewIssues";
-import { formatLocation } from "../../lib/sourceLocation";
+import { formatLocation, formatShortLocation } from "../../lib/sourceLocation";
 import { Icon } from "../Icon";
 import { ActionNeededLabel } from "./ActionNeeded";
 import "./RecordsGrid.css";
@@ -20,6 +20,8 @@ interface RecordsGridProps {
   nameField: string | null;
   selectedRecordId: string | null;
   selectedField: string | null;
+  // How many records the run has (the filter may show fewer)
+  totalCount: number;
   onOpenCell: (row: ReviewRow, cell: ReviewCell) => void;
   onOpenFoundIn: (row: ReviewRow) => void;
   // M13: e.g. the Restore link of an excluded row
@@ -32,25 +34,31 @@ export function RecordsGrid(props: RecordsGridProps) {
   const nameColumn = fields.find((field) => field.key === nameField)?.column ?? FALLBACK_NAME_HEADER;
   const otherFields = fields.filter((field) => field.key !== nameField);
   return (
-    <div className="records-grid__scroll" tabIndex={-1}>
-      <table className="records-grid" onKeyDown={moveFocusWithArrows}>
-        <thead>
-          <tr>
-            <th scope="col" className="records-grid__pin records-grid__pin--action">Action needed</th>
-            <th scope="col" className="records-grid__pin records-grid__pin--name">{nameColumn}</th>
-            <th scope="col">Found in</th>
-            {otherFields.map((field) => (
-              <th scope="col" key={field.key}>{field.column}</th>
+    <div className="records-grid__card">
+      <div className="records-grid__scroll" tabIndex={-1}>
+        <table className="records-grid" onKeyDown={moveFocusWithArrows}>
+          <thead>
+            <tr>
+              <th scope="col" className="records-grid__pin records-grid__pin--action">Action needed</th>
+              <th scope="col" className="records-grid__pin records-grid__pin--name">{nameColumn}</th>
+              <th scope="col">Found in</th>
+              {otherFields.map((field) => (
+                <th scope="col" key={field.key}>{field.column}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIndex) => (
+              <GridRow key={row.record_id} {...props} row={row} rowIndex={rowIndex} otherFields={otherFields} />
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, rowIndex) => (
-            <GridRow key={row.record_id} {...props} row={row} rowIndex={rowIndex} otherFields={otherFields} />
-          ))}
-        </tbody>
-      </table>
-      {rows.length === 0 && <p className="records-grid__empty muted">No records match this filter.</p>}
+          </tbody>
+        </table>
+        {rows.length === 0 && <p className="records-grid__empty muted">No records match this filter.</p>}
+      </div>
+      {/* How to use the grid, under the table (mockup 3) */}
+      <p className="records-grid__hint">
+        Showing {rows.length} of {props.totalCount} {props.totalCount === 1 ? "record" : "records"} · Scroll for more records and columns · Click any value to open it with its source
+      </p>
     </div>
   );
 }
@@ -179,9 +187,9 @@ function FoundIn({ locations, rowIndex, onOpen }: { locations: SourceLocation[];
     return <span className="muted">No source recorded</span>;
   }
   return (
-    <button type="button" className="records-grid__link" data-grid-row={rowIndex} data-grid-col={2} onClick={onOpen}>
+    <button type="button" className="records-grid__link" title={formatLocation(first)} data-grid-row={rowIndex} data-grid-col={2} onClick={onOpen}>
       <Icon name="file" size={15} />
-      <span className="records-grid__link-text">{formatLocation(first)}</span>
+      <span className="records-grid__link-text">{formatShortLocation(first)}</span>
       {first.is_scanned && <span className="muted"> (scan)</span>}
       {locations.length > 1 && <span className="muted"> +{locations.length - 1} more</span>}
     </button>

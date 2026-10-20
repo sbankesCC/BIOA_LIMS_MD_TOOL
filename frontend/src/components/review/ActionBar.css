@@ -23,10 +23,11 @@
   gap: 18px;
 }
 
+/* Progress and reminder on the left; sized so the bar stays on one row at 1440 px (mockup 3) */
 .action-bar__info {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-8);
+  gap: var(--space-7);
   align-items: center;
 }
 
@@ -57,7 +58,7 @@
   display: flex;
   gap: var(--space-2);
   align-items: flex-start;
-  max-width: 460px;
+  max-width: 380px;
   margin: 0;
   font-size: var(--font-size-meta);
   color: var(--color-text);
