@@ -285,6 +285,22 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   NOT_IN_LOOKUP. Booleans accept only Y or N in any case; words such as "Yes" are kept as written.
 - **M4: defaults** fill not-found fields (and found values that clean to empty), never conflicting
   fields, and are applied literally (no lookup matching). An empty extracted field has origin `extracted`.
+- **M5: record name field.** The record's name (for DUPLICATE_IN_RUN, EXISTS_IN_LABVANTAGE,
+  POSSIBLE_DUPLICATE and the judge shortlist) is the first field in `field_rules.yaml` (the first
+  DFD column, the LabVantage key). The config has no explicit "name" flag; this keeps names out of code.
+- **M5: judge cache key** uses every `extracted` field's current output value (not only the six
+  identifying fields ARCHITECTURE §4.8 lists, which exist only in a prompt comment). Safe: it can only
+  cause extra judge calls, never a stale result. A config flag could narrow it later.
+- **M5: duplicate judge limit** applies per validation pass (graph end, each re-check); cached
+  results do not count. The service takes the limit and returns `judge_calls_made`.
+- **M5: shortlist** = existing types whose normalized name (case, spaces, "°" removed) has a difflib
+  ratio ≥ 0.6 with the record's, closest first, up to `shortlist_size`. A normalized name match
+  gives POSSIBLE_DUPLICATE without a judge call. No shortlist, no call.
+- **M5: findings apply to extracted values.** Citation and verification-agent issues (and
+  OR_EQUIVALENT, UNREPORTED_CONFLICT) are not raised once a person set the value (origin
+  `user_edited` or `fixed`), so they resolve. Transform notes always apply to the current value.
+- **M5: excluded records** are not validated: they keep their earlier issues unchanged and get
+  `action_needed = excluded`; they are left out of the in-run name check and the reference check.
 
 ## Progress log
 
@@ -376,3 +392,48 @@ unverified until labeled BioA cases exist (ARCHITECTURE §9).
   - To watch in M8/M10: Word table cells are joined with ` | ` in chunk text, so a table-row quote
     without the pipes fails the citation check. The prompt shows the chunk text, so quotes should
     keep them; check this with the eval cases.
+
+### M5: Validation service + catalogue edit (done)
+- Catalogue: the 7 interview codes added to `clients/bioa/issue_catalogue.yaml`, version `0.5`
+  (commit `9ed218b`, on its own). Record-level codes in `record_issues`, run-level in `run_issues`.
+- `contracts/reference.py`: `ReferenceType` (`candidate_id`, name, version, description, class,
+  active flag, version status) and `ReferenceData(version, types)`, for M7's reference admin.
+- `validation/`: `codes.py` (code constants, `VALIDATION_CODES`), `issues.py` (`IssueDraft`,
+  `make_issue`: catalogue severity, filled message with the column name, stable ID),
+  `field_checks.py`, `conditions.py`, `findings_to_issues.py` (verdict → code maps), `duplicates.py`
+  (name field, in-run duplicates, exact/normalized/shortlist, judge), `judge_cache.py`
+  (`DuplicateJudge` and `JudgeCache` protocols, `JudgeRequest`, `InMemoryJudgeCache`,
+  `make_judge_cache_key`, `JudgeRunner` with the call limit), `lifecycle.py` (`merge_issues`),
+  `action_needed.py`, `service.py` (`validate_run(records, config, runner, reference, findings,
+  previous_issues) -> ValidationResult`, `make_validation_config`, `ProcessingFindings`).
+- Verdict → code: citation `not_verified` → CITATION_NOT_VERIFIED, `not_checkable` → SCANNED_SOURCE;
+  `contradicted`/`unsupported`/`present_missed` → CONTRADICTED_BY_SOURCE/UNSUPPORTED_BY_SOURCE/
+  VALUE_PRESENT_MISSED; `not_a_consumable_type`/`duplicate_within_run`/`should_be_split` →
+  NOT_A_CONSUMABLE_TYPE/POSSIBLE_DUPLICATE_IN_RUN/SHOULD_BE_SPLIT; unreported conflicts →
+  UNREPORTED_CONFLICT; missed candidates → MISSED_CANDIDATES_UNRESOLVED; excluded item challenges →
+  EXCLUDED_ITEM_CHALLENGED; dropped records → RECORD_DROPPED_ON_REEXTRACTION.
+- Tests: 290 total, 56 new (`unit/test_validation_issue_codes.py`, `unit/test_validation_service.py`,
+  helpers in `unit/validation_helpers.py`). A test checks every catalogue code is raised by
+  validation or listed as raised by ingest/graph (NO_READABLE_DOCUMENTS, EXTRACTION_FAILED,
+  NO_RECORDS_FOUND, DOCUMENT_SET_TOO_LARGE are for M8).
+- As documented, every record with Container Tracking Method not found gets TOO_LONG (plus
+  DEFAULT_APPLIED) from the literal default "Individual" vs limit 1 (tested).
+- Decisions the docs did not cover (significant ones also above):
+  - Field issues are keyed by the current output value; record-level issues (condition groups,
+    OR_EQUIVALENT, record verdicts) by null; name issues sit on the name field. Run issues listing
+    items are keyed by the item text; DUPLICATE_CHECK_SKIPPED and REFERENCE_DATA_MISSING by null.
+  - An empty field: unresolved conflict → CONFLICT_UNRESOLVED (instead of REQUIRED_MISSING or
+    OPTIONAL_NOT_FOUND); required → REQUIRED_MISSING; optional → OPTIONAL_NOT_FOUND; conditional →
+    only its condition groups. Booleans other than Y/N → NOT_IN_LOOKUP. Decimal = plain number,
+    integer = digits with an optional sign. Greek = U+0370–03FF and U+1F00–1FFF; control = category Cc.
+  - Two checks giving the same key (NOT_IN_LOOKUP from the lookup check and the transform note)
+    give one issue. Codes validation does not own (ingest, graph) pass through `merge_issues` unchanged.
+  - Resolved issues get `closed_by = null`; M6 records who triggered the re-check in issue history.
+  - {other} in POSSIBLE_DUPLICATE_IN_RUN lists the run's record IDs named in the agent's note,
+    else "another record in this run".
+  - With `exact_match_ignores_active_flag: false`, an exact match on a type whose active flag is
+    "N" is treated as a normalized match (POSSIBLE_DUPLICATE). BioA's config uses `true`.
+  - Judge exceptions are not caught by validation (the M8 agent handles retries and errors).
+  - For M6: store `ProcessingFindings` (verification output, dropped record IDs) per run so
+    re-checks re-raise those issues; back `JudgeCache` with the `duplicate_judgments` table; clear
+    coded notes from `output.changes` on `set_value` (else old FORMAT_CORRECTED notes reappear).
