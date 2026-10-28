@@ -1,0 +1,74 @@
+/* Possible-duplicate comparison: a small table, this record first, one column per existing type. */
+
+.duplicate-compare {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.duplicate-compare__scroll {
+  overflow-x: auto;
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-medium);
+}
+
+.duplicate-compare__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-meta);
+}
+
+.duplicate-compare__table th,
+.duplicate-compare__table td {
+  text-align: left;
+  vertical-align: top;
+  padding: var(--space-2) 10px;
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.duplicate-compare__table tbody tr:last-child th,
+.duplicate-compare__table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Column and row labels: small and muted */
+.duplicate-compare__table thead th,
+.duplicate-compare__table tbody th {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+}
+
+.duplicate-compare__table thead {
+  background: var(--color-blue-wash);
+}
+
+.duplicate-compare__name {
+  font-weight: 600;
+}
+
+/* This record's values, one "column: value" line each, beside the existing types' attributes */
+.duplicate-compare__values {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.duplicate-compare__values div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.duplicate-compare__values dt {
+  color: var(--color-text-muted);
+}
+
+.duplicate-compare__values dt::after {
+  content: ":";
+}
+
+.duplicate-compare__values dd {
+  margin: 0;
+}

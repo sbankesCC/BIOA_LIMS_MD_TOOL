@@ -1,0 +1,65 @@
+/* Verify dialog: tinted groups for blockers (red) and warnings (amber), each with links. */
+
+.verify__groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.verify__group {
+  border-radius: var(--radius-medium);
+  padding: var(--space-3) 14px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.verify__group p {
+  margin: 0;
+}
+
+.verify__group--red {
+  background: var(--color-red-tint);
+}
+
+.verify__group--red strong {
+  color: var(--color-red);
+}
+
+.verify__group--amber {
+  background: var(--color-amber-tint);
+}
+
+.verify__group--amber strong {
+  color: var(--color-amber-text);
+}
+
+/* Issue links: scroll when there are many */
+.verify__links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.verify__link {
+  font: inherit;
+  font-size: var(--font-size-meta);
+  color: var(--color-blue);
+  background: none;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  text-align: left;
+}
+
+.verify__link span {
+  text-decoration: underline;
+}

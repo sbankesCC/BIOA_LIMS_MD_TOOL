@@ -1,0 +1,168 @@
+/* Resolution panel: a white card on the right of the grid. */
+
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-card);
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  align-self: flex-start;
+  position: sticky;
+  top: var(--space-4);
+  max-height: calc(100vh - var(--space-8));
+  overflow-y: auto;
+}
+
+/* Top row: arrows and position, close on the right */
+.panel__top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.panel__arrow {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+  padding: var(--space-1) 6px;
+  cursor: pointer;
+  color: var(--color-blue);
+  display: inline-flex;
+}
+
+.panel__arrow:disabled {
+  color: var(--color-step-idle);
+  cursor: not-allowed;
+}
+
+.panel__position {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+}
+
+.panel__close {
+  margin-left: auto;
+}
+
+.panel__record {
+  font-size: var(--font-size-h2);
+}
+
+/* Compact issue list */
+.panel__issues {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 1px solid var(--color-divider);
+  padding-bottom: var(--space-3);
+}
+
+.panel__issue {
+  font: inherit;
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: var(--radius-small);
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.panel__issue:hover,
+.panel__issue--selected {
+  background: var(--color-blue-wash);
+}
+
+.panel__issue-state {
+  font-size: var(--font-size-small);
+  color: var(--color-green);
+  font-weight: 600;
+}
+
+.panel__empty {
+  margin: 0;
+}
+
+/* The expanded issue */
+.panel__expanded {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.panel__issue-title {
+  margin: 0;
+  font-size: var(--font-size-large);
+}
+
+.panel__message,
+.panel__detail {
+  margin: 0;
+}
+
+.panel__detail {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+}
+
+/* Footer: M13's Exclude record on the left, Save and next on the right */
+.panel__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+  border-top: 1px solid var(--color-divider);
+  padding-top: var(--space-4);
+}
+
+.panel__save {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+
+/* Save and next: blue (gold is kept for Export, the screen's main action) */
+.panel__save-button {
+  font: inherit;
+  font-weight: 700;
+  background: var(--color-blue);
+  color: var(--color-surface);
+  border: none;
+  border-radius: var(--radius-medium);
+  padding: var(--space-3) var(--space-5);
+  cursor: pointer;
+}
+
+.panel__save-button:disabled {
+  background: var(--color-border);
+  color: var(--color-text-faint);
+  cursor: not-allowed;
+}
+
+.panel__hint {
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
+/* "Exclude record" in the footer: a quiet text button (mockup) */
+.panel__exclude {
+  font: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  padding: 10px 2px;
+  cursor: pointer;
+}

@@ -16,7 +16,7 @@
 #   changes or marks it not found, one at a time. Open ones block the verified label.
 # note_required: true means accepting it needs a short note saying how it was handled.
 
-version: "0.4"
+version: "0.6"
 
 record_issues:
 
@@ -87,6 +87,16 @@ record_issues:
   NOT_A_CONSUMABLE_TYPE:
     severity: warning
     message: "This may not be a Consumable Type. Consider excluding it."
+  POSSIBLE_DUPLICATE_IN_RUN:
+    severity: warning
+    message: "This may be the same material as {other}. Exclude one, or confirm they are different."
+  UNREPORTED_CONFLICT:
+    severity: warning
+    individual_review: true
+    message: "Another source may give a different {field}. Open the source and check."
+  RECORD_DROPPED_ON_REEXTRACTION:
+    severity: warning
+    message: "Re-extraction did not return this record. Check it, or exclude it."
 
   # ----- Grey -----
   OPTIONAL_NOT_FOUND:
@@ -123,3 +133,20 @@ run_issues:
   DOCUMENT_SET_TOO_LARGE:
     severity: error
     message: "This document set is too large to process in one run. Split it into smaller runs."
+  EXCLUDED_ITEM_CHALLENGED:
+    severity: warning
+    individual_review: true
+    note_required: true
+    message: "These left-out items may be consumables: {items}. Add them outside the tool or confirm, and note what you did."
+  REFERENCE_DATA_MISSING:
+    severity: warning
+    message: "No existing Consumable Types were uploaded, so the check against LabVantage was skipped. Upload them in Admin, or check names in LabVantage."
+  NO_READABLE_DOCUMENTS:
+    severity: error
+    message: "None of the files could be read. Check the files and start a new run."
+  EXTRACTION_FAILED:
+    severity: error
+    message: "The extraction could not be completed. Retry the run; if it fails again, contact support."
+  PROCESSING_INTERRUPTED:
+    severity: error
+    message: "Processing stopped before it finished (the app was restarted). Retry the run."

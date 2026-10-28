@@ -1,0 +1,93 @@
+/* Top bar: Clarkston blue, white text, gold underline under the current page. */
+
+.top-bar {
+  background: var(--color-blue);
+  color: var(--color-surface);
+}
+
+.top-bar__inner {
+  max-width: var(--page-width);
+  margin: 0 auto;
+  padding: 0 var(--space-8);
+  min-height: var(--header-height);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.top-bar__left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-7);
+  flex-wrap: wrap;
+}
+
+/* Product name in the heading font */
+.top-bar__brand,
+.top-bar__brand:hover {
+  color: var(--color-surface);
+  text-decoration: none;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: var(--font-size-brand);
+  letter-spacing: 0.01em;
+}
+
+.top-bar__nav {
+  display: flex;
+  gap: var(--space-5);
+}
+
+/* Navigation links; the current page gets the gold underline */
+.top-bar__link,
+.top-bar__link:hover {
+  color: var(--color-surface);
+  text-decoration: none;
+  padding: var(--space-5) 0;
+}
+
+.top-bar__link--active {
+  font-weight: 600;
+  padding-bottom: 17px;
+  border-bottom: 3px solid var(--color-gold);
+}
+
+.top-bar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* "How it works" is a plain button that looks like a link */
+.top-bar__help {
+  background: transparent;
+  color: var(--color-surface);
+  border: none;
+  font: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px var(--space-2);
+  cursor: pointer;
+}
+
+/* Admin is an outlined button */
+.top-bar__admin,
+.top-bar__admin:hover {
+  color: var(--color-surface);
+  text-decoration: none;
+  border: 1px solid var(--color-surface);
+  border-radius: var(--radius-small);
+  padding: 9px var(--space-4);
+  font-weight: 600;
+}
+
+/* On the admin screens Admin is filled white with blue text (mockup 4) */
+.top-bar__admin--active,
+.top-bar__admin--active:hover {
+  color: var(--color-blue);
+  background: var(--color-surface);
+  font-weight: 700;
+}

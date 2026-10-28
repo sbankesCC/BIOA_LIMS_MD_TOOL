@@ -1,0 +1,25 @@
+/* Action needed and severity labels: an icon and a word in the status color. */
+
+.action-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.action-label--red {
+  color: var(--color-red);
+}
+
+.action-label--amber {
+  color: var(--color-amber);
+}
+
+.action-label--green {
+  color: var(--color-green);
+}
+
+.action-label--grey {
+  color: var(--color-grey);
+}

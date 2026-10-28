@@ -1,0 +1,83 @@
+/* Step list: round markers, the current step on a pale blue band with a spinning ring. */
+
+.step-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.step-list__step {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  padding: var(--space-3) 0;
+}
+
+/* The current step stands out: background band and blue bold label */
+.step-list__step--current {
+  padding: var(--space-3) var(--space-4);
+  margin: 0 calc(-1 * var(--space-4));
+  background: var(--color-blue-wash);
+  border-radius: var(--space-3);
+}
+
+.step-list__label {
+  font-weight: 600;
+}
+
+.step-list__step--current .step-list__label {
+  font-weight: 700;
+  color: var(--color-blue);
+}
+
+.step-list__step--waiting .step-list__label {
+  color: var(--color-text-muted);
+}
+
+.step-list__detail {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+/* Markers: 30px circles */
+.step-list__marker {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step-list__marker--done {
+  background: var(--color-blue);
+  color: var(--color-surface);
+}
+
+.step-list__marker--current {
+  border: 3px solid var(--color-blue-ring);
+  border-top-color: var(--color-blue);
+  animation: step-list-spin 1s linear infinite;
+}
+
+.step-list__marker--waiting {
+  border: 2px solid var(--color-step-idle);
+}
+
+@keyframes step-list-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* No spinning for users who ask for less motion */
+@media (prefers-reduced-motion: reduce) {
+  .step-list__marker--current {
+    animation: none;
+  }
+}

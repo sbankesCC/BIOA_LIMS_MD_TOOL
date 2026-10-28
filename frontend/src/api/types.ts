@@ -1,0 +1,58 @@
+// Short names for the API shapes the screens use, all taken from the generated schema.
+// Never write API types by hand: regenerate schema.ts with `npm run generate:api`.
+import type { components } from "./generated/schema";
+
+type Schemas = components["schemas"];
+
+export type RunSummary = Schemas["RunSummary"];
+export type RunDetail = Schemas["RunDetail"];
+export type RunStatus = Schemas["RunSummary"]["status"];
+export type RunIssue = Schemas["Issue"];
+export type StartRunResponse = Schemas["StartRunResponse"];
+export type ErrorResponse = Schemas["ErrorResponse"];
+
+// Review screen shapes (M12)
+export type ReviewView = Schemas["ReviewView"];
+export type ReviewRow = Schemas["ReviewRow"];
+export type ReviewCell = Schemas["ReviewCell"];
+export type ReviewCounts = Schemas["ReviewCounts"];
+export type IssueSummary = Schemas["IssueSummary"];
+export type DuplicateCandidate = Schemas["DuplicateCandidate"];
+export type RunField = Schemas["RunField"];
+export type RunFieldList = Schemas["RunFieldList"];
+export type RecordDetail = Schemas["RecordDetail"];
+export type ChunkSource = Schemas["ChunkSource"];
+export type SourceLocation = Schemas["SourceLocation"];
+export type CellSource = Schemas["CellSource"];
+export type CellAlternative = Schemas["CellAlternative"];
+export type ChangesRequest = Schemas["ChangesRequest"];
+export type Change = ChangesRequest["changes"][number];
+export type SetValueChange = Schemas["SetValueChange"];
+export type PickAlternativeChange = Schemas["PickAlternativeChange"];
+export type AcceptWarningChange = Schemas["AcceptWarningChange"];
+export type SaveResult = Schemas["SaveResult"];
+export type RecheckResult = Schemas["RecheckResult"];
+
+// Bulk actions, exclude, Verify and export shapes (M13)
+export type ExcludeRecordChange = Schemas["ExcludeRecordChange"];
+export type RestoreRecordChange = Schemas["RestoreRecordChange"];
+export type UndoBulkChange = Schemas["UndoBulkChange"];
+export type BulkPreview = Schemas["BulkPreview"];
+export type BulkPreviewMatch = Schemas["BulkPreviewMatch"];
+export type BulkMode = Schemas["BulkPreview"]["mode"];
+export type VerifyResult = Schemas["VerifyResult"];
+export type RunExport = Schemas["RunExport"];
+
+// Bulk action list and upload limits (API batch)
+export type BulkActionSummary = Schemas["BulkActionSummary"];
+export type UploadLimits = Schemas["UploadLimits"];
+
+// Admin screens: lookup list and reference data uploads and versions (M14)
+export type DataVersionInfo = Schemas["DataVersionInfo"];
+export type DataVersionList = Schemas["DataVersionList"];
+export type LookupUploadResponse = Schemas["LookupUploadResponse"];
+export type LookupUploadReport = Schemas["LookupUploadReport"];
+export type ReferenceUploadResponse = Schemas["ReferenceUploadResponse"];
+export type ReferenceUploadReport = Schemas["ReferenceUploadReport"];
+export type UploadFinding = Schemas["UploadFinding"];
+export type SheetChange = Schemas["SheetChange"];

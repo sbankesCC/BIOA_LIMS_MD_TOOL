@@ -3,3 +3,13 @@ data/
 .venv/
 __pycache__/
 node_modules/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Eval reports are generated output (the folder itself is kept)
+evals/reports/*
+!evals/reports/.gitkeep
+
+# Front end build output (node_modules/ is ignored above)
+frontend/dist/

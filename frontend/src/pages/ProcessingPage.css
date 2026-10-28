@@ -1,0 +1,79 @@
+/* Processing screen: run heading, the progress or failed card, and the "you can leave" note. */
+
+.processing {
+  gap: var(--space-6);
+}
+
+/* Heading row: name and details on the left, Back to runs on the right */
+.processing__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.processing__meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+}
+
+.processing__back {
+  font-weight: 600;
+}
+
+.card.processing__card {
+  max-width: 760px;
+  gap: 22px;
+}
+
+/* Note at the bottom of the card */
+.processing__note {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  background: var(--color-note);
+  border-radius: var(--radius-medium);
+  padding: 14px var(--space-4);
+}
+
+.processing__note svg {
+  color: var(--color-blue);
+  flex: 0 0 20px;
+}
+
+/* Failed state: red heading with icon, reasons, and Retry */
+.processing__failed-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-red);
+}
+
+.processing__reasons {
+  margin: 0;
+  padding-left: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.processing__retry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.processing__load-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  max-width: 760px;
+}
+
+/* "Review the records": the gold main action as a link */
+.processing__review-link {
+  text-decoration: none;
+}

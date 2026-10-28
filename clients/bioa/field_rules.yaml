@@ -27,8 +27,14 @@
 #   The LLM never infers a value: a value not written in the documents is not_found.
 #
 # extraction_guidance is sent to the LLM in the extraction prompt, one line per field.
+#
+# Flags (design):
+#   is_record_name           The field that names a record (duplicate checks, review, audit).
+#                            Exactly one field has it, and it is also sent to the duplicate judge.
+#   sent_to_duplicate_judge  The record's identifying fields: the duplicate judge sees them and
+#                            its results are cached by them (ARCHITECTURE §4.8).
 
-version: "0.2"
+version: "0.3"
 
 placeholder_value: "TEST VALUE"     # UI display only for blank_for_now fields; never exported (design)
 
@@ -40,6 +46,8 @@ fields:
     type: text
     max_length: 40
     disallowed_characters: [greek_letters, control_characters]   # SOP v1.0 section 7.1
+    is_record_name: true             # design
+    sent_to_duplicate_judge: true    # design
     notes: "Primary key in LabVantage. Must be unique. Copied as written; no naming convention applied."
     extraction_guidance: "The material's name exactly as written. Do not shorten it or apply a naming convention."
 
@@ -49,6 +57,7 @@ fields:
     requirement: optional
     type: text
     max_length: 255
+    sent_to_duplicate_judge: true    # design
     extraction_guidance: "A description of the material if the document gives one, such as the vendor's product name. Copy as written."
 
   - key: version
@@ -65,6 +74,7 @@ fields:
     type: text
     max_length: 80
     lookup_sheet: Consumable Class
+    sent_to_duplicate_judge: true    # design
     extraction_guidance: "The class only if the document states it, copied as written. Otherwise not_found."
 
   - key: storage_condition
@@ -159,6 +169,7 @@ fields:
     type: text
     max_length: 40
     lookup_sheet: Manufacturer
+    sent_to_duplicate_judge: true    # design
     extraction_guidance: "The company that makes the material, as written. If only one vendor is named, put it in both manufacturer and supplier."
 
   - key: supplier
@@ -178,6 +189,7 @@ fields:
     type: text                       # always text: keeps leading zeros
     multi_value: true                # LLM returns a list; code joins with the separator
     separator: ", "                  # design (the workbook does not say)
+    sent_to_duplicate_judge: true    # design
     notes: "Several catalog numbers for one item are allowed in one cell. Not a conflict."
     extraction_guidance: "Every catalog number for this material, one entry each, as written."
 
@@ -186,6 +198,7 @@ fields:
     role: extracted
     requirement: optional
     type: decimal
+    sent_to_duplicate_judge: true    # design
     notes: "Decimal (Data info). Code reads the number from the text (1e4 cps/uL -> 10000). The text as written is kept in the audit file."
     extraction_guidance: "The concentration as written, with its unit, e.g. \"100 uM\" or \"1e4 cps/uL\"."
 

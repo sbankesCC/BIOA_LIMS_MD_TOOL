@@ -1,0 +1,68 @@
+/* Start a run screen: intro text, run name field, file list and the footer with the main action. */
+
+.start-run__intro {
+  margin: var(--space-1) 0 0;
+  max-width: 760px;
+}
+
+/* "How it works" in the intro looks like a link but opens the popup */
+.start-run__link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--color-blue);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.start-run__link-button:hover {
+  color: var(--color-blue-dark);
+}
+
+/* Run name: label, input and hint stacked */
+.start-run__name {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 640px;
+}
+
+.start-run__name label {
+  font-weight: 600;
+}
+
+.start-run__name input {
+  font: inherit;
+  padding: 11px 14px;
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-small);
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.start-run__hint {
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+}
+
+.start-run__files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.start-run__files-label {
+  font-weight: 600;
+}
+
+/* Footer: status text on the left, Start extraction on the right */
+.start-run__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  border-top: 1px solid var(--color-border-soft);
+  padding-top: var(--space-5);
+}

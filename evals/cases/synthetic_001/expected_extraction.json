@@ -1,0 +1,69 @@
+{
+  "records": [
+    {
+      "consumable_type": "Synthetic Coating Antibody",
+      "found_in": [
+        { "document": "synthetic_001_method.docx", "page": null, "section": "6.2 Reagents" },
+        { "document": "synthetic_001_worksheet.xlsx", "page": null, "section": "Reagents" }
+      ],
+      "serial_dilution_level": false,
+      "fields": {
+        "description": { "value": null, "status": "not_found" },
+        "consumable_class": { "value": null, "status": "not_found" },
+        "storage_condition": { "status": "conflicting", "alternatives": ["-20 °C", "2–8 °C"] },
+        "critical": { "value": null, "status": "not_found" },
+        "expected_amount": { "value": "1", "status": "found" },
+        "expected_amount_unit": { "value": "mL", "status": "found" },
+        "expected_no_of_containers": { "value": null, "status": "not_found" },
+        "container_tracking_method": { "value": null, "status": "not_found" },
+        "manage_container_inventory_flag": { "value": null, "status": "not_found" },
+        "container_type": { "value": "vial", "status": "found" },
+        "manufacturer": { "value": "Synthetic Vendor One", "status": "found" },
+        "supplier": { "value": "Synthetic Vendor One", "status": "found" },
+        "catalog_no": { "value": ["SYN-1001"], "status": "found" },
+        "target_concentration": { "value": null, "status": "not_found" }
+      }
+    },
+    {
+      "consumable_type": "Synthetic Wash Buffer",
+      "found_in": [
+        { "document": "synthetic_001_method.docx", "page": null, "section": "6.2 Reagents" }
+      ],
+      "serial_dilution_level": false,
+      "fields": {
+        "consumable_class": { "value": null, "status": "not_found" },
+        "storage_condition": { "value": "2–8 °C", "status": "found" },
+        "critical": { "value": null, "status": "not_found" },
+        "expected_amount": { "value": "500", "status": "found" },
+        "expected_amount_unit": { "value": "mL", "status": "found" },
+        "expected_no_of_containers": { "value": null, "status": "not_found" },
+        "container_tracking_method": { "value": null, "status": "not_found" },
+        "manage_container_inventory_flag": { "value": null, "status": "not_found" },
+        "container_type": { "value": "bottle", "status": "found" },
+        "manufacturer": { "value": "Synthetic Vendor Two", "status": "found" },
+        "supplier": { "value": "Synthetic Vendor Two", "status": "found" },
+        "catalog_no": { "value": ["SYN-2001", "SYN-2002"], "status": "found" },
+        "target_concentration": { "value": null, "status": "not_found" }
+      }
+    },
+    {
+      "consumable_type": "Synthetic Detection Reagent",
+      "found_in": [
+        { "document": "synthetic_001_worksheet.xlsx", "page": null, "section": "Reagents" }
+      ],
+      "serial_dilution_level": false,
+      "fields": {
+        "consumable_class": { "value": null, "status": "not_found" },
+        "storage_condition": { "value": "-20 °C", "status": "found" },
+        "expected_amount": { "value": null, "status": "not_found" },
+        "expected_amount_unit": { "value": null, "status": "not_found" },
+        "container_type": { "value": null, "status": "not_found" },
+        "manufacturer": { "value": null, "status": "not_found" },
+        "supplier": { "value": null, "status": "not_found" },
+        "catalog_no": { "value": null, "status": "not_found" },
+        "target_concentration": { "value": null, "status": "not_found" }
+      }
+    }
+  ],
+  "excluded_items": ["Synthetic Plate Reader"]
+}

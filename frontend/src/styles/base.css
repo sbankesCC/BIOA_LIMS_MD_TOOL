@@ -1,0 +1,154 @@
+/* Base page styles shared by every screen: body, links, headings, cards and buttons.
+   Component-specific styles live next to each component. */
+
+body {
+  margin: 0;
+  background: var(--color-page);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height);
+}
+
+/* Links in Clarkston blue */
+a {
+  color: var(--color-blue);
+}
+
+a:hover {
+  color: var(--color-blue-dark);
+}
+
+/* Visible keyboard focus everywhere */
+:focus-visible {
+  outline: 3px solid var(--color-gold);
+  outline-offset: 2px;
+}
+
+/* Page width and spacing below the top bar */
+.page {
+  max-width: var(--page-width);
+  margin: 0 auto;
+  padding: var(--space-10) var(--space-8) var(--space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+}
+
+/* Page heading block: eyebrow, title and intro */
+.page-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.eyebrow {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: var(--font-size-small);
+  letter-spacing: 0.2em;
+  color: var(--color-blue);
+  text-transform: uppercase;
+}
+
+h1,
+h2 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-weight: 700;
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  line-height: 1.15;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+/* White card holding one section of a screen */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-card);
+  padding: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* Main action: gold, one per screen */
+.button-main {
+  background: var(--color-gold);
+  color: var(--color-text);
+  border: none;
+  font: inherit;
+  font-weight: 700;
+  font-size: var(--font-size-large);
+  border-radius: var(--radius-medium);
+  padding: 14px var(--space-7);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.button-main:disabled {
+  background: var(--color-border);
+  color: var(--color-text-faint);
+  cursor: not-allowed;
+}
+
+/* Secondary action: blue outline */
+.button-secondary {
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-blue);
+  background: var(--color-surface);
+  border: 1px solid var(--color-blue);
+  border-radius: var(--radius-small);
+  padding: 10px var(--space-5);
+  cursor: pointer;
+}
+
+/* Text-only action, styled like a link */
+.button-text {
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-blue);
+  background: none;
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Small square button with only an icon (it always has an aria-label) */
+.icon-button {
+  background: none;
+  border: none;
+  padding: var(--space-2);
+  cursor: pointer;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-small);
+  display: inline-flex;
+}
+
+.icon-button:hover {
+  background: var(--color-grey-tint);
+}
+
+/* Text hidden on screen but read by screen readers */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

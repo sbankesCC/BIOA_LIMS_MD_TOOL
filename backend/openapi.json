@@ -1,0 +1,5030 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Consumable Type Extractor",
+    "description": "Reads lab documents, extracts Consumable Type records, supports their review, and writes the DFD loader with an audit workbook. Every error has the shape `{\"error\": {\"code\", \"message\", \"details\"}}`.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Check the API is up",
+        "description": "Report that the API is up and which config versions it loaded.",
+        "operationId": "get_health",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "List runs",
+        "description": "Return every run, newest first: name, status, record and open issue counts, verified.",
+        "operationId": "list_runs",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RunSummary"
+                  },
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Start a run",
+        "description": "Store the uploaded files as a new run and process it in the background.",
+        "operationId": "create_run",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_create_run"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartRunResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Upload too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Get a run",
+        "description": "Return the run's status, current step, verified label, documents, exports and run issues.",
+        "operationId": "get_run",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Rename a run",
+        "description": "Give the run a new name; return the updated run.",
+        "operationId": "rename_run",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameRunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/retry": {
+      "post": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Retry a failed run",
+        "description": "Start a new run from a failed run's uploaded files; the failed run is not changed.",
+        "operationId": "retry_run",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartRunResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the run's status or the current version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings/upload-limits": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Get the upload limits",
+        "description": "Return MAX_FILE_SIZE_MB and MAX_FILES_PER_RUN; null means the limit is not set.",
+        "operationId": "get_upload_limits",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadLimits"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/records": {
+      "get": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Get the review view",
+        "description": "Return one row per record, with each cell's value, display value, color and sources.\n\nPlaceholder fields have an empty value and the placeholder as their display value.",
+        "operationId": "get_review_view",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/fields": {
+      "get": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Get the run's fields",
+        "description": "Return every loader field in loader order, with the values its dropdown may offer.\n\nList values come from the lookup list version the run captured at its start.",
+        "operationId": "get_run_fields",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunFieldList"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/records/{record_id}": {
+      "get": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Get a record",
+        "description": "Return one record with all its sections, its issues and the location of its sources.",
+        "operationId": "get_record",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/chunks/{chunk_id}": {
+      "get": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Get a source chunk",
+        "description": "Return a chunk's text for \"Show source\", with its document, section and page.",
+        "operationId": "get_chunk",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chunk_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkSource"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/chunks/{chunk_id}/image": {
+      "get": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Get a scanned page image",
+        "description": "Return the PNG of a scanned-page (`page_image`) chunk; a text chunk is 404.",
+        "operationId": "get_chunk_image",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chunk_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The scanned page as a PNG image",
+            "content": {
+              "image/png": {}
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/bulk-preview": {
+      "get": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Preview a bulk change",
+        "description": "Return the records the bulk action would touch (excluded records never match).",
+        "operationId": "get_bulk_preview",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "change_all",
+                "fill_missing",
+                "accept_type",
+                "resolve_conflicts"
+              ],
+              "type": "string",
+              "description": "The bulk action to preview."
+            },
+            "description": "The bulk action to preview."
+          },
+          {
+            "name": "issue_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The issue it starts from (change_all, accept_type, resolve_conflicts)."
+            },
+            "description": "The issue it starts from (change_all, accept_type, resolve_conflicts)."
+          },
+          {
+            "name": "field",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The field key whose missing values to fill (fill_missing)."
+            },
+            "description": "The field key whose missing values to fill (fill_missing)."
+          },
+          {
+            "name": "alternative_index",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The chosen alternative of the issue's record (resolve_conflicts)."
+            },
+            "description": "The chosen alternative of the issue's record (resolve_conflicts)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkPreview"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the run's status or the current version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/bulk-actions": {
+      "get": {
+        "tags": [
+          "review"
+        ],
+        "summary": "List bulk actions",
+        "description": "Return the run's bulk actions, newest first, with whether each was or can be undone.",
+        "operationId": "list_bulk_actions",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BulkActionSummary"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/changes": {
+      "post": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Save changes",
+        "description": "Store the changes as pending until the next re-check; a resent change ID is ignored.\n\nThe signed-in user is stored with the changes; the body's timestamp is kept.",
+        "operationId": "save_changes",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the run's status or the current version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/recheck": {
+      "post": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Re-check a run",
+        "description": "Apply the pending changes and run the validation; return the updated counts.",
+        "operationId": "recheck_run",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecheckResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the run's status or the current version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/verify": {
+      "post": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Verify a run",
+        "description": "Re-check, then set the verified label, or return the issues that block it.",
+        "operationId": "verify_run",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the run's status or the current version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/exports": {
+      "post": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Export a run",
+        "description": "Re-check if changes are pending, then write the loader and the audit file.\n\nAn unverified run gives a draft export.",
+        "operationId": "create_export",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunExport"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the run's status or the current version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "List exports",
+        "description": "Return the run's exports in number order.",
+        "operationId": "list_exports",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RunExport"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/exports/{export_id}/loader": {
+      "get": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Download the loader",
+        "description": "Download the export's DFD loader workbook.",
+        "operationId": "download_loader",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Excel file",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/exports/{export_id}/audit": {
+      "get": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Download the audit workbook",
+        "description": "Download the export's audit workbook.",
+        "operationId": "download_audit",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Excel file",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/lookup-lists/current": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Download the current lookup lists",
+        "description": "Download the current lookup list workbook, with its version in `_metadata`.",
+        "operationId": "download_current_lookup_lists",
+        "responses": {
+          "200": {
+            "description": "The Excel file",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/lookup-lists": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Upload lookup lists",
+        "description": "Check an edited workbook: report and changes; without problems it becomes pending.",
+        "operationId": "upload_lookup_lists",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_lookup_lists"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LookupUploadResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/lookup-lists/{version_id}/apply": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Apply or restore a lookup list version",
+        "description": "Make a pending upload (by upload ID) current as the next vN, or restore an older version.",
+        "operationId": "apply_lookup_lists",
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataVersionInfo"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the run's status or the current version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/lookup-lists/versions": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List lookup list versions",
+        "description": "Return every upload and the version new runs use.",
+        "operationId": "list_lookup_list_versions",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataVersionList"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/lookup-lists/versions/{version_id}/download": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Download a lookup list version",
+        "description": "Download any version's workbook (the seed's name, a vN, or an upload ID).",
+        "operationId": "download_lookup_list_version",
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Excel file",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/reference-data": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Upload reference data",
+        "description": "Check an export of existing Consumable Types; without problems it becomes pending.",
+        "operationId": "upload_reference_data",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_reference_data"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferenceUploadResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/reference-data/{version_id}/apply": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Apply or restore a reference data version",
+        "description": "Make a pending upload (by upload ID) current as the next vN, or restore an older version.",
+        "operationId": "apply_reference_data",
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataVersionInfo"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the run's status or the current version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not pass validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/reference-data/versions": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List reference data versions",
+        "description": "Return every upload and the version new runs use.",
+        "operationId": "list_reference_data_versions",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataVersionList"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user does not have the role this needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A setting the feature needs is blank or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AcceptWarningChange": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "accept_warning"
+          },
+          "change_id": {
+            "type": "string"
+          },
+          "issue_id": {
+            "type": "string"
+          },
+          "source_viewed": {
+            "type": "boolean",
+            "default": false
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bulk_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "change_id",
+          "issue_id"
+        ],
+        "description": "Accept a warning issue; individual-review warnings need the source viewed."
+      },
+      "Alternative": {
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ]
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            },
+            "type": "array"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "evidence"
+        ],
+        "description": "One of the different values given for a conflicting field, with its evidence."
+      },
+      "Body_create_run": {
+        "properties": {
+          "files": {
+            "items": {
+              "type": "string",
+              "contentMediaType": "application/octet-stream"
+            },
+            "type": "array",
+            "description": "The documents (.docx, .pdf, .xlsx)."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "description": "The run name."
+          }
+        },
+        "type": "object",
+        "required": [
+          "files",
+          "name"
+        ]
+      },
+      "Body_upload_lookup_lists": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "description": "The file to upload."
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ]
+      },
+      "Body_upload_reference_data": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "description": "The file to upload."
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ]
+      },
+      "BulkActionSummary": {
+        "properties": {
+          "bulk_id": {
+            "type": "string"
+          },
+          "change_type": {
+            "type": "string",
+            "enum": [
+              "set_value",
+              "pick_alternative",
+              "accept_warning",
+              "exclude_record",
+              "restore_record"
+            ]
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issue_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "record_count": {
+            "type": "integer"
+          },
+          "change_count": {
+            "type": "integer"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "is_pending": {
+            "type": "boolean"
+          },
+          "is_undone": {
+            "type": "boolean"
+          },
+          "undone_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "undone_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "can_undo": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "bulk_id",
+          "change_type",
+          "field",
+          "issue_code",
+          "record_count",
+          "change_count",
+          "created_by",
+          "created_at",
+          "is_pending",
+          "is_undone",
+          "undone_by",
+          "undone_at",
+          "can_undo"
+        ],
+        "description": "One bulk action of a run: what it changed, who made it and whether it was undone.\n\n`field` is set for value changes; `issue_code` for accepted warnings. `record_count` counts\nthe records it touched. `can_undo` is true while it is not undone and the run is in review."
+      },
+      "BulkPreview": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "change_all",
+              "fill_missing",
+              "accept_type",
+              "resolve_conflicts"
+            ]
+          },
+          "issue_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "count": {
+            "type": "integer"
+          },
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/BulkPreviewMatch"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "issue_id",
+          "code",
+          "field",
+          "value",
+          "count",
+          "matches"
+        ],
+        "description": "The selection (mode, issue, code, field, its current value) and every matching record."
+      },
+      "BulkPreviewMatch": {
+        "properties": {
+          "record_id": {
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issue_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alternative_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "record_id",
+          "name",
+          "issue_id",
+          "value"
+        ],
+        "description": "One record a bulk action would touch, with its matching issue and current value.\n\n`alternative_index` (resolve conflicts only) is the chosen value's index in this record's\nown alternatives list."
+      },
+      "CellAlternative": {
+        "properties": {
+          "index": {
+            "type": "integer"
+          },
+          "value": {
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/CellSource"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "value",
+          "sources"
+        ],
+        "description": "One alternative of a conflicting field, as written, with its sources."
+      },
+      "CellSource": {
+        "properties": {
+          "location": {
+            "$ref": "#/components/schemas/SourceLocation"
+          },
+          "quote": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "location",
+          "quote"
+        ],
+        "description": "One evidence pair of a value: its location and the quote."
+      },
+      "ChangesRequest": {
+        "properties": {
+          "user": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "changes": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/SetValueChange"
+                },
+                {
+                  "$ref": "#/components/schemas/PickAlternativeChange"
+                },
+                {
+                  "$ref": "#/components/schemas/AcceptWarningChange"
+                },
+                {
+                  "$ref": "#/components/schemas/ExcludeRecordChange"
+                },
+                {
+                  "$ref": "#/components/schemas/RestoreRecordChange"
+                },
+                {
+                  "$ref": "#/components/schemas/UndoBulkChange"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "accept_warning": "#/components/schemas/AcceptWarningChange",
+                  "exclude_record": "#/components/schemas/ExcludeRecordChange",
+                  "pick_alternative": "#/components/schemas/PickAlternativeChange",
+                  "restore_record": "#/components/schemas/RestoreRecordChange",
+                  "set_value": "#/components/schemas/SetValueChange",
+                  "undo_bulk": "#/components/schemas/UndoBulkChange"
+                }
+              }
+            },
+            "type": "array"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "user",
+          "timestamp",
+          "changes"
+        ],
+        "description": "The body of `POST /runs/{run_id}/changes`."
+      },
+      "ChunkSource": {
+        "properties": {
+          "chunk_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "paragraph",
+              "table_rows",
+              "sheet_rows",
+              "page_image"
+            ]
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "location": {
+            "$ref": "#/components/schemas/SourceLocation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "chunk_id",
+          "kind",
+          "text",
+          "location"
+        ],
+        "description": "A chunk's text for \"Show source\", with its document, section and page.\n\nA scanned page has no text (`kind` is `page_image`)."
+      },
+      "ConfigVersions": {
+        "properties": {
+          "field_rules": {
+            "type": "string"
+          },
+          "issue_catalogue": {
+            "type": "string"
+          },
+          "lookup_lists": {
+            "type": "string"
+          },
+          "dfd_template": {
+            "type": "string"
+          },
+          "reference_data_mapping": {
+            "type": "string"
+          },
+          "prompts": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field_rules",
+          "issue_catalogue",
+          "lookup_lists",
+          "dfd_template",
+          "reference_data_mapping",
+          "prompts"
+        ],
+        "description": "The version of each config file; prompts are versioned one by one."
+      },
+      "DataVersionInfo": {
+        "properties": {
+          "upload_id": {
+            "type": "string"
+          },
+          "version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "current",
+              "superseded"
+            ]
+          },
+          "file_name": {
+            "type": "string"
+          },
+          "based_on_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uploaded_by": {
+            "type": "string"
+          },
+          "uploaded_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "applied_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "applied_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "upload_id",
+          "version_id",
+          "status",
+          "file_name",
+          "based_on_version",
+          "uploaded_by",
+          "uploaded_at",
+          "applied_by",
+          "applied_at",
+          "summary"
+        ],
+        "description": "One admin upload of lookup lists or reference data as the API shows it (no storage path).\n\n`file_name` is the name the file was uploaded with; `summary` holds the check report or\ndiff counts."
+      },
+      "DataVersionList": {
+        "properties": {
+          "current_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/DataVersionInfo"
+            },
+            "type": "array"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "current_version",
+          "versions"
+        ],
+        "description": "Version history of lookup lists or reference data, and the version new runs use."
+      },
+      "DuplicateCandidate": {
+        "properties": {
+          "candidate_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "match": {
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "consumable_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "active_flag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "name",
+          "match"
+        ],
+        "description": "One existing type a duplicate issue names in `details.candidates` (CONTRACTS §5).\n\n`match`: `exact`, `normalized`, or the judge's verdict (`same`, `unsure`). Description, class\nand active flag are copied from the run's pinned reference data, or None when it has none."
+      },
+      "ErrorBody": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object",
+            "default": {}
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "description": "What went wrong: a stable code, a plain message that says what to do, and details."
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "description": "Every error response has this shape."
+      },
+      "Evidence": {
+        "properties": {
+          "chunk_id": {
+            "type": "string"
+          },
+          "quote": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "chunk_id",
+          "quote"
+        ],
+        "description": "One place a value was found: the chunk and the exact sentence or table row."
+      },
+      "ExcludeRecordChange": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "exclude_record"
+          },
+          "change_id": {
+            "type": "string"
+          },
+          "record_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "bulk_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "change_id",
+          "record_id",
+          "reason"
+        ],
+        "description": "Leave a record out of the export; a reason is required."
+      },
+      "Exclusion": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "by",
+          "at",
+          "reason"
+        ],
+        "description": "Who excluded a record, when, and why."
+      },
+      "ExtractedField": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "found",
+              "conflicting",
+              "not_found"
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            },
+            "type": "array",
+            "default": []
+          },
+          "alternatives": {
+            "items": {
+              "$ref": "#/components/schemas/Alternative"
+            },
+            "type": "array",
+            "default": []
+          },
+          "allows_equivalent": {
+            "type": "boolean",
+            "default": false
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "description": "One field of one record as the LLM returned it."
+      },
+      "FieldOutput": {
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "extracted",
+              "default",
+              "fixed",
+              "user_edited",
+              "blank_for_now",
+              "system"
+            ]
+          },
+          "changes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "default": []
+          },
+          "selected_alternative": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "origin"
+        ],
+        "description": "Field-level output: the loader value (always text or empty), its origin and clean-ups."
+      },
+      "FieldVerification": {
+        "properties": {
+          "citation_check": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "verified",
+                  "not_verified",
+                  "not_checkable"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "contradicted",
+                  "unsupported",
+                  "present_missed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "description": "Field-level verification: the code citation check and the agent's verdict, if any."
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "config_versions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConfigVersions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "config_versions",
+          "message"
+        ],
+        "description": "Liveness answer, with the config versions in use (or why no config is loaded)."
+      },
+      "Issue": {
+        "properties": {
+          "issue_id": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "info"
+            ]
+          },
+          "record_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "individual_review": {
+            "type": "boolean",
+            "default": false
+          },
+          "note_required": {
+            "type": "boolean",
+            "default": false
+          },
+          "details": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object",
+            "default": {}
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "resolved",
+              "accepted"
+            ],
+            "default": "open"
+          },
+          "closed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "issue_id",
+          "code",
+          "severity",
+          "record_id",
+          "field",
+          "message"
+        ],
+        "description": "One issue; run-level issues have no record and no field.\n\n`individual_review` and `note_required` are the catalogue's flags for the issue's code."
+      },
+      "IssueSummary": {
+        "properties": {
+          "issue_id": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "info"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "resolved",
+              "accepted"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "individual_review": {
+            "type": "boolean"
+          },
+          "note_required": {
+            "type": "boolean"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceLocation"
+            },
+            "type": "array"
+          },
+          "duplicate_candidates": {
+            "items": {
+              "$ref": "#/components/schemas/DuplicateCandidate"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "issue_id",
+          "code",
+          "severity",
+          "status",
+          "message",
+          "individual_review",
+          "note_required",
+          "sources",
+          "duplicate_candidates"
+        ],
+        "description": "An issue as the grid shows it (open or accepted).\n\n`note_required`: accepting it needs a note (catalogue). `sources`: the chunks the issue's\nfinding cites (e.g. missed candidates, challenged excluded items), only chunks of the run.\n`duplicate_candidates`: the existing types a duplicate issue names (`details.candidates`)."
+      },
+      "JsonValue": {},
+      "LookupUploadReport": {
+        "properties": {
+          "file_name": {
+            "type": "string"
+          },
+          "current_version": {
+            "type": "string"
+          },
+          "based_on_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "passed_checks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "problems": {
+            "items": {
+              "$ref": "#/components/schemas/UploadFinding"
+            },
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/UploadFinding"
+            },
+            "type": "array"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/SheetChange"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file_name",
+          "current_version",
+          "based_on_version",
+          "passed_checks",
+          "problems",
+          "warnings",
+          "changes"
+        ],
+        "description": "The check report of one upload: passed checks, problems, warnings and changes."
+      },
+      "LookupUploadResponse": {
+        "properties": {
+          "report": {
+            "$ref": "#/components/schemas/LookupUploadReport"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataVersionInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "report",
+          "version"
+        ],
+        "description": "A lookup list upload's check report, and its pending version when it has no problems."
+      },
+      "PickAlternativeChange": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "pick_alternative"
+          },
+          "change_id": {
+            "type": "string"
+          },
+          "record_id": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "alternative_index": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "bulk_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "change_id",
+          "record_id",
+          "field",
+          "alternative_index"
+        ],
+        "description": "Choose one of a conflicting field's alternatives by its index."
+      },
+      "RecheckResult": {
+        "properties": {
+          "applied_change_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ReviewCounts"
+          },
+          "judge_calls_made": {
+            "type": "integer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "applied_change_ids",
+          "counts",
+          "judge_calls_made"
+        ],
+        "description": "What a re-check did: changes applied, updated counts, judge calls made."
+      },
+      "RecordDetail": {
+        "properties": {
+          "record": {
+            "$ref": "#/components/schemas/StoredRecord"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceLocation"
+            },
+            "type": "array"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "record",
+          "issues",
+          "sources"
+        ],
+        "description": "One record with all its sections, its issues (any status) and its resolved sources."
+      },
+      "RecordExtraction": {
+        "properties": {
+          "record_ref": {
+            "type": "string"
+          },
+          "record_summary": {
+            "type": "string"
+          },
+          "record_warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "record_ref",
+          "record_summary"
+        ],
+        "description": "Record-level extraction section, wrapped by code from the extraction response."
+      },
+      "RecordFinding": {
+        "properties": {
+          "record_id": {
+            "type": "string"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "not_a_consumable_type",
+              "duplicate_within_run",
+              "should_be_split"
+            ]
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "record_id",
+          "verdict",
+          "note"
+        ],
+        "description": "A problem with a whole record."
+      },
+      "RecordVerification": {
+        "properties": {
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/RecordFinding"
+            },
+            "type": "array",
+            "default": []
+          },
+          "re_extracted": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "description": "Record-level verification section: record findings and whether it was re-extracted."
+      },
+      "ReferenceUploadReport": {
+        "properties": {
+          "file_name": {
+            "type": "string"
+          },
+          "row_count": {
+            "type": "integer"
+          },
+          "passed_checks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "problems": {
+            "items": {
+              "$ref": "#/components/schemas/UploadFinding"
+            },
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/UploadFinding"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file_name",
+          "row_count",
+          "passed_checks",
+          "problems",
+          "warnings"
+        ],
+        "description": "The check report of one upload: rows read, passed checks, problems and warnings."
+      },
+      "ReferenceUploadResponse": {
+        "properties": {
+          "report": {
+            "$ref": "#/components/schemas/ReferenceUploadReport"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataVersionInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "report",
+          "version"
+        ],
+        "description": "A reference data upload's check report, and its pending version when it has no problems."
+      },
+      "RenameRunRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "description": "The body of `PATCH /runs/{run_id}`."
+      },
+      "RestoreRecordChange": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "restore_record"
+          },
+          "change_id": {
+            "type": "string"
+          },
+          "record_id": {
+            "type": "string"
+          },
+          "bulk_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "change_id",
+          "record_id"
+        ],
+        "description": "Bring an excluded record back."
+      },
+      "ReviewCell": {
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "column": {
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "display_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "written_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "extracted",
+              "default",
+              "fixed",
+              "user_edited",
+              "blank_for_now",
+              "system"
+            ]
+          },
+          "extraction_status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "found",
+                  "conflicting",
+                  "not_found"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_placeholder": {
+            "type": "boolean"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "red",
+              "yellow",
+              "grey",
+              "none"
+            ]
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/IssueSummary"
+            },
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/CellSource"
+            },
+            "type": "array"
+          },
+          "alternatives": {
+            "items": {
+              "$ref": "#/components/schemas/CellAlternative"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "column",
+          "value",
+          "display_value",
+          "written_value",
+          "origin",
+          "extraction_status",
+          "is_placeholder",
+          "color",
+          "issues",
+          "sources",
+          "alternatives"
+        ],
+        "description": "One field of one record in the grid."
+      },
+      "ReviewCounts": {
+        "properties": {
+          "records": {
+            "type": "integer"
+          },
+          "to_fix": {
+            "type": "integer"
+          },
+          "to_check": {
+            "type": "integer"
+          },
+          "excluded": {
+            "type": "integer"
+          },
+          "open_errors": {
+            "type": "integer"
+          },
+          "open_warnings": {
+            "type": "integer"
+          },
+          "resolved_issues": {
+            "type": "integer"
+          },
+          "total_issues": {
+            "type": "integer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "records",
+          "to_fix",
+          "to_check",
+          "excluded",
+          "open_errors",
+          "open_warnings",
+          "resolved_issues",
+          "total_issues"
+        ],
+        "description": "Summary strip counts; issue counts leave out excluded records.\n\nProgress: `total_issues` counts red and yellow issues (any status) of included records and\nthe run; `resolved_issues` counts those that are resolved or accepted."
+      },
+      "ReviewRow": {
+        "properties": {
+          "record_id": {
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "action_needed": {
+            "type": "string",
+            "enum": [
+              "fix",
+              "check",
+              "none",
+              "excluded"
+            ]
+          },
+          "found_in": {
+            "items": {
+              "$ref": "#/components/schemas/SourceLocation"
+            },
+            "type": "array"
+          },
+          "exclusion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Exclusion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "record_issues": {
+            "items": {
+              "$ref": "#/components/schemas/IssueSummary"
+            },
+            "type": "array"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewCell"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "record_id",
+          "name",
+          "action_needed",
+          "found_in",
+          "exclusion",
+          "record_issues",
+          "cells"
+        ],
+        "description": "One record: action needed, name, where it was found, record issues and its cells."
+      },
+      "ReviewView": {
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewRow"
+            },
+            "type": "array"
+          },
+          "run_issues": {
+            "items": {
+              "$ref": "#/components/schemas/IssueSummary"
+            },
+            "type": "array"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ReviewCounts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rows",
+          "run_issues",
+          "counts"
+        ],
+        "description": "The whole review grid: rows, run-level issues and counts."
+      },
+      "RunDetail": {
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "created",
+              "ingesting",
+              "extracting",
+              "verifying_extraction",
+              "transforming",
+              "validating",
+              "in_review",
+              "rechecking",
+              "failed"
+            ]
+          },
+          "current_step": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "created",
+                  "ingesting",
+                  "extracting",
+                  "verifying_extraction",
+                  "transforming",
+                  "validating",
+                  "in_review",
+                  "rechecking",
+                  "failed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retry_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_verified": {
+            "type": "boolean"
+          },
+          "verified_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "config_versions": {
+            "$ref": "#/components/schemas/ConfigVersions"
+          },
+          "reference_data_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "models": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "has_pending_changes": {
+            "type": "boolean"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ReviewCounts"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/RunDocument"
+            },
+            "type": "array"
+          },
+          "run_issues": {
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "type": "array"
+          },
+          "exports": {
+            "items": {
+              "$ref": "#/components/schemas/RunExport"
+            },
+            "type": "array"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "name",
+          "created_by",
+          "created_at",
+          "status",
+          "current_step",
+          "retry_of",
+          "is_verified",
+          "verified_by",
+          "verified_at",
+          "config_versions",
+          "reference_data_version",
+          "models",
+          "has_pending_changes",
+          "counts",
+          "documents",
+          "run_issues",
+          "exports"
+        ],
+        "description": "One run: status, current step, verified label, versions, documents, exports, run issues.\n\n`current_step` is the processing status while the graph works, else null."
+      },
+      "RunDocument": {
+        "properties": {
+          "document_id": {
+            "type": "string"
+          },
+          "file_name": {
+            "type": "string"
+          },
+          "file_type": {
+            "type": "string",
+            "enum": [
+              "docx",
+              "pdf",
+              "xlsx"
+            ]
+          },
+          "size_bytes": {
+            "type": "integer"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "uploaded",
+              "ingested",
+              "unreadable",
+              "loader_skipped"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "document_id",
+          "file_name",
+          "file_type",
+          "size_bytes",
+          "page_count",
+          "status"
+        ],
+        "description": "One uploaded document of a run (never its contents)."
+      },
+      "RunExport": {
+        "properties": {
+          "export_id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "is_draft": {
+            "type": "boolean"
+          },
+          "loader_file_name": {
+            "type": "string"
+          },
+          "audit_file_name": {
+            "type": "string"
+          },
+          "exported_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "exported_by": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "export_id",
+          "number",
+          "is_draft",
+          "loader_file_name",
+          "audit_file_name",
+          "exported_at",
+          "exported_by"
+        ],
+        "description": "One export of a run as the API shows it: file names only, never storage paths.\n\nThe files download through the export's `loader` and `audit` endpoints."
+      },
+      "RunField": {
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "column": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "extracted",
+              "blank_for_now",
+              "system"
+            ]
+          },
+          "requirement": {
+            "type": "string",
+            "enum": [
+              "required",
+              "conditional",
+              "optional"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "decimal",
+              "integer",
+              "boolean"
+            ]
+          },
+          "max_length": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "has_lookup_list": {
+            "type": "boolean"
+          },
+          "is_boolean": {
+            "type": "boolean"
+          },
+          "multi_value": {
+            "type": "boolean"
+          },
+          "separator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "allowed_values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "is_record_name": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "column",
+          "role",
+          "requirement",
+          "type",
+          "max_length",
+          "has_lookup_list",
+          "is_boolean",
+          "multi_value",
+          "separator",
+          "allowed_values",
+          "is_record_name"
+        ],
+        "description": "One loader field of a run's captured config, for the review screen's inputs.\n\n`allowed_values` comes from the run's own lookup list version for a list field, is the\naccepted values for a boolean field, and is empty for any other field. `is_record_name`\nmarks the one field that names a record."
+      },
+      "RunFieldList": {
+        "properties": {
+          "field_rules_version": {
+            "type": "string"
+          },
+          "lookup_lists_version": {
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/RunField"
+            },
+            "type": "array"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "field_rules_version",
+          "lookup_lists_version",
+          "fields"
+        ],
+        "description": "Every loader field of a run, in loader order, with the versions they come from."
+      },
+      "RunSummary": {
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "created",
+              "ingesting",
+              "extracting",
+              "verifying_extraction",
+              "transforming",
+              "validating",
+              "in_review",
+              "rechecking",
+              "failed"
+            ]
+          },
+          "retry_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_verified": {
+            "type": "boolean"
+          },
+          "verified_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ReviewCounts"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latest_export": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunExport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "name",
+          "created_by",
+          "created_at",
+          "status",
+          "retry_of",
+          "is_verified",
+          "verified_by",
+          "verified_at",
+          "counts",
+          "failure_reason",
+          "latest_export"
+        ],
+        "description": "One run in the runs list: name, status, counts, the verified label and export state.\n\n`failure_reason` is the message of a failed run's first error run issue, else null.\n`latest_export` is the run's newest export, or null before the first one."
+      },
+      "SaveResult": {
+        "properties": {
+          "saved_change_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "ignored_change_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "saved_change_ids",
+          "ignored_change_ids"
+        ],
+        "description": "Which changes were stored as pending, and which were ignored as already stored."
+      },
+      "SetValueChange": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "set_value"
+          },
+          "change_id": {
+            "type": "string"
+          },
+          "record_id": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bulk_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "change_id",
+          "record_id",
+          "field",
+          "value"
+        ],
+        "description": "Set a field's output value; null clears it."
+      },
+      "SheetChange": {
+        "properties": {
+          "sheet": {
+            "type": "string"
+          },
+          "added": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "removed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "is_new_sheet": {
+            "type": "boolean",
+            "default": false
+          },
+          "is_removed_sheet": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "sheet",
+          "added",
+          "removed"
+        ],
+        "description": "Values added and removed on one sheet, compared with the current version."
+      },
+      "SourceLocation": {
+        "properties": {
+          "chunk_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "file_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sheet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "row_range": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_scanned": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "chunk_id"
+        ],
+        "description": "Where a chunk is: document, section, page or sheet rows (resolved by code)."
+      },
+      "StartRunResponse": {
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "retry_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id"
+        ],
+        "description": "A run that was stored and queued for processing; follow it with `GET /runs/{run_id}`."
+      },
+      "StoredField": {
+        "properties": {
+          "extraction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExtractedField"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FieldVerification"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "output": {
+            "$ref": "#/components/schemas/FieldOutput"
+          },
+          "issue_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "output"
+        ],
+        "description": "One field of a stored record; `extraction` and `verification` are null if not extracted."
+      },
+      "StoredRecord": {
+        "properties": {
+          "record_id": {
+            "type": "string"
+          },
+          "found_in": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "extraction": {
+            "$ref": "#/components/schemas/RecordExtraction"
+          },
+          "verification": {
+            "$ref": "#/components/schemas/RecordVerification",
+            "default": {
+              "findings": [],
+              "re_extracted": false
+            }
+          },
+          "exclusion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Exclusion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fields": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/StoredField"
+            },
+            "type": "object"
+          },
+          "issue_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "default": []
+          },
+          "action_needed": {
+            "type": "string",
+            "enum": [
+              "fix",
+              "check",
+              "none",
+              "excluded"
+            ],
+            "default": "none"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "record_id",
+          "found_in",
+          "extraction",
+          "fields"
+        ],
+        "description": "A stored record with its sections and one entry per loader field."
+      },
+      "UndoBulkChange": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "undo_bulk"
+          },
+          "change_id": {
+            "type": "string"
+          },
+          "bulk_id": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "change_id",
+          "bulk_id"
+        ],
+        "description": "Undo every change that shares `bulk_id`."
+      },
+      "UploadFinding": {
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "problem",
+              "warning"
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "sheet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "row": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "severity",
+          "code",
+          "message"
+        ],
+        "description": "One check finding: where it is (sheet, row) and a plain explanation of what to do."
+      },
+      "UploadLimits": {
+        "properties": {
+          "max_file_size_mb": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_files_per_run": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "max_file_size_mb",
+          "max_files_per_run"
+        ],
+        "description": "The upload limits a new run is checked against; null means no limit."
+      },
+      "VerifyResult": {
+        "properties": {
+          "is_verified": {
+            "type": "boolean"
+          },
+          "blocking_errors": {
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "type": "array"
+          },
+          "individual_review_warnings": {
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "type": "array"
+          },
+          "accepted_warnings": {
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "type": "array"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ReviewCounts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "is_verified",
+          "blocking_errors",
+          "individual_review_warnings",
+          "accepted_warnings",
+          "counts"
+        ],
+        "description": "Verify's answer: verified, or the issues that block it; and warnings it accepted."
+      }
+    }
+  }
+}

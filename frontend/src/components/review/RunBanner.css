@@ -1,0 +1,27 @@
+/* Run banner: amber card with the run's messages and a dismiss button. */
+
+.run-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+  background: var(--color-amber-tint);
+  border: 1px solid var(--color-gold);
+  border-radius: var(--radius-large);
+  padding: var(--space-4) var(--space-5);
+}
+
+.run-banner__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.run-banner__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}

@@ -46,6 +46,7 @@
       "Bash(uv run pyright *)",
       "Bash(uv run pyright)",
       "Bash(uv run uvicorn *)",
+      "Bash(uv run *)",
       "Bash(uv add *)",
       "Bash(npm install)",
       "Bash(npm install *)",
@@ -58,13 +59,11 @@
       "Bash(git merge *)",
       "Bash(git rebase *)",
       "Bash(git pull *)",
-      "Bash(git push *)",
       "Bash(git tag *)",
       "Bash(rm *)",
       "Bash(curl *)",
       "Bash(wget *)",
-      "Bash(docker *)",
-      "Bash(uv run *)"
+      "Bash(docker *)"
     ],
     "deny": [
       "Bash(sudo *)",
@@ -80,7 +79,9 @@
       "Read(./.env.*)",
       "Edit(./.env)",
       "Edit(./.env.*)",
-      "Read(~/.ssh/**)"
+      "Read(~/.ssh/**)",
+      "Bash(git push *)",
+      "Bash(git push)"
     ]
   }
 }

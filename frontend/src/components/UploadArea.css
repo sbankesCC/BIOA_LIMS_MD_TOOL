@@ -1,0 +1,29 @@
+/* Upload drop zone: dashed blue border on a pale blue wash. */
+
+.upload-area {
+  border: 2px dashed var(--color-blue-dashed);
+  background: var(--color-blue-wash);
+  border-radius: var(--radius-large);
+  padding: 36px var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+/* Stronger border while files are dragged over */
+.upload-area--over {
+  border-color: var(--color-blue);
+  background: var(--color-blue-tint);
+}
+
+.upload-area__icon {
+  color: var(--color-blue);
+  display: flex;
+}
+
+.upload-area__title {
+  font-weight: 600;
+  font-size: var(--font-size-large);
+}

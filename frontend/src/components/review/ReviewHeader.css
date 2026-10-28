@@ -1,0 +1,6 @@
+/* Review header: run state, name with the rename button (RunTitle), and versions. */
+
+.review-header__meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+}

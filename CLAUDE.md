@@ -18,20 +18,20 @@ Run safe commands freely; stop and confirm anything risky.
 - Git, read-only: `git status`, `git diff`, `git log`, `git show`, `git blame`, `git branch`
 - Git, local writes: `git add`, `git commit`, `git stash`, `git switch`
 - Version checks: `python --version`, `uv --version`, `node --version`, `npm --version`, `git --version`
-- Build, test, run: `uv sync`, `uv run pytest`, `uv run ruff`, `uv run pyright`, `uv run uvicorn`, `npm run`, `npm test`
+- Build, test, run: `uv sync`, `uv run ...` (any), `npm run`, `npm test`
 - Files: `mkdir`, `touch`, `cp -n`, `mv -n` (never overwrite without checking)
 - Adding packages listed in the approved `PLAN.md`: `uv add`, `npm install`, `npm ci`
 
 ### Ask before running
 - Installing outside the lockfiles or running packages directly: `pip install`, `npx <pkg>`
-- Git beyond the list above: `checkout`, `merge`, `rebase`, `pull`, `push`, `tag`
+- Git beyond the list above: `checkout`, `merge`, `rebase`, `pull`, `tag`
 - Deleting files (`rm`), even one file
 - Writing outside the project directory
 - Anything that sends data out: `curl -X POST/PUT/DELETE`, uploads, webhooks
 - Docker, database or cloud commands that change state
 
 ### Never run (even if asked indirectly)
-- `sudo`, `rm -rf`, `git push --force`, `git reset --hard`, `git clean -fd`, `chmod -R`, `chown -R`
+- `sudo`, `rm -rf`, `git push` (any form), `git reset --hard`, `git clean -fd`, `chmod -R`, `chown -R`
 - Piping downloads into a shell (`curl ... | sh`)
 - Reading or printing secrets: `.env` files, `~/.ssh/**`, cloud credentials, API keys, tokens
 
@@ -45,7 +45,7 @@ If a task seems to need one of these, explain why and let me run it.
 ## 2. Git
 - Small, focused commits with clear imperative messages ("Add lookup list loader").
 - Check `git status` and `git diff` before committing. Never commit secrets or `.env`.
-- Never push unless asked.
+- Never push, even if asked: pushing is blocked. I push myself.
 
 ## 3. Code and changes
 - Read the surrounding code and follow its conventions before writing new code.
@@ -113,7 +113,19 @@ uv run uvicorn app.main:app --reload                 # API, from backend/
 cd frontend && npm ci && npm run typecheck && npm run build   # front end checks
 cd frontend && npm run dev                           # front end dev server
 ```
-Machine-specific notes: add after the first session.
+Machine-specific notes:
+- Windows 11. The Bash tool runs Git Bash: use POSIX syntax.
+- `pyproject.toml` and `uv.lock` are at the repo root; the package is `backend/app`. Run `uv`,
+  `pytest`, `ruff` and `pyright` from the repo root, and `uvicorn` from `backend/`.
+- Relative paths in settings resolve against the repo root, whatever the working folder.
+
+### Build workflow
+- `PLAN.md` holds the approved milestones and open questions. Start each milestone in a fresh
+  session; it ends with passing tests and a stop for review.
+- Contracts, config loaders and deterministic code (ingest, transformation, validation, export)
+  are built and tested before any LLM integration.
+- Back end first. Its OpenAPI schema is reviewed and locked before front-end work starts.
+  Front-end API types are generated from that schema, never written by hand.
 
 ### Architecture essentials
 - **Never invent data.** If extraction cannot find a value in the documents, it is `not_found`.
@@ -125,11 +137,15 @@ Machine-specific notes: add after the first session.
 - Each layer writes only its own section of the stored record. Validation reports issues and never changes values.
 - Routing lives only in `backend/app/graph/routing.py`. Nodes never call each other.
 - Record IDs come from code, never from the LLM.
+- JSON Schemas sent to the LLM are generated from Pydantic models and `field_rules.yaml`, never written by hand.
+- Extraction status rules (`CONTRACTS.md` §2) are checked in code on every LLM response.
 - LangGraph runs processing only. Review state lives in the review database, never in the graph.
 - LangGraph state holds records, issues and references, never document text or page images.
   Logs hold IDs, counts and durations only: no document text, no field values.
 - Settings come from the environment and are listed in `env.example`. Blank values are placeholders I fill in:
   never invent values. A new setting is added to `env.example` as a blank placeholder.
+  The app must start with every setting blank; a feature that needs a missing setting names it when used.
+- A run uses the config versions captured at its start for its whole life (`ARCHITECTURE.md` §6).
 - Prompt changes are allowed when reasonable: say what and why, bump the prompt version, re-run the tests.
 
 ### Gotchas
