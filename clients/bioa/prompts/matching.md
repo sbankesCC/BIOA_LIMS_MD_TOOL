@@ -1,4 +1,4 @@
-<!-- prompt: matching | version: 0.1 | status: draft for review -->
+<!-- prompt: matching | version: 0.2 | status: draft for review -->
 
 <!-- Developer note: Called once per run, with every unresolved lookup value, de-duplicated by (field, value). Not called when there are no items. -->
 <!-- Developer note: Code builds each item's shortlist from the lookup value list (excluded values removed). Code rejects any choice that is not on the item's shortlist. -->
@@ -26,7 +26,7 @@ Each item has: item_id, field, the value as written, the sentence or table row i
 
 # Field rules
 
-{field_rules}
+{matching_rules}
 <!-- Developer note: grouped by field: the field's column name, then its [Matching] rule lines. Empty when no field in this call has active rules. -->
 
 # Output

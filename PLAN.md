@@ -37,6 +37,8 @@ The design comes from `docs/REDESIGN_BUILD_PROMPT.md`, with the user's changes b
    - The files are `business_rules.md` plus six prompts. Three prompts replace existing ones, and three are new.
    - Each prompt's first line is converted to the header the loader expects: `<!-- prompt: x | version: y | status: z -->`.
    - `claude_code_package/`, the zip and the root `REDESIGN_BUILD_PROMPT.md` stay untracked. The user deletes them. The prompt is committed as `docs/REDESIGN_BUILD_PROMPT.md` so the plan's pointer works.
+5. **The Matching rules placeholder is `{matching_rules}`**, not `{field_rules}` as in prompt §7.1, so no `field_rules` name remains. `matching.md` is version 0.2.
+6. **Rendered diagrams are deleted, not regenerated:** `docs/diagrams/*` and `docs/design_figures.pdf`. No `npx`.
 
 ### Field set after the redesign (22 loader columns + 2 context attributes)
 
@@ -80,8 +82,7 @@ Every milestone does the following:
 | `README.md` | Same pipeline and config file names |
 
 **Rendered diagrams**
-- `docs/diagrams/*.{png,svg}` and `docs/design_figures.pdf` will no longer match the Mermaid, and the repo has no renderer.
-- Proposal: delete them in the §9 deletion batch and leave the Mermaid as the master. The alternative is to regenerate them with `npx @mermaid-js/mermaid-cli`, which needs your approval.
+- `docs/diagrams/*.{png,svg}` and `docs/design_figures.pdf` no longer matched the Mermaid. Deleted (user decision 6); the Mermaid in `ARCHITECTURE.md` is the only diagram source. Not regenerated.
 - The UI mockups stay. `UI_SPEC.md` says the spec wins where a mockup differs.
 
 **Verify:** `uv run pytest` passes except the `CONTRACTS.md` example tests in `test_contracts.py`, which fail until M3 builds the contracts the doc now describes. `rg -n "allows_equivalent|OR_EQUIVALENT|field_rules" docs CLAUDE.md README.md` finds only the history file.
@@ -106,7 +107,7 @@ Every milestone does the following:
 - Behavior is unchanged here: the old transform keeps working, reading the new model, until M4.
 
 **Prompt builder (`llm/prompt_builder.py`)**
-- Adds the placeholders `{general_rules}`, `{candidate_rules}`, `{field_section}`, `{context_section}`, `{field_rules}`, `{naming_rules}` and `{checks}`, filled from active rule lines (ID + text, without the status and source).
+- Adds the placeholders `{general_rules}`, `{candidate_rules}`, `{field_section}`, `{context_section}`, `{matching_rules}`, `{naming_rules}` and `{checks}`, filled from active rule lines (ID + text, without the status and source).
 - Replaces `prompts/extraction.md`, `extraction_verification.md` and `duplicate_judge.md` with the package versions (headers converted), and updates `EXPECTED_PLACEHOLDERS` in `config/prompts.py` for all six prompts.
 
 **Config files**
@@ -315,7 +316,7 @@ Every milestone does the following:
 | `OR_EQUIVALENT` (catalogue entry, `codes.py`, `find_or_equivalent_issue`, `test_or_equivalent_is_raised_once_per_record`, the review-service tests, the `issueActions.ts` entry) | M5, M9 |
 | `allows_equivalent` (contract, schema, `evals/seeding.py`, fake replies, openapi, `schema.ts`, docs) | M3, M8–M10 |
 | `placeholder_value` / TEST VALUE | M2 (config), M9 (UI) |
-| `docs/diagrams/*.png/.svg`, `docs/design_figures.pdf` (unless you approve regenerating them) | M1 |
+| `docs/diagrams/*.png/.svg`, `docs/design_figures.pdf` | M1 (done) |
 
 ## Decisions carried forward (from `docs/BUILD_HISTORY_v0.13.1.md`)
 
@@ -385,8 +386,6 @@ Every milestone does the following:
 - **The seeded Approval Type and Worksheet Template values are not from BioA's LabVantage export.** They should be confirmed with BR-6.
 - **Config versions per run:** `business_rules.md` and the prompts are recorded but read from the current files, as in v0.13.1. Keep this, or snapshot them per run?
 - **Carried over:** the record side of the duplicate comparison (expose the judge flag on `/fields`?).
-- **`{field_rules}` placeholder in `matching.md`:** the prompt names it this way (§7.1), so `rg field_rules` will always find it, against the Done criterion. Keep the name, or rename it to `{matching_rules}` (a prompt change, version 0.2)?
-- **Rendered diagrams:** `docs/diagrams/*` and `docs/design_figures.pdf` no longer match the Mermaid. Delete them, or regenerate them with `npx @mermaid-js/mermaid-cli`? (`README.md` no longer lists them.)
 
 ## Progress log
 
@@ -396,4 +395,5 @@ Every milestone does the following:
 - Added `clients/bioa/prompts/matching.md`, `naming.md`, `plausibility.md` with the loader's header format. The three replacement prompts move to M2 (see M1 above).
 - Updated `docs/ARCHITECTURE.md` (glossary, both Mermaid diagrams, §4.5–§4.10, routing, run statuses, data rules, configuration, evaluation), `docs/CONTRACTS.md` (every row of prompt §5, new §3b–§3d, the `business_rules.md` grammar in §12, API notes), `docs/UI_SPEC.md` (processing steps, grid, new issue actions, "Or equivalent" removed), `CLAUDE.md` §5 and `README.md`.
 - Tests: 544 passed, 1 skipped, 6 failed. All six are in `test_contracts.py`, which parses the `CONTRACTS.md` examples; they fail on the new contract fields and are fixed in M3.
-- Decisions the docs did not cover: Decisions 9–12 above; two new open questions (the `{field_rules}` placeholder, the rendered diagrams).
+- Decisions the docs did not cover: Decisions 9–12 above.
+- Review answers: the placeholder was renamed to `{matching_rules}` (`matching.md` 0.2), and the rendered diagrams were deleted (user decisions 5 and 6).
