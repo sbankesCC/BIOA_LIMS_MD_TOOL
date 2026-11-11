@@ -3,11 +3,11 @@
 The defined contracts for the pilot. Build to these exactly.
 These are the shapes Claude Code builds against. Change them only with a version bump and a note here.
 
-All contracts are Pydantic models in code. JSON Schemas sent to OpenAI are generated from the models plus `field_rules.yaml`, never written by hand.
+All contracts are Pydantic models in code. JSON Schemas sent to OpenAI are generated from the models plus `business_rules.md`, never written by hand.
 
 Conventions:
 - Values in examples are illustrative, not confirmed BioA data.
-- Field keys are snake_case and map to DFD column names in `field_rules.yaml`.
+- Field keys are snake_case and map to DFD column names (`Loader column`) in `business_rules.md`.
 - Timestamps are ISO 8601 UTC.
 - IDs are strings with a prefix: `run_`, `doc`, `rec_`, `iss_`, `chg_`, `blk_`, `llm_`, `exp_`.
 
@@ -38,8 +38,8 @@ Conventions:
 
 ## 2. Extraction output (LLM, one call per run)
 
-Values are copied exactly as written in the documents. The LLM does no formatting, conversion,
-inference or lookup matching. Transformation (code) does that.
+Values are copied whole and exactly as written in the documents. The LLM does no formatting, conversion,
+inference or lookup matching. Normalization and Assembly (code) do that.
 
 ```json
 {
@@ -47,26 +47,36 @@ inference or lookup matching. Transformation (code) does that.
     {
       "record_ref": "R1",
       "found_in": ["doc02-p04-c007", "doc03-p01-c002"],
-      "record_summary": "Purchased antibody from the Section 6.2 reagent table",
+      "record_summary": "Purchased antibody from the Section 6.2 critical reagents table",
       "record_warning": null,
-      "fields": {
-        "expected_amount": {
-          "status": "found", "value": "1",
-          "evidence": [ { "chunk_id": "doc02-p04-c007", "quote": "Anti-drug antibody, 1 mL vial, Vendor A, Cat. R0137S or R0137L" } ],
-          "alternatives": [], "allows_equivalent": false, "warning": null
+      "context": {
+        "source_heading": {
+          "status": "found", "value": "Table 3. Critical Reagents",
+          "evidence": [ { "chunk_id": "doc02-p04-c007", "quote": "Table 3. Critical Reagents" } ],
+          "alternatives": [], "warning": null
         },
+        "serial_dilution": {
+          "status": "not_found", "value": null, "evidence": [], "alternatives": [], "warning": null
+        }
+      },
+      "fields": {
         "catalog_no": {
-          "status": "found", "value": ["R0137S", "R0137L"],
-          "evidence": [ { "chunk_id": "doc02-p04-c007", "quote": "Anti-drug antibody, 1 mL vial, Vendor A, Cat. R0137S or R0137L" } ],
-          "alternatives": [], "allows_equivalent": false, "warning": null
+          "status": "found", "value": ["R0137S", "R0137L or equivalent"],
+          "evidence": [ { "chunk_id": "doc02-p04-c007", "quote": "Anti-drug antibody, 1 mL vial, Vendor A, Cat. R0137S or R0137L or equivalent" } ],
+          "alternatives": [], "warning": null
+        },
+        "container_type": {
+          "status": "found", "value": "1 mL vial",
+          "evidence": [ { "chunk_id": "doc02-p04-c007", "quote": "Anti-drug antibody, 1 mL vial, Vendor A, Cat. R0137S or R0137L or equivalent" } ],
+          "alternatives": [], "warning": null
         },
         "manufacturer": {
           "status": "found", "value": "Vendor A",
           "evidence": [
-            { "chunk_id": "doc02-p04-c007", "quote": "Anti-drug antibody, 1 mL vial, Vendor A, Cat. R0137S or R0137L" },
-            { "chunk_id": "doc03-p01-c002", "quote": "Coating antibody (Vendor A or equivalent)" }
+            { "chunk_id": "doc02-p04-c007", "quote": "Anti-drug antibody, 1 mL vial, Vendor A, Cat. R0137S or R0137L or equivalent" },
+            { "chunk_id": "doc03-p01-c002", "quote": "Coating antibody (Vendor A)" }
           ],
-          "alternatives": [], "allows_equivalent": true, "warning": null
+          "alternatives": [], "warning": null
         },
         "storage_condition": {
           "status": "conflicting", "value": null, "evidence": [],
@@ -74,12 +84,15 @@ inference or lookup matching. Transformation (code) does that.
             { "value": "-20 °C", "evidence": [ { "chunk_id": "doc02-p05-c003", "quote": "Store at -20 °C until use." } ] },
             { "value": "2–8 °C", "evidence": [ { "chunk_id": "doc03-p01-c002", "quote": "Keep refrigerated (2–8 °C)." } ] }
           ],
-          "allows_equivalent": false,
           "warning": "Method and worksheet give different storage conditions"
         },
+        "target_concentration": {
+          "status": "unclear", "value": null,
+          "evidence": [ { "chunk_id": "doc03-p01-c002", "quote": "Conc.: 1.? mg/mL" } ],
+          "alternatives": [], "warning": "The digit after the decimal point cannot be read on the worksheet"
+        },
         "description": {
-          "status": "not_found", "value": null, "evidence": [],
-          "alternatives": [], "allows_equivalent": false, "warning": null
+          "status": "not_found", "value": null, "evidence": [], "alternatives": [], "warning": null
         }
       }
     }
@@ -93,34 +106,37 @@ inference or lookup matching. Transformation (code) does that.
 Record rules:
 - `record_ref` is temporary. Code replaces it with a permanent `record_id` (§4a). Nothing downstream uses `record_ref`.
 - `found_in` is required with at least one chunk. It is the "Found in" column in the review grid.
-- `fields` contains every field with role `extracted` in `field_rules.yaml` (17 today). Fields with other roles are never sent to or returned by the LLM.
+- `fields` contains every field with role `extracted` or `generated` in `business_rules.md` (13 today). Fields with other roles are never sent to or returned by the LLM.
+- `context` contains every field with role `context` (`source_heading`, `serial_dilution`). Each has the same shape as a field, with a single value (never a list). Context attributes are never exported or displayed.
 - Each serial dilution level is its own record (SOP v1.0 §7.4.3).
 
-Field status rules (checked by code after parsing; violation = retry, then step failure):
+Status rules, for fields and context attributes alike (checked by code after parsing; violation = retry, then step failure):
 
 | status | value | evidence | alternatives | warning |
 |---|---|---|---|---|
 | `found` | required, copied exactly | ≥ 1 pair | empty | optional |
 | `conflicting` | null | empty | ≥ 2, each with value and ≥ 1 evidence pair | required: the conflict |
+| `unclear` | null | optional | empty | required: what cannot be read or assigned |
 | `not_found` | null | empty | empty | optional |
 
 Evidence:
 - `evidence` is a list of `{chunk_id, quote}` pairs, one per place the value is found. Each quote is
   the sentence or table row from that chunk, copied exactly (as read, for a `page_image` chunk).
-- Citation check (code), per pair: the quote must appear in its chunk (case- and whitespace-insensitive).
+- Citation check (code), per pair, on fields and context attributes: the quote must appear in its chunk (case- and whitespace-insensitive; `|` counts as whitespace).
   Per field: the value must appear in at least one quote. Failure: yellow `CITATION_NOT_VERIFIED`.
   Pairs on a `page_image` chunk are `not_checkable` (yellow `SCANNED_SOURCE`).
 
 Value rules:
-- Every value is a string, copied as written (units, symbols, notation and capitalization kept). `multi_value` fields (Catalog No) are a list of strings.
+- Every value is a string, copied whole and as written (units, symbols, notation, capitalization and words such as "or equivalent" kept). Fields with a `Multi-value separator` (Catalog No) are a list of strings.
 - No inference: a value not written in the documents is `not_found`.
-- If only one vendor is named, it goes in both `manufacturer` and `supplier`.
-- "Or equivalent" with one named product: `found` with the named product, `allows_equivalent: true`. Code raises one yellow `OR_EQUIVALENT` issue per record.
+- The field-specific extraction rules are the `[Extraction]` lines of `business_rules.md`, inserted into the prompt.
 - Two named products, or sources that disagree: `conflicting`.
+- `unclear` (status alone) raises yellow `VALUE_UNCLEAR` with the warning; it does not trigger re-extraction.
 
-What transformation (code) does with these values:
-- List fields: match to the lookup list ignoring case, spaces and "°". Boolean fields accept Y or N. Matched with a change: grey `FORMAT_CORRECTED`. No match: red `NOT_IN_LOOKUP`; the user picks from the list.
-- Number fields: read the number from the text ("1e4 cps/uL" becomes 10000). Changed: grey `NUMBER_READ_FROM_TEXT`. Unreadable: red `WRONG_TYPE`.
+What Normalization and Assembly (code) do with these values (`ARCHITECTURE.md` §4.7):
+- Character translation, the field's translation table, and lookup matching in tiers, after removing excluded lookup values. Matched with a change: grey `FORMAT_CORRECTED`. No match: red `NOT_IN_LOOKUP`, with a Matching suggestion when there is one.
+- Number fields: read the number from the text ("1e4 cps/uL" becomes 10000). Changed: grey `NUMBER_READ_FROM_TEXT`. Unreadable: red `WRONG_TYPE`. Units are never converted.
+- Target Concentration: a number followed by a concentration unit gives the number; anything else is blank with yellow `NOT_A_CONCENTRATION`.
 - Catalog No: list joined with ", ".
 - The value as written stays in the `extraction` section and in the audit file.
 
@@ -131,7 +147,9 @@ The agent receives records with permanent `record_id`s. It reports only problems
 ```json
 {
   "field_findings": [
-    { "record_id": "rec_0007", "field": "description", "verdict": "unsupported", "sources": ["doc02-p04-c007"], "note": "Cited row does not mention plate coating" }
+    { "record_id": "rec_0007", "section": "fields", "field": "description", "verdict": "unsupported", "sources": ["doc02-p04-c007"], "note": "Cited row does not mention plate coating" },
+    { "record_id": "rec_0007", "section": "fields", "field": "catalog_no", "verdict": "incomplete", "sources": ["doc02-p04-c007"], "note": "The document says \"AB-1234 or equivalent\"" },
+    { "record_id": "rec_0009", "section": "context", "field": "source_heading", "verdict": "contradicted", "sources": ["doc02-p05-c002"], "note": "The item is listed under \"Table 4. Other Consumables\"" }
   ],
   "record_findings": [
     { "record_id": "rec_0012", "verdict": "should_be_split", "note": "Covers three serial dilution levels" }
@@ -143,20 +161,22 @@ The agent receives records with permanent `record_id`s. It reports only problems
     { "item": "...", "reason": "This is a prepared buffer, not equipment" }
   ],
   "unreported_conflicts": [
-    { "record_id": "rec_0007", "field": "storage_condition", "sources": ["doc03-p01-c005"], "note": "Worksheet gives a different temperature" }
+    { "record_id": "rec_0007", "section": "fields", "field": "storage_condition", "sources": ["doc03-p01-c005"], "note": "Worksheet gives a different temperature" }
   ]
 }
 ```
 
-- Field verdicts: `contradicted`, `unsupported`, `present_missed`.
+- Field verdicts: `contradicted`, `unsupported`, `present_missed`, `incomplete` (the value is cut short: a dropped unit, "or equivalent" or one of several catalog numbers missing).
+- `section`: `fields` or `context`, on `field_findings` and `unreported_conflicts`. `field` is the field or context attribute key.
+- An unresolved finding on a context attribute is raised as an issue on the field named by its `Drives` attribute.
 - Record verdicts: `not_a_consumable_type`, `duplicate_within_run`, `should_be_split`.
 - The agent never returns corrected values.
 
-Citation check result (code, per field): `verified`, `not_verified`, `not_checkable` (scanned or image-only source).
+Citation check result (code, per field and context attribute): `verified`, `not_verified`, `not_checkable` (scanned or image-only source).
 
 ## 3a. Duplicate judge output (LLM)
 
-Called once per new record with a shortlist of up to 10 similar existing Consumable Types (code builds the shortlist; exact name matches are handled by code as `EXISTS_IN_LABVANTAGE`).
+Called once per new record with a shortlist of up to 10 existing Consumable Types: similar names, plus any with the same catalog number (code builds the shortlist; exact name matches are handled by code as `EXISTS_IN_LABVANTAGE`). The record holds the fields flagged "Sent to duplicate judge" in `business_rules.md`. While the name is not set, the record's name is the Naming suggestion, and the name as written is also given.
 
 ```json
 {
@@ -170,6 +190,70 @@ Called once per new record with a shortlist of up to 10 similar existing Consuma
 - Verdicts: `same`, `different`, `unsure`. One judgment per candidate.
 - `same` or `unsure` on any candidate: yellow `POSSIBLE_DUPLICATE`, listing those candidates with reasons.
 
+## 3b. Matching (LLM, one call per run)
+
+Request items are built by code from the lookup values Normalization could not resolve, for fields with `Matching allowed = yes`, de-duplicated by (field, normalized value). Not called when there are no items.
+
+```json
+{ "item_id": "m_0001", "field": "Storage Condition", "value": "liquid nitrogen vapor phase",
+  "quote": "Store in liquid nitrogen vapor phase.", "shortlist": ["Cryo", "-80C", "-20C", "Dry Ice"] }
+```
+
+- `shortlist`: the `MATCHING_SHORTLIST_SIZE` most similar list values (difflib), or the whole list when it is that size or smaller (blank setting: the whole list). Excluded lookup values are removed.
+
+Response:
+
+```json
+{
+  "answers": [
+    { "item_id": "m_0001", "choice": "Cryo", "reason": "Liquid nitrogen vapor phase is cryogenic storage" },
+    { "item_id": "m_0002", "choice": null, "reason": "No list value describes a foil pouch" }
+  ]
+}
+```
+
+- One answer per item. `choice` is a shortlist value copied exactly, or null. Code rejects a choice not on the item's shortlist (no suggestion is stored).
+- Each accepted answer is stored as the field's `suggestion` (§4, source `matching`). It never sets the value.
+- Cache key: field, value, shortlist, business rules version, prompt version, model.
+
+## 3c. Naming (LLM, one call per run)
+
+Request: every included record: `record_id`, the name as written, each extracted field's normalized value (the value as written when it could not be normalized), and the context attribute values that were found.
+
+```json
+{
+  "names": [
+    { "record_id": "rec_0003", "name": "Absolute Ethanol_Molecular Biology Grade", "rule_id": "NM-01",
+      "reason": "General format: reagent name and its grade as the signifier" },
+    { "record_id": "rec_0008", "name": null, "rule_id": null,
+      "reason": "The record gives no target or species for the probe format" }
+  ]
+}
+```
+
+- One answer per record. `rule_id` is the `[Naming]` rule followed, or null with a null name.
+- Code checks each name: character translation applied, max length, disallowed characters, unique within the run. A failing name is dropped and the reason kept.
+- A passing name is stored as the `suggestion` on the record name field (source `naming`, with `rule_id`). It never sets the value.
+- Cache per record: its values, business rules version, prompt version, model.
+
+## 3d. Plausibility review (LLM, inside Validation)
+
+Called once per validation pass, only when `business_rules.md` has an active `[Plausibility]` check, with only the values that passed the field checks.
+
+```json
+{
+  "findings": [
+    { "record_id": "rec_0004", "check_id": "PL-01", "fields": ["storage_condition", "description"],
+      "reason": "A wash buffer is not normally stored at -80C" }
+  ]
+}
+```
+
+- A finding whose `check_id` is not an inserted check is dropped. Each other finding is a yellow `PLAUSIBILITY_CHECK` on the first field listed, showing the check ID and reason.
+- Cached per record: its values, business rules version, prompt version, model.
+
+Matching, Naming and the plausibility review never fail a run. A blank model setting, a reached call limit or a call that fails after its retry adds the run-level warning `MATCHING_SKIPPED`, `NAMING_SKIPPED` or `PLAUSIBILITY_SKIPPED`.
+
 ## 4. Stored record (sectioned)
 
 Each layer writes only its own section. Earlier sections are read-only.
@@ -181,17 +265,35 @@ Each layer writes only its own section. Earlier sections are read-only.
   "extraction": { "record_ref": "R1", "record_summary": "...", "record_warning": null },
   "verification": { "findings": [], "re_extracted": false },
   "exclusion": null,
+  "context": {
+    "source_heading": {
+      "extraction": { "status": "found", "value": "Table 3. Critical Reagents", "evidence": ["..."], "alternatives": [], "warning": null },
+      "verification": { "citation_check": "verified", "verdict": null, "note": null }
+    }
+  },
   "fields": {
     "storage_condition": {
-      "extraction": { "status": "conflicting", "value": null, "evidence": [], "alternatives": ["..."], "allows_equivalent": false, "warning": "..." },
+      "extraction": { "status": "conflicting", "value": null, "evidence": [], "alternatives": ["..."], "warning": "..." },
       "verification": { "citation_check": "verified", "verdict": null, "note": null },
+      "normalization": { "value": null, "alternatives": ["-20C", "4C"], "notes": [], "matching_value": null, "choices": [] },
+      "suggestion": null,
       "output": { "value": "-20C", "origin": "user_edited", "changes": [], "selected_alternative": 0 },
       "issue_ids": ["iss_0042"]
+    },
+    "container_type": {
+      "extraction": { "status": "found", "value": "15 mL conical tube", "evidence": ["..."], "alternatives": [], "warning": null },
+      "verification": { "citation_check": "verified", "verdict": null, "note": null },
+      "normalization": { "value": null, "alternatives": [], "notes": [], "matching_value": "15 mL conical tube", "choices": [] },
+      "suggestion": { "value": "15mL Conical Tube", "source": "matching", "reason": "Same container and size", "rule_id": null },
+      "output": { "value": null, "origin": "extracted", "changes": [], "selected_alternative": null },
+      "issue_ids": ["iss_0051"]
     },
     "approval_type": {
       "extraction": null,
       "verification": null,
-      "output": { "value": null, "origin": "blank_for_now", "changes": [], "selected_alternative": null },
+      "normalization": null,
+      "suggestion": null,
+      "output": { "value": "RecConsumableCritical", "origin": "derived", "changes": [], "selected_alternative": null },
       "issue_ids": []
     }
   },
@@ -202,16 +304,19 @@ Each layer writes only its own section. Earlier sections are read-only.
 
 | Section | Written by |
 |---|---|
-| `extraction` | Extraction (wrapped by code). Null for non-extracted roles |
+| `extraction` | Extraction (wrapped by code). Null for roles other than `extracted` and `generated` |
 | `verification` | Citation check (`citation_check`) and verification agent (`verdict`, `note`) |
-| `output` | Transformation, then user changes |
+| `context` | Extraction and verification only: context attributes have no `normalization`, `suggestion` or `output` |
+| `normalization` | Normalization: normalized value (or normalized alternatives for a conflicting field), notes, `matching_value` (the value sent to Matching, else null) and `choices` (from a "Reviewer chooses" row) |
+| `suggestion` | Matching (lookup fields) or Naming (record name field): `value`, `source` (`matching` or `naming`), `reason`, `rule_id` (Naming only). At most one per field. Never applied by code |
+| `output` | Assembly, then user changes |
 | `issue_ids` | Validation |
 
-- `origin`: `extracted`, `default`, `fixed`, `user_edited`, `blank_for_now`, `system`.
-- `changes`: transformation clean-ups applied, e.g. `"trimmed whitespace"`.
+- `origin`: `extracted` (from the normalized value), `default`, `derived` (set by a derivation in Assembly), `from_suggestion` (a person used the suggestion), `fixed`, `user_edited`, `blank_for_now`, `system`. Assembly never overwrites `user_edited` or `from_suggestion`.
+- `changes`: Normalization and Assembly notes, e.g. `"trimmed whitespace"`, a closed conflict, a default applied.
 - `exclusion`: null, or `{ "by": "...", "at": "...", "reason": "..." }`.
 - `action_needed`: `fix`, `check`, `none`, `excluded` (computed from open issues).
-- All 22 fields are present in every stored record.
+- Every loader field in `business_rules.md` (22 today) is present in every stored record; every context attribute is present in `context`.
 
 ## 4a. Stable IDs
 
@@ -252,6 +357,9 @@ IDs connect user changes, bulk actions, accepted warnings, the audit trail and t
 - `individual_review` (from the catalogue; true for `CITATION_NOT_VERIFIED` and `UNSUPPORTED_BY_SOURCE`): open ones also block the verified label. They can only be accepted one at a time, after the source was opened (see §6).
 - `note_required` (from the catalogue): accepting the issue needs a note (§6).
 - `details.candidates` (`EXISTS_IN_LABVANTAGE`, `POSSIBLE_DUPLICATE`): one entry per matching existing type: `candidate_id`, `name`, `match` (`exact`, `normalized`, or the judge's `same` / `unsure`), `reason` (the judge's, else null), and `description`, `consumable_class`, `active_flag` copied from the run's pinned reference data version (null when it has none). Details never key the issue, so they do not change its ID or accepted state.
+- `details.suggestion` (`NOT_IN_LOOKUP`, `NAME_NOT_SET`): the field's suggestion (value, source, reason, rule ID), when there is one.
+- `details.choices` (`REVIEWER_CHOICE_NEEDED`): the list values the matched translation row offers.
+- `details.check_id` (`PLAUSIBILITY_CHECK`): the check ID; the reason is in the message.
 - `details.sources`: chunk IDs the finding cites, when it has any (missed candidates: the agent's `sources`; challenged excluded items: the excluded item's `chunk_ids`; unreported conflicts: the agent's `sources`).
 
 ## 6. Changes request (UI → API → review service)
@@ -264,13 +372,14 @@ IDs connect user changes, bulk actions, accepted warnings, the audit trail and t
     { "change_id": "chg_0101", "type": "pick_alternative", "record_id": "rec_0007", "field": "storage_condition", "alternative_index": 0, "bulk_id": "blk_003" },
     { "change_id": "chg_0102", "type": "accept_warning", "issue_id": "iss_0050", "source_viewed": true, "note": null },
     { "change_id": "chg_0103", "type": "exclude_record", "record_id": "rec_0015", "reason": "Equipment, not a consumable" },
-    { "change_id": "chg_0104", "type": "set_value", "record_id": "rec_0009", "field": "manufacturer", "value": "...", "reason": null }
+    { "change_id": "chg_0104", "type": "set_value", "record_id": "rec_0009", "field": "manufacturer", "value": "...", "reason": null },
+    { "change_id": "chg_0105", "type": "use_suggestion", "record_id": "rec_0009", "field": "container_type" }
   ]
 }
 ```
 
 - Sent to `POST /runs/{run_id}/changes`. Stored as pending until the next re-check or Verify.
-- Change types: `set_value` (`reason` required when the field had no open issue), `pick_alternative`, `accept_warning`, `exclude_record` (reason required), `restore_record`, `undo_bulk` (`bulk_id`).
+- Change types: `set_value` (`reason` required when the field had no open issue), `pick_alternative`, `use_suggestion` (sets the field to its current suggestion, origin `from_suggestion`; rejected when the field has none), `accept_warning`, `exclude_record` (reason required), `restore_record`, `undo_bulk` (`bulk_id`).
 - List fields: `set_value` must be a current lookup value (UI offers a searchable dropdown; validation checks again).
 - Bulk changes share a `bulk_id` and are undone together.
 - `accept_warning` on an `individual_review` issue: no `bulk_id`, and `source_viewed: true` is required. When the catalogue sets `note_required`, `note` is required too. The API rejects it otherwise. Verify never accepts these issues.
@@ -281,9 +390,9 @@ LangGraph state, during processing only (checkpointed):
 
 | Item | Holds |
 |---|---|
-| `run_id`, config versions | Captured at start |
+| `run_id`, config versions, models | Captured at start |
 | `documents` | Document references and chunk references (never contents or images) |
-| `records` | Records as processing builds them, keyed by `record_id` |
+| `records` | Records as processing builds them, keyed by `record_id` (fields, context, normalization, suggestions; never document text) |
 | `excluded_items` | From extraction |
 | `findings` | Latest extraction-verification findings |
 | `reextract_count` | For `MAX_REEXTRACT` |
@@ -295,12 +404,15 @@ Review database (SQLite in the pilot), one set per run:
 
 | Table | Holds |
 |---|---|
-| `runs` | `run_id`, name, created by/at, config versions used, `retry_of`, status, verified (`is_verified`, by, at) |
+| `runs` | `run_id`, name, created by/at, config versions used, models used (extraction, verification, matching, naming, plausibility, duplicate judge), `retry_of`, status, verified (`is_verified`, by, at) |
 | `records` | Stored records (§4), keyed by `record_id` |
 | `issues` | Issues (§5) with their history (opened, accepted, resolved; by whom, when) |
 | `changes` | Every change (§6), with `status` pending or applied, and `bulk_id` |
 | `exports` | `export_id`, number, is_draft, loader file, audit file, at, by |
 | `audit_events` | Verification, exports, exclusions, admin actions (feeds the audit file) |
+| `duplicate_judgments`, `matching_cache`, `naming_cache`, `plausibility_cache` | Cached model answers, keyed as in §3a–§3d |
+
+The database has a schema version (3 for this design). A file with an older version is refused with a plain message to start a new database.
 
 ## 8. Audit workbook (with every export)
 
@@ -308,9 +420,11 @@ File: `[run name] – export [n] – audit.xlsx` (draft exports add "– draft")
 
 | Sheet | One row per | Columns |
 |---|---|---|
-| Summary | Setting (label/value) | Run name, run ID, export number, draft or verified, exported by/at, verified by/at, documents (name + SHA-256), versions (field rules, issue catalogue, lookup lists, reference data, prompts, models), open issue counts |
-| Values | Record × field (all 22, excluded records not included) | Record ID, Consumable Type, field (column name), value as written (blank if not found; a conflict lists its alternatives), exported value, origin, source document, location (section / page / sheet+rows), source quote, extraction status, citation check, verification verdict, issue codes, issue outcome |
+| Summary | Setting (label/value) | Run name, run ID, export number, draft or verified, exported by/at, verified by/at, documents (name + SHA-256), versions (business rules, issue catalogue, lookup lists, reference data, prompts, models: extraction, verification, matching, naming, plausibility, duplicate judge), open issue counts |
+| Values | Record × loader field (excluded records not included) | Record ID, Consumable Type, field (column name), value as written (blank if not found; a conflict lists its alternatives), exported value, How set (extracted, normalized, derived, default, from suggestion, set by a person), Suggestion, Suggestion reason, origin, source document, location (section / page / sheet+rows), source quote, extraction status, citation check, verification verdict, issue codes, issue outcome |
 | Edits | Applied change | Change ID, record ID, Consumable Type, field, type, old value, new value, reason, user, time, bulk ID |
+| Context | Record × context attribute (excluded records not included) | Record, attribute, value as written, source |
+| Suggestions used | Field set from a suggestion | Record, field, value as written, value chosen |
 | Excluded | Excluded record | Record ID, name, found in, excluded by, at, reason |
 | Run issues | Run-level issue | Code, message |
 
@@ -318,11 +432,13 @@ File: `[run name] – export [n] – audit.xlsx` (draft exports add "– draft")
 
 ```
 evals/cases/<case_id>/
-  case.yaml                  # id, description, synthetic|bioa, tags, labeled_by, labeled_on, field_rules_version
+  case.yaml                  # id, description, synthetic|bioa, tags, labeled_by, labeled_on, business_rules_version
   documents/                 # source files
   expected_extraction.json   # expected records and field values
   expected_loader.xlsx       # optional: expected final export rows
   seeded_errors.json         # optional: planted mistakes for verification evals
+  expected_matching.json     # optional: per item, the expected list value or null
+  expected_naming.json       # optional: per record, the expected name
   notes.md                   # anything tricky
 ```
 
@@ -336,8 +452,8 @@ evals/cases/<case_id>/
 ```json
 {
   "trace_id": "llm_0031", "run_id": "run_0012", "node": "extraction", "attempt": 1,
-  "provider": "openai", "model": "TBD", "prompt_template": "extraction", "prompt_version": "0.1",
-  "config_versions": { "field_rules": "0.1", "lookup_lists": "v0-seed" },
+  "provider": "openai", "model": "TBD", "prompt_template": "extraction", "prompt_version": "0.5",
+  "config_versions": { "business_rules": "1.2", "lookup_lists": "v0-seed-4" },
   "started_at": "2026-10-16T14:02:11Z", "duration_ms": 41250,
   "input_tokens": 0, "output_tokens": 0, "cost_estimate": null,
   "status": "ok", "error_message": null,
@@ -346,6 +462,7 @@ evals/cases/<case_id>/
 }
 ```
 
+- `node`: `extraction`, `extraction_verification`, `matching`, `naming`, `plausibility`, `duplicate_judge`.
 - `status`: `ok`, `retry`, `error`, `schema_violation`.
 - Full prompt and response live only in the files. Retention follows `LLM_TRACE_RETENTION_DAYS` (blank keeps all).
 
@@ -364,13 +481,22 @@ evals/cases/<case_id>/
 
 | File | Format reference |
 |---|---|
-| `field_rules.yaml` | Header comments in the file (roles, requirement, `placeholder_value`, `multi_value`, `default`, `extraction_guidance`, `condition_groups`) |
+| `business_rules.md` | Markdown, read by code (see below) |
 | `issue_catalogue.yaml` | Codes with `severity` and `message` |
 | `lookup_lists.xlsx` | One sheet per lookup field (sheet name = DFD column name), column A header `Lookup Value`, text cells. `_Instructions` (visible) and `_metadata` (hidden: `version_id`, `based_on_version`, `exported_at`, `exported_by`). Sheets starting with `_` are reserved and ignored |
-| `dfd_template.xlsx` | `Sheet1`, row 1 = the 22 column names in field-rules order, nothing else |
+| `dfd_template.xlsx` | `Sheet1`, row 1 = the loader columns of `business_rules.md` in file order, nothing else |
 | `reference_data_mapping.yaml` | Column mapping and duplicate-check settings |
 | `prompts/*.md` | First line: `prompt`, `version`, `status`; placeholders in `{braces}` |
 | `env.example` | Deployment settings; secrets only in the environment |
+
+`business_rules.md` grammar (the file's "How to read and edit this file" section is the reference for editors):
+- Version: the `Version` row of the first table.
+- Field sections: `## Field: <name>`, in file order. Each has an attribute table (`Attribute | Value`), `### Rules` lines, and any other `###` table. Required keys: Key, Loader column, Role, Requirement, Type. Optional keys: Max length, Lookup list, Default, Matching allowed, Sent to duplicate judge, Record name, Multi-value separator, Disallowed characters, Drives.
+- Roles: `extracted`, `derived`, `generated`, `context`, `system`, `blank_for_now`. Loader column `none` for `context`.
+- Rule line: `- <ID> [<Step>] <text> (<Status>; <source>)`. Steps: Extraction, Normalization, Matching, Naming, Assembly, Validation, Plausibility.
+- Status: the first word of a rule's parentheses or of a Status cell (`Confirmed`, `Assumption`, `Design`, `Open`); anything after it is a note. `Open` rules and rows are inactive.
+- Sections under `## General rules` and `## Business rules` are parsed the same way.
+- Startup check (fails with a plain message): required keys present; role, requirement, type and step tag from the allowed sets; rule IDs and table entry IDs unique; exactly one record name field, sent to the duplicate judge; every lookup list named exists; every translation target, table output and default exists in its lookup list (blank allowed); every `Drives` value and condition group field is a field key; loader columns equal the DFD template headers, in order.
 
 ## 13. API endpoints
 
@@ -383,15 +509,15 @@ Request and response bodies use the models above. The OpenAPI schema generated b
 | POST | /runs | Upload files (multipart) + run name; start the graph in the background; return `run_id` |
 | GET | /runs/{run_id} | Status, current step, verified label, exports, run issues |
 | PATCH | /runs/{run_id} | Rename the run |
-| GET | /runs/{run_id}/records | Flattened review view: one row per record, cells with value, display value, origin, color, messages, sources, alternatives. For `blank_for_now` fields the value is empty and the display value is the placeholder ("TEST VALUE"). Each issue has `note_required`, `sources` (locations of its `details.sources` chunks of the run) and `duplicate_candidates` (its `details.candidates`, typed; empty for other issues). Counts add progress: `total_issues` (red and yellow issues of included records and the run, any status) and `resolved_issues` (those resolved or accepted) |
-| GET | /runs/{run_id}/fields | Every field of the run's config in loader order: key, column, role, requirement, type, max length, list or boolean, multi-value, `is_record_name`, and allowed values (lookup values from the run's own lookup list version; Y/N for booleans; none otherwise). For the review dropdowns |
+| GET | /runs/{run_id}/records | Flattened review view: one row per record, cells with value, display value, origin, color, messages, sources, alternatives. Each cell also has the field's `suggestion` (or null). Context attributes are not returned. Each issue has `note_required`, `sources` (locations of its `details.sources` chunks of the run) and `duplicate_candidates` (its `details.candidates`, typed; empty for other issues). Counts add progress: `total_issues` (red and yellow issues of included records and the run, any status) and `resolved_issues` (those resolved or accepted) |
+| GET | /runs/{run_id}/fields | Every loader field of the run's config in loader order (context attributes left out): key, column, role, requirement, type, max length, list or boolean, multi-value, `is_record_name`, and allowed values (lookup values from the run's own lookup list version, without values excluded from all steps; Y/N for booleans; none otherwise). For the review dropdowns |
 | GET | /runs/{run_id}/records/{record_id} | One record with all sections, issues and resolved sources |
 | GET | /runs/{run_id}/chunks/{chunk_id} | Source text for "Show source" (with document, section, page) |
 | GET | /runs/{run_id}/chunks/{chunk_id}/image | The scanned page of a `page_image` chunk as `image/png`; a text chunk is 404 `PAGE_IMAGE_NOT_FOUND` |
 | GET | /runs/{run_id}/bulk-preview?mode=&issue_id=&field=&alternative_index= | Records a bulk action would touch (included records only): `change_all` (`issue_id`: same field, issue code and current value), `fill_missing` (`field`: no value, not a conflict), `accept_type` (`issue_id`: same warning code, any field; not individual-review), `resolve_conflicts` (`issue_id` + `alternative_index`: same field, same set of alternatives in any order). Returns the selection, `count` and `matches` (record_id, name, issue_id, current value, and for conflicts the chosen value's `alternative_index` in that record) |
 | GET | /runs/{run_id}/bulk-actions | The run's bulk actions, newest first: `bulk_id`, change type, field or issue code, record and change counts, by/at, `is_pending`, `is_undone` (by/at), `can_undo` (not undone and the run is in review) |
 | POST | /runs/{run_id}/changes | Store changes as pending (§6); no re-check yet |
-| POST | /runs/{run_id}/recheck | Apply pending changes and run the Validation service; return updated counts |
+| POST | /runs/{run_id}/recheck | Apply pending changes, run Assembly on the current values, then the Validation service; return updated counts |
 | POST | /runs/{run_id}/verify | Re-check, then set the verified label; or return the blocking issues |
 | POST | /runs/{run_id}/retry | Failed runs only: start a new run from the same uploaded files, with `retry_of` set; the failed run is unchanged |
 | POST | /runs/{run_id}/exports | Re-check if needed, then write loader + audit file; return export info (file names `loader_file_name`, `audit_file_name`; never storage paths) |
@@ -421,4 +547,4 @@ Errors: every error response has the same shape, with a plain-language message t
 - Changes are safe to resend: a repeated `change_id` is ignored (§4a). `POST /runs` and exports are not deduplicated in the pilot.
 - Request and response models are Pydantic; the OpenAPI schema is generated from them. It is reviewed and locked before front-end work starts.
 
-Config versions: a run uses the config versions captured when it started (field rules, issue catalogue, lookup lists, reference data, prompts). Admin updates apply to new runs only.
+Config versions: a run uses the config versions captured when it started (business rules, issue catalogue, lookup lists, reference data, prompts) and the models captured then. Admin updates apply to new runs only.

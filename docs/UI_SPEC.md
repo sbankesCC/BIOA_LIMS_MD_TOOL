@@ -34,7 +34,7 @@ The mockups are static and use placeholder values. Where this document and the m
 - Recent runs list: name, started, status, record count, what needs action. Clicking opens the run.
 
 ### 4.2 Processing
-- Step list (not a percentage bar): Reading documents, Extracting consumables, Checking citations, Validating against the documents, Formatting and final checks, Preparing your preview. Current step highlighted; finished steps checked.
+- Step list (not a percentage bar): Reading documents, Extracting consumables, Checking citations, Validating against the documents, Formatting values, Matching list values, Suggesting names, Filling derived fields, Final checks, Preparing your preview. The steps follow the run status (`ARCHITECTURE.md` §6). Current step highlighted; finished steps checked.
 - "You can leave this page. Your run is saved."
 - Failed: plain-language reason and Retry. Retry starts a new run from the same files; the failed run stays in the list.
 
@@ -44,7 +44,7 @@ Header:
 - Run name (rename), document count, lookup list version, reference data date.
 
 Run-level banner:
-- For run issues (e.g. scanned pages, unreadable file). Has an X to dismiss; dismissal is remembered for the run.
+- For run issues (e.g. scanned pages, unreadable file, a skipped Matching, Naming or plausibility step). Has an X to dismiss; dismissal is remembered for the run.
 
 Summary strip:
 - Counts: Records, To fix (red), Warnings (yellow), Excluded.
@@ -57,8 +57,11 @@ Records grid (read-only):
 - Cells with issues are tinted (red / yellow); not-found optional values show "— (not found)" in grey.
 - Excluded rows: struck through, reason shown, Restore link.
 - Scrolls through all records; sticky header row; Action needed and Consumable Type columns pinned; other columns scroll sideways.
-- Approval Type, Consumable Params and Worksheet Template show the placeholder "TEST VALUE" (grey, read-only). It is display only: these columns are exported blank.
-- Each value shows the text as written in the document next to the exported value when they differ (e.g. "2–8 °C" → choose from list; "1e4 cps/uL" → 10000).
+- The columns come from the API (`GET /runs/{id}/fields`), in loader order. Context attributes (`source_heading`, `serial_dilution`) are never shown.
+- Fields exported blank (`system`, `blank_for_now`) show an empty grey cell (read-only).
+- Derived fields (Critical, Consumable Class, Approval Type, Worksheet Template) show their value like any other; the panel says it was derived.
+- A field with a suggestion and no value shows the suggestion in grey italics with "suggested" (it is not exported until used). The Consumable Type column shows the suggested name this way until a name is set.
+- Each value shows the text as written in the document next to the exported value when they differ (e.g. "2–8 °C" → choose from list; "1e4 cps/uL" → 10000). "or equivalent" stays in the value as written.
 
 Resolution panel (right side):
 - Top: Previous / Next issue arrows that move through all open issues in the run, across records ("Issue 1 of 11 open"); close button.
@@ -72,13 +75,21 @@ Issue actions (only the actions that fit the issue):
 | Issue | Actions |
 |---|---|
 | Required value missing | Enter value: searchable dropdown for list fields, checked input for free text |
-| Not in lookup list | Pick from searchable dropdown, closest matches first |
+| Not in lookup list | When there is a Matching suggestion: shown with its reason and a "Use suggestion" action. Or pick from searchable dropdown, closest matches first |
+| Name not set | When there is a Naming suggestion: shown with its reason and the naming rule, and a "Use suggestion" action. Or type a name (checked input) |
+| Reviewer choice needed | Pick one of the offered values (e.g. -20C or -80C for "frozen"), each with "Show source", or another value from the list |
+| Value unclear | Shows the extraction's warning. View source; enter the value, mark not found, or Accept |
+| Value incomplete | View source; enter the whole value, or Accept |
+| Not a concentration | Shows the value as written. Enter a number, or leave blank |
+| Derived value missing | Says what input is missing (e.g. no vendor). Enter the input field, or set the derived value directly |
+| Derived value differs | Shows the set value and the derived value. Use the derived value, or keep the set value with a note |
+| Conflict closed (grey) | Nothing to do: the sources agree after formatting |
+| Plausibility check | Shows the check ID and reason. View the fields; Accept, or Change |
 | Conflicting values | Pick one alternative (each with "Show source"), or "Other value" from the list |
 | Citation not verified / unsupported | View source; Accept, Change, or mark not found |
 | Optional value not found (grey) | Leave blank, or Add value |
 | Possible duplicate of existing type | Side-by-side comparison; "Not a duplicate" or Exclude record |
 | Default applied | Accept, or Change |
-| Or equivalent | Accept the named product, or Change |
 | Formatting corrected (grey) | Nothing to do |
 | Not a consumable | Exclude record (with reason), or Accept |
 | Should be split / may be missing (one at a time) | View source; split or add outside the tool, or confirm; a note saying what was done is required |
@@ -97,7 +108,7 @@ Bulk actions (offered in the panel when they apply):
 
 Saving and re-checking:
 - "Save and next issue" stores the choice immediately (`POST /runs/{id}/changes`).
-- The re-check (the review service runs the Validation service) runs when the user moves to another record, after a bulk action, after an exclude/restore, or on Verify (`POST /runs/{id}/recheck`). This avoids a slow re-check on every click.
+- The re-check (the review service runs Assembly, then the Validation service; derived fields are recomputed unless a person set them) runs when the user moves to another record, after a bulk action, after an exclude/restore, or on Verify (`POST /runs/{id}/recheck`). This avoids a slow re-check on every click.
 
 Bottom action bar (fixed to the bottom of the window):
 - Progress: issues resolved (e.g. "9 of 20").
