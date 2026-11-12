@@ -12,8 +12,8 @@ from openpyxl import load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
 from app.config.bundle import ConfigBundle
+from app.config.business_rules import FieldDefinition
 from app.config.dfd_template import SHEET_NAME
-from app.config.field_rules import FieldRule
 from app.contracts.chunk import Chunk
 from app.contracts.export import ExportInfo
 from app.contracts.extraction import Alternative, Evidence, ExtractedField
@@ -26,13 +26,13 @@ from app.review.service import ReviewContext
 from app.storage.review_db import ReviewDatabase
 from app.storage.run_store import RunFolder, RunStore
 from app.validation.duplicates import find_name_rule
+from app.validation.service import make_validation_config
 from tests.unit.review_helpers import (
     NOW,
     RUN_ID,
     USER,
     exclude_record,
     make_context,
-    make_relaxed_config,
     recheck,
     save,
     set_value,
@@ -48,8 +48,8 @@ RUN_NAME = "synthetic run"
 
 @pytest.fixture
 def context(bundle: ConfigBundle) -> ReviewContext:
-    """Return a review context on the relaxed config."""
-    return make_context(make_relaxed_config(bundle))
+    """Return a review context on the run config."""
+    return make_context(make_validation_config(bundle))
 
 
 @pytest.fixture
@@ -73,14 +73,14 @@ def run_folder(tmp_path: Path) -> RunFolder:
     return folder
 
 
-def number_rule(bundle: ConfigBundle, field_type: str) -> FieldRule:
+def number_rule(bundle: ConfigBundle, field_type: str) -> FieldDefinition:
     """Return the first extracted field of a number type."""
-    return find_rule(bundle.field_rules, lambda rule: rule.type == field_type)
+    return find_rule(bundle.business_rules, lambda rule: rule.type == field_type)
 
 
-def unfilled_rules(bundle: ConfigBundle) -> list[FieldRule]:
+def unfilled_rules(bundle: ConfigBundle) -> list[FieldDefinition]:
     """Return the fields the tool does not fill (blank_for_now and system)."""
-    return [rule for rule in bundle.field_rules.fields if rule.role != "extracted"]
+    return [rule for rule in bundle.business_rules.fields if not rule.is_extracted]
 
 
 def make_records(bundle: ConfigBundle) -> list[StoredRecord]:
@@ -104,11 +104,11 @@ def make_records(bundle: ConfigBundle) -> list[StoredRecord]:
     ]
 
 
-def text_rule(bundle: ConfigBundle) -> FieldRule:
+def text_rule(bundle: ConfigBundle) -> FieldDefinition:
     """Return a free-text extracted field that is not the record name."""
-    name_key = find_name_rule(bundle.field_rules).key
+    name_key = find_name_rule(bundle.business_rules).key
     return find_rule(
-        bundle.field_rules,
+        bundle.business_rules,
         lambda rule: rule.type == "text" and rule.lookup_sheet is None and rule.key != name_key,
     )
 
@@ -157,14 +157,14 @@ def test_loader_round_trips_with_headers_and_rows(
     rows = read_rows(open_sheet(run_folder.resolve_ref(info.loader_file), SHEET_NAME))
     headers = bundle.dfd_template.headers
     assert list(rows[0]) == headers
-    name_index = headers.index(find_name_rule(bundle.field_rules).column)
+    name_index = headers.index(find_name_rule(bundle.business_rules).column)
     # The excluded record is left out
     assert [row[name_index] for row in rows[1:]] == ["Syn A", "Syn C"]
     records = {r.record_id: r for r in database.read_records(RUN_ID)}
-    for rule in bundle.field_rules.fields:
+    for rule in bundle.business_rules.fields:
         value = rows[2][headers.index(rule.column)]
         expected = records["rec_0003"].fields[rule.key].output.value
-        if rule.role != "extracted":
+        if not rule.is_extracted:
             assert value is None
         elif rule.type in ("decimal", "integer"):
             assert value == int(expected or "") and isinstance(value, int)
@@ -293,7 +293,7 @@ def test_audit_workbook_has_five_sheets_with_columns(
     path = run_folder.resolve_ref(export(database, bundle, context, run_folder).audit_file)
     workbook = load_workbook(path)
     assert workbook.sheetnames == ["Summary", "Values", "Edits", "Excluded", "Run issues"]
-    name_column = find_name_rule(bundle.field_rules).column
+    name_column = find_name_rule(bundle.business_rules).column
     expected_headers = {
         "Summary": audit_workbook.SUMMARY_HEADERS,
         "Values": audit_workbook.make_value_headers(name_column),
@@ -314,7 +314,7 @@ def test_audit_values_cover_every_field_of_included_records(
     database = start_export_run(tmp_path, bundle, context)
     path = run_folder.resolve_ref(export(database, bundle, context, run_folder).audit_file)
     rows = read_rows(open_sheet(path, "Values"))[1:]
-    field_count = len(bundle.field_rules.fields)
+    field_count = len(bundle.business_rules.fields)
     assert len(rows) == 2 * field_count
     assert {row[0] for row in rows} == {"rec_0001", "rec_0003"}
     cited = next(row for row in rows if row[0] == "rec_0001" and row[2] == text_rule(bundle).column)
@@ -327,9 +327,9 @@ def test_audit_values_cover_every_field_of_included_records(
     )
 
 
-def multi_value_rule(bundle: ConfigBundle) -> FieldRule:
+def multi_value_rule(bundle: ConfigBundle) -> FieldDefinition:
     """Return the first extracted field that holds several values."""
-    return find_rule(bundle.field_rules, lambda rule: rule.multi_value)
+    return find_rule(bundle.business_rules, lambda rule: rule.multi_value)
 
 
 def stored_extraction(extraction: ExtractedField) -> StoredField:
@@ -360,7 +360,7 @@ def test_written_value_of_a_conflict_lists_each_alternative_on_its_own_line(
 
 def test_written_value_of_a_single_value_conflict_is_one_per_line(bundle: ConfigBundle) -> None:
     """A conflict on a single-value field lists its alternatives one per line too."""
-    rule = find_rule(bundle.field_rules, lambda rule: not rule.multi_value)
+    rule = find_rule(bundle.business_rules, lambda rule: not rule.multi_value)
     evidence = [Evidence(chunk_id=CHUNK_ID, quote=QUOTE)]
     alternatives = [
         Alternative(value="syn-a", evidence=evidence),

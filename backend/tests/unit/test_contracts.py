@@ -160,7 +160,7 @@ def build_full_record(bundle: ConfigBundle) -> StoredRecord:
     """Build a stored record with an empty output for every loader field."""
     fields = {
         field.key: StoredField(output=FieldOutput(origin="extracted"))
-        for field in bundle.field_rules.fields
+        for field in bundle.business_rules.fields
     }
     return StoredRecord(
         record_id="rec_0001",
@@ -174,22 +174,22 @@ def test_record_with_every_field_has_no_problems(bundle: ConfigBundle) -> None:
     """A stored record with all 22 loader fields passes the field check."""
     record = build_full_record(bundle)
     assert len(record.fields) == 22
-    assert find_record_field_problems(record, bundle.field_rules) == []
+    assert find_record_field_problems(record, bundle.business_rules) == []
 
 
 def test_record_missing_a_field_is_reported(bundle: ConfigBundle) -> None:
     """A stored record without one loader field gets a problem naming it."""
     record = build_full_record(bundle)
-    missing_key = bundle.field_rules.fields[0].key
+    missing_key = bundle.business_rules.fields[0].key
     del record.fields[missing_key]
-    problems = find_record_field_problems(record, bundle.field_rules)
+    problems = find_record_field_problems(record, bundle.business_rules)
     assert len(problems) == 1
     assert missing_key in problems[0]
 
 
 def test_record_with_unknown_field_is_reported(bundle: ConfigBundle) -> None:
-    """A stored record with a key the field rules do not define gets a problem."""
+    """A stored record with a key the business rules do not define gets a problem."""
     record = build_full_record(bundle)
     record.fields["synthetic_unknown"] = StoredField(output=FieldOutput(origin="system"))
-    problems = find_record_field_problems(record, bundle.field_rules)
+    problems = find_record_field_problems(record, bundle.business_rules)
     assert problems == ["Record rec_0001 has unknown field 'synthetic_unknown'."]

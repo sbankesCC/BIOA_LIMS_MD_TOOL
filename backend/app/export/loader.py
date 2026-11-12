@@ -13,8 +13,8 @@ from openpyxl import load_workbook
 from openpyxl.cell.cell import Cell, MergedCell
 from openpyxl.worksheet.worksheet import Worksheet
 
+from app.config.business_rules import BusinessRules, FieldDefinition
 from app.config.dfd_template import SHEET_NAME, DfdTemplate
-from app.config.field_rules import FieldRule, FieldRules
 from app.contracts.record import StoredRecord
 from app.validation.field_checks import is_right_type
 
@@ -31,15 +31,18 @@ LoaderValue = str | int | float | None
 
 
 def write_loader(
-    template: DfdTemplate, field_rules: FieldRules, records: Sequence[StoredRecord], target: Path
+    template: DfdTemplate,
+    business_rules: BusinessRules,
+    records: Sequence[StoredRecord],
+    target: Path,
 ) -> int:
     """Copy the template to `target` and fill one row per included record; return the row count."""
     # The template itself is only read: the rows go into a copy
     shutil.copyfile(template.path, target)
     workbook = load_workbook(target)
     sheet = workbook[SHEET_NAME]
-    # Each template column is filled from the field rule with the same column name
-    rules_by_column = {rule.column: rule for rule in field_rules.fields}
+    # Each template column is filled from the field definition with the same column name
+    rules_by_column = {rule.column: rule for rule in business_rules.fields}
     headers = read_header_columns(sheet)
     included = [record for record in records if record.exclusion is None]
     for row_number, record in enumerate(included, start=FIRST_DATA_ROW):
@@ -59,15 +62,15 @@ def read_header_columns(sheet: Worksheet) -> dict[int, str]:
     }
 
 
-def find_export_text(rule: FieldRule, record: StoredRecord) -> str | None:
+def find_export_text(rule: FieldDefinition, record: StoredRecord) -> str | None:
     """Return the text a field exports: its output value, or None for blank and unfilled fields."""
     stored = record.fields.get(rule.key)
-    if rule.role != "extracted" or stored is None or not stored.output.value:
+    if not rule.is_extracted or stored is None or not stored.output.value:
         return None
     return stored.output.value
 
 
-def find_loader_value(rule: FieldRule, record: StoredRecord) -> LoaderValue:
+def find_loader_value(rule: FieldDefinition, record: StoredRecord) -> LoaderValue:
     """Return a field's loader cell value: a number for a number field holding a plain number."""
     text = find_export_text(rule, record)
     if text is not None and rule.type in NUMBER_TYPES and is_right_type(rule, text):

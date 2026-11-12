@@ -11,7 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from app.config.field_rules import FieldRule, FieldRules
+from app.config.business_rules import BusinessRules, FieldDefinition
 from app.contracts.extraction import Alternative, ExtractedValue
 from app.contracts.issue import Issue
 from app.contracts.record import StoredRecord
@@ -67,14 +67,17 @@ class BulkScope:
     """The run's records (all, by ID) and issues, plus the record name rule."""
 
     def __init__(
-        self, records: Sequence[StoredRecord], issues: Sequence[Issue], field_rules: FieldRules
+        self,
+        records: Sequence[StoredRecord],
+        issues: Sequence[Issue],
+        business_rules: BusinessRules,
     ) -> None:
-        """Index the records by ID and keep the issues and field rules."""
+        """Index the records by ID and keep the issues and business rules."""
         self.records = list(records)
         self.by_id = {record.record_id: record for record in records}
         self.issues = list(issues)
-        self.field_rules = field_rules
-        self.name_rule = find_name_rule(field_rules)
+        self.business_rules = business_rules
+        self.name_rule = find_name_rule(business_rules)
 
     def find_included(self, record_id: str | None) -> StoredRecord | None:
         """Return a record that is not excluded, or None."""
@@ -98,10 +101,10 @@ def find_bulk_matches(
     records: Sequence[StoredRecord],
     issues: Sequence[Issue],
     request: BulkRequest,
-    field_rules: FieldRules,
+    business_rules: BusinessRules,
 ) -> BulkPreview:
     """Return the records the selected bulk action would touch."""
-    scope = BulkScope(records, issues, field_rules)
+    scope = BulkScope(records, issues, business_rules)
     if request.mode == "fill_missing":
         return preview_fill_missing(scope, require_field(request))
     issue = find_bulk_issue(issues, require_issue_id(request))
@@ -131,7 +134,7 @@ def preview_change_all(scope: BulkScope, issue: Issue) -> BulkPreview:
 
 def preview_fill_missing(scope: BulkScope, field: str) -> BulkPreview:
     """Match included records whose field has no value (a conflict is resolved, not filled)."""
-    rule = find_fillable_rule(scope.field_rules, field)
+    rule = find_fillable_rule(scope.business_rules, field)
     matches: list[BulkPreviewMatch] = []
     for record in scope.records:
         if record.exclusion is not None or not is_missing(record, rule.key):
@@ -276,10 +279,10 @@ def require_warning(issue: Issue) -> Issue:
     return issue
 
 
-def find_fillable_rule(field_rules: FieldRules, field: str) -> FieldRule:
+def find_fillable_rule(business_rules: BusinessRules, field: str) -> FieldDefinition:
     """Return the rule of a field the user can fill; only extracted fields can be changed."""
-    rule = next((rule for rule in field_rules.fields if rule.key == field), None)
-    if rule is None or rule.role != "extracted":
+    rule = next((rule for rule in business_rules.fields if rule.key == field), None)
+    if rule is None or not rule.is_extracted:
         raise ReviewError(
             "BULK_NOT_POSSIBLE",
             f"'{field}' is not a field the review can fill. Pick a field from the review view.",

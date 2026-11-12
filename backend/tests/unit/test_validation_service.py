@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 import pytest
 
 from app.config.bundle import ConfigBundle
-from app.config.field_rules import FieldRule
+from app.config.business_rules import FieldDefinition
 from app.contracts.issue import Issue, IssueSeverity, IssueStatus
 from app.contracts.record import Exclusion
 from app.validation import codes
@@ -45,15 +45,15 @@ def test_changed_identifying_value_misses_the_cache(bundle: ConfigBundle) -> Non
     judge, cache = FakeJudge("different"), InMemoryJudgeCache()
     record = make_record(bundle, name=SIMILAR_NAME)
     run_validation(bundle, [record], reference=REFERENCE, judge=judge, cache=cache)
-    rule = find_rule(bundle.field_rules, is_judge_field_not_name(bundle))
+    rule = find_rule(bundle.business_rules, is_judge_field_not_name(bundle))
     changed = set_output(record, rule.key, "synthetic other", "user_edited")
     run_validation(bundle, [changed], reference=REFERENCE, judge=judge, cache=cache)
     assert len(judge.requests) == 2
 
 
-def is_judge_field_not_name(bundle: ConfigBundle) -> Callable[[FieldRule], bool]:
+def is_judge_field_not_name(bundle: ConfigBundle) -> Callable[[FieldDefinition], bool]:
     """Return a test for judge fields other than the record name."""
-    name_key = find_name_rule(bundle.field_rules).key
+    name_key = find_name_rule(bundle.business_rules).key
     return lambda rule: rule.sent_to_duplicate_judge and rule.key != name_key
 
 
@@ -62,7 +62,7 @@ def test_changed_non_judge_value_hits_the_cache(bundle: ConfigBundle) -> None:
     judge, cache = FakeJudge("same"), InMemoryJudgeCache()
     record = make_record(bundle, name=SIMILAR_NAME)
     run_validation(bundle, [record], reference=REFERENCE, judge=judge, cache=cache)
-    rule = find_rule(bundle.field_rules, lambda rule: not rule.sent_to_duplicate_judge)
+    rule = find_rule(bundle.business_rules, lambda rule: not rule.sent_to_duplicate_judge)
     changed = set_output(record, rule.key, "synthetic other", "user_edited")
     result = run_validation(bundle, [changed], reference=REFERENCE, judge=judge, cache=cache)
     assert (result.judge_calls_made, len(judge.requests)) == (0, 1)
@@ -74,9 +74,9 @@ def test_judge_request_carries_only_flagged_fields(bundle: ConfigBundle) -> None
     judge = FakeJudge("different")
     record = make_record(bundle, name=SIMILAR_NAME)
     run_validation(bundle, [record], reference=REFERENCE, judge=judge)
-    flagged = {rule.key for rule in bundle.field_rules.duplicate_judge_fields()}
+    flagged = {rule.key for rule in bundle.business_rules.duplicate_judge_fields()}
     assert set(judge.requests[0].values) == flagged
-    assert flagged < {rule.key for rule in bundle.field_rules.extracted_fields()}
+    assert flagged < {rule.key for rule in bundle.business_rules.fields}
 
 
 def test_new_reference_or_prompt_version_calls_the_judge_again(bundle: ConfigBundle) -> None:
@@ -110,7 +110,7 @@ def test_cache_key_changes_with_reference_and_prompt_version() -> None:
 def test_blank_judge_limit_means_no_limit(bundle: ConfigBundle) -> None:
     """With no call limit every record with a shortlist is judged and nothing is skipped."""
     judge = FakeJudge("different")
-    records = [make_record(bundle, f"rec_000{n}", f"Syn Buffer {n}0uM") for n in (1, 2, 3)]
+    records = [make_record(bundle, f"rec_000{n}", f"Syn Buffer {n}0su") for n in (1, 2, 3)]
     result = run_validation(bundle, records, reference=REFERENCE, judge=judge, call_limit=None)
     assert result.judge_calls_made == 3
     assert issues_with_code(result, codes.DUPLICATE_CHECK_SKIPPED) == []
@@ -131,16 +131,16 @@ def test_cached_results_do_not_count_against_the_limit(bundle: ConfigBundle) -> 
 def test_shortlist_is_limited_and_most_similar_first(bundle: ConfigBundle) -> None:
     """The shortlist holds at most shortlist_size similar names, closest first, none unrelated."""
     size = bundle.reference_mapping.rules.shortlist_size
-    names = [f"Syn Buffer {n}uM" for n in range(size + 5)] + ["Unrelated thing"]
-    shortlist = build_shortlist("Syn Buffer 1uM", make_reference(*names).types, size)
+    names = [f"Syn Buffer {n}su" for n in range(size + 5)] + ["Unrelated thing"]
+    shortlist = build_shortlist("Syn Buffer 1su", make_reference(*names).types, size)
     assert len(shortlist) == size
-    assert shortlist[0].name == "Syn Buffer 1uM"
+    assert shortlist[0].name == "Syn Buffer 1su"
     assert "Unrelated thing" not in [existing.name for existing in shortlist]
 
 
 def test_validation_never_changes_a_value(bundle: ConfigBundle) -> None:
     """Validation writes issue IDs and action needed only; every output section is unchanged."""
-    rule = find_rule(bundle.field_rules, lambda rule: rule.lookup_sheet is not None)
+    rule = find_rule(bundle.business_rules, lambda rule: rule.lookup_sheet is not None)
     record = set_output(make_record(bundle, name=SIMILAR_NAME), rule.key, " syn off-list ")
     result = run_validation(bundle, [record], reference=REFERENCE, judge=FakeJudge("same"))
     [after] = result.records
@@ -153,7 +153,7 @@ def test_validation_never_changes_a_value(bundle: ConfigBundle) -> None:
 
 def test_blank_for_now_fields_are_not_validated(bundle: ConfigBundle) -> None:
     """A field with role blank_for_now gets no issue, whatever its value."""
-    blank_rules = [rule for rule in bundle.field_rules.fields if rule.role == "blank_for_now"]
+    blank_rules = [rule for rule in bundle.business_rules.fields if rule.role == "blank_for_now"]
     record = make_record(bundle)
     for rule in blank_rules:
         record = set_output(record, rule.key, "x" * 500, origin="blank_for_now")
@@ -165,7 +165,7 @@ def test_blank_for_now_fields_are_not_validated(bundle: ConfigBundle) -> None:
 
 def test_same_key_keeps_its_id_and_accepted_state(bundle: ConfigBundle) -> None:
     """A re-check that finds the same problem gives the same ID and keeps it accepted."""
-    rule = find_rule(bundle.field_rules, lambda rule: rule.requirement == "optional")
+    rule = find_rule(bundle.business_rules, lambda rule: rule.requirement == "optional")
     record = set_output(make_record(bundle), rule.key, None)
     first = run_validation(bundle, [record])
     [issue] = issues_with_code(first, codes.OPTIONAL_NOT_FOUND)
@@ -177,7 +177,7 @@ def test_same_key_keeps_its_id_and_accepted_state(bundle: ConfigBundle) -> None:
 
 def test_changed_value_resolves_the_old_issue(bundle: ConfigBundle) -> None:
     """When the value changes, the old issue is resolved and a new problem gets a new ID."""
-    rule = find_rule(bundle.field_rules, lambda rule: rule.lookup_sheet is not None)
+    rule = find_rule(bundle.business_rules, lambda rule: rule.lookup_sheet is not None)
     first = run_validation(bundle, [set_output(make_record(bundle), rule.key, "syn off 1")])
     [old] = issues_with_code(first, codes.NOT_IN_LOOKUP)
     changed = set_output(make_record(bundle), rule.key, "syn off 2", "user_edited")
@@ -205,7 +205,7 @@ def test_issues_from_other_layers_are_kept(bundle: ConfigBundle) -> None:
 
 def test_excluded_record_is_skipped_and_keeps_its_issues(bundle: ConfigBundle) -> None:
     """An excluded record gets no new issues, keeps its earlier ones and needs no action."""
-    rule = find_rule(bundle.field_rules, lambda rule: rule.requirement == "required")
+    rule = find_rule(bundle.business_rules, lambda rule: rule.requirement == "required")
     record = set_output(make_record(bundle), rule.key, None)
     first = run_validation(bundle, [record])
     exclusion = Exclusion(by="syn user", at=datetime.now(UTC), reason="synthetic")
@@ -246,7 +246,7 @@ def test_action_needed_follows_open_issues(
 
 def test_record_with_open_red_issue_needs_fix(bundle: ConfigBundle) -> None:
     """The service sets action_needed on each record: a missing required value means fix."""
-    rule = find_rule(bundle.field_rules, lambda rule: rule.requirement == "required")
+    rule = find_rule(bundle.business_rules, lambda rule: rule.requirement == "required")
     result = run_validation(bundle, [set_output(make_record(bundle), rule.key, None)])
     assert result.records[0].action_needed == "fix"
 

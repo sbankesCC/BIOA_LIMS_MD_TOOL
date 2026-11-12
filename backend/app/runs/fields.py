@@ -4,7 +4,7 @@ List values come from the lookup list version the run captured at its start, not
 current one (ARCHITECTURE §6); boolean fields offer the values validation accepts.
 """
 
-from app.config.field_rules import FieldRule
+from app.config.business_rules import FieldDefinition
 from app.config.lookup_lists import LookupLists
 from app.contracts.api import RunField, RunFieldList
 from app.runs.workspace import Workspace
@@ -15,15 +15,15 @@ def list_run_fields(workspace: Workspace, run_id: str) -> RunFieldList:
     """Return every loader field of a run in loader order, with its allowed values."""
     run = workspace.database.read_run(run_id)
     lookup_lists = workspace.lookup_admin().load_lookup_lists(run.config_versions.lookup_lists)
-    field_rules = workspace.bundle.field_rules
+    business_rules = workspace.bundle.business_rules
     return RunFieldList(
-        field_rules_version=field_rules.version,
+        business_rules_version=business_rules.version,
         lookup_lists_version=lookup_lists.version,
-        fields=[describe_field(rule, lookup_lists) for rule in field_rules.fields],
+        fields=[describe_field(rule, lookup_lists) for rule in business_rules.fields],
     )
 
 
-def describe_field(rule: FieldRule, lookup_lists: LookupLists) -> RunField:
+def describe_field(rule: FieldDefinition, lookup_lists: LookupLists) -> RunField:
     """Return one field's settings and the values a dropdown may offer for it."""
     return RunField(
         key=rule.key,
@@ -41,7 +41,7 @@ def describe_field(rule: FieldRule, lookup_lists: LookupLists) -> RunField:
     )
 
 
-def find_allowed_values(rule: FieldRule, lookup_lists: LookupLists) -> list[str]:
+def find_allowed_values(rule: FieldDefinition, lookup_lists: LookupLists) -> list[str]:
     """Return a list field's lookup values, a boolean's accepted values, or none."""
     if rule.lookup_sheet is not None:
         return list(lookup_lists.sheets.get(rule.lookup_sheet, []))

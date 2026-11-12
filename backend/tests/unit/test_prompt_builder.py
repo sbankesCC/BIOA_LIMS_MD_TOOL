@@ -3,17 +3,28 @@
 import pytest
 
 from app.config.bundle import ConfigBundle
+from app.config.business_rules import RuleLine
+from app.config.business_rules_checks import parse_business_rules
 from app.config.prompts import PromptTemplate
 from app.contracts.chunk import Chunk
 from app.llm.client import ImagePart, PromptPart, TextPart
 from app.llm.prompt_builder import (
+    NOTHING_TEXT,
     PromptError,
     ReextractionProblem,
+    build_candidate_rules,
+    build_checks,
+    build_context_section,
     build_field_section,
+    build_general_rules,
+    build_matching_rules,
+    build_naming_rules,
     build_prompt_parts,
     build_reextraction_section,
+    build_rule_placeholders,
     format_judge_record,
 )
+from tests.unit.test_business_rules_parser import SYNTHETIC_RULES
 from tests.unit.validation_helpers import make_record
 
 TEXT_CHUNK = Chunk(
@@ -91,16 +102,30 @@ def test_chunks_become_labeled_text_and_image_parts() -> None:
     assert "After" in parts[2].text
 
 
+def rule_ids(text: str) -> list[str]:
+    """Return the rule ID at the start of each `- <ID> <text>` line."""
+    return [line.split()[1] for line in text.splitlines() if line.startswith("- ")]
+
+
+def active_ids(rules: list[RuleLine]) -> list[str]:
+    """Return the IDs of the active rules, in order."""
+    return [rule.rule_id for rule in rules if rule.is_active]
+
+
 def test_real_prompts_fill_every_placeholder(bundle: ConfigBundle) -> None:
     """Each client prompt builds with its placeholders and keeps no comment or placeholder."""
     values = {
-        "field_section": "synthetic fields",
+        **build_rule_placeholders(bundle.business_rules),
         "reextraction_section": "",
         "citation_results": "synthetic results",
         "records": "synthetic records",
-        "excluded_items": "(none)",
+        "excluded_items": NOTHING_TEXT,
         "record": "synthetic record",
         "candidates": "synthetic candidates",
+        "items": "synthetic items",
+        "matching_rules": build_matching_rules(bundle.business_rules, []),
+        "naming_rules": build_naming_rules(bundle.business_rules),
+        "checks": build_checks(bundle.business_rules),
     }
     for template in bundle.prompts.values():
         text = all_text(build_prompt_parts(template, values, [TEXT_CHUNK]))
@@ -108,12 +133,85 @@ def test_real_prompts_fill_every_placeholder(bundle: ConfigBundle) -> None:
         assert "{field_section}" not in text and "{chunks}" not in text
 
 
-def test_field_section_has_one_line_per_extracted_field(bundle: ConfigBundle) -> None:
-    """The field section lists every extracted field with its key, column and guidance."""
-    lines = build_field_section(bundle.field_rules).splitlines()
-    extracted = bundle.field_rules.extracted_fields()
-    assert len(lines) == len(extracted)
-    assert lines[0].startswith(f"- {extracted[0].key} ({extracted[0].column})")
+def test_rule_lines_have_id_and_text_without_status_or_source(bundle: ConfigBundle) -> None:
+    """A rule line is inserted as `- <ID> <text>`: no step tag, status or source."""
+    rule = bundle.business_rules.rules_for("Extraction")[0]
+    text = build_general_rules(bundle.business_rules)
+    assert text.splitlines()[0] == f"- {rule.rule_id} {rule.text}"
+    assert f"[{rule.step}]" not in text and f"({rule.status};" not in text
+
+
+def test_general_rules_are_the_active_extraction_lines(bundle: ConfigBundle) -> None:
+    """{general_rules} holds the General rules' [Extraction] lines, not their code steps."""
+    general = bundle.business_rules.general.rules
+    expected = active_ids([rule for rule in general if rule.step == "Extraction"])
+    assert rule_ids(build_general_rules(bundle.business_rules)) == expected
+
+
+def test_candidate_rules_are_the_candidate_criteria(bundle: ConfigBundle) -> None:
+    """{candidate_rules} holds the [Extraction] lines under Candidate criteria only."""
+    business = bundle.business_rules.business.rules
+    expected = active_ids([rule for rule in business if rule.heading == "Candidate criteria"])
+    assert expected
+    assert rule_ids(build_candidate_rules(bundle.business_rules)) == expected
+
+
+def test_field_section_has_one_block_per_extracted_field(bundle: ConfigBundle) -> None:
+    """{field_section}: per extracted or generated field, key, column and its [Extraction] lines."""
+    rules = bundle.business_rules
+    blocks = build_field_section(rules).split("\n\n")
+    extracted = rules.extracted_fields()
+    assert len(blocks) == len(extracted)
+    for block, field in zip(blocks, extracted, strict=True):
+        assert block.splitlines()[0].startswith(f"{field.key} ({field.column})")
+        assert rule_ids(block) == active_ids(rules.rules_for("Extraction", field.key))
+
+
+def test_field_section_marks_list_fields(bundle: ConfigBundle) -> None:
+    """A multi-value field is marked as a list in its block heading."""
+    field = next(field for field in bundle.business_rules.extracted_fields() if field.multi_value)
+    assert f"{field.key} ({field.column}) (a list: one entry per value)" in build_field_section(
+        bundle.business_rules
+    )
+
+
+def test_context_section_has_one_block_per_context_attribute(bundle: ConfigBundle) -> None:
+    """{context_section}: per context attribute, its key and its [Extraction] lines."""
+    rules = bundle.business_rules
+    blocks = build_context_section(rules).split("\n\n")
+    assert [block.splitlines()[0] for block in blocks] == [a.key for a in rules.context]
+
+
+def test_open_lines_are_never_inserted(bundle: ConfigBundle) -> None:
+    """Open rule lines (here: every Matching and Plausibility line) are left out."""
+    rules = bundle.business_rules
+    matching_keys = [field.key for field in rules.fields if field.matching_allowed]
+    assert rules.rules_for("Matching", active_only=False)
+    assert rules.rules_for("Plausibility", active_only=False)
+    assert build_matching_rules(rules, matching_keys) == NOTHING_TEXT
+    assert build_checks(rules) == NOTHING_TEXT
+
+
+def test_naming_rules_are_every_active_naming_line(bundle: ConfigBundle) -> None:
+    """{naming_rules} holds every active [Naming] line; Open ones are left out."""
+    rules = bundle.business_rules
+    every = rules.rules_for("Naming", active_only=False)
+    assert any(not rule.is_active for rule in every)
+    assert rule_ids(build_naming_rules(rules)) == active_ids(every)
+
+
+def test_matching_rules_cover_only_the_fields_in_the_call() -> None:
+    """{matching_rules} holds the active [Matching] lines of the fields that have items."""
+    amount_line = "- SA-01 [Extraction] The synthetic amount. (Design; synthetic)"
+    text = SYNTHETIC_RULES.replace(
+        amount_line,
+        amount_line
+        + "\n- SA-02 [Matching] Match synthetic amounts plainly. (Design; synthetic)"
+        + "\n- SA-03 [Matching] An open matching rule. (Open; synthetic)",
+    )
+    rules = parse_business_rules(text)
+    assert build_matching_rules(rules, ["syn_amount"]) == "- SA-02 Match synthetic amounts plainly."
+    assert build_matching_rules(rules, ["syn_name"]) == NOTHING_TEXT
 
 
 def test_reextraction_section_lists_records_and_problems(bundle: ConfigBundle) -> None:
@@ -137,7 +235,7 @@ def test_reextraction_section_is_empty_without_problems() -> None:
 
 def test_judge_record_shows_column_names_and_missing_values(bundle: ConfigBundle) -> None:
     """The judge sees each identifying field by column name; an empty one is "not given"."""
-    rule = bundle.field_rules.record_name_field()
-    text = format_judge_record({rule.key: "Syn A", "description": None}, bundle.field_rules)
+    rule = bundle.business_rules.record_name_field()
+    text = format_judge_record({rule.key: "Syn A", "description": None}, bundle.business_rules)
     assert f"- {rule.column}: Syn A" in text
     assert "(not given)" in text

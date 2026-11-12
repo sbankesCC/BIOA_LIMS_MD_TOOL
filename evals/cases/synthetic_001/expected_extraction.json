@@ -9,9 +9,7 @@
       "serial_dilution_level": false,
       "fields": {
         "description": { "value": null, "status": "not_found" },
-        "consumable_class": { "value": null, "status": "not_found" },
         "storage_condition": { "status": "conflicting", "alternatives": ["-20 °C", "2–8 °C"] },
-        "critical": { "value": null, "status": "not_found" },
         "expected_amount": { "value": "1", "status": "found" },
         "expected_amount_unit": { "value": "mL", "status": "found" },
         "expected_no_of_containers": { "value": null, "status": "not_found" },
@@ -31,9 +29,7 @@
       ],
       "serial_dilution_level": false,
       "fields": {
-        "consumable_class": { "value": null, "status": "not_found" },
         "storage_condition": { "value": "2–8 °C", "status": "found" },
-        "critical": { "value": null, "status": "not_found" },
         "expected_amount": { "value": "500", "status": "found" },
         "expected_amount_unit": { "value": "mL", "status": "found" },
         "expected_no_of_containers": { "value": null, "status": "not_found" },
@@ -53,7 +49,6 @@
       ],
       "serial_dilution_level": false,
       "fields": {
-        "consumable_class": { "value": null, "status": "not_found" },
         "storage_condition": { "value": "-20 °C", "status": "found" },
         "expected_amount": { "value": null, "status": "not_found" },
         "expected_amount_unit": { "value": null, "status": "not_found" },

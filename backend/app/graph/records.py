@@ -9,7 +9,7 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel
 
-from app.config.field_rules import FieldRules
+from app.config.business_rules import BusinessRules
 from app.contracts.extraction import ExtractedRecord, ExtractionOutput
 from app.contracts.record import (
     FieldOutput,
@@ -18,6 +18,7 @@ from app.contracts.record import (
     RecordVerification,
     StoredField,
     StoredRecord,
+    find_initial_origin,
 )
 from app.contracts.verification import VerificationOutput
 from app.ids import make_record_id_counter
@@ -31,14 +32,14 @@ class MergeResult(BaseModel):
 
 
 def build_stored_record(
-    record_id: str, extracted: ExtractedRecord, field_rules: FieldRules, is_re_extracted: bool
+    record_id: str, extracted: ExtractedRecord, business_rules: BusinessRules, is_re_extracted: bool
 ) -> StoredRecord:
     """Wrap an extracted record with every loader field; outputs wait for transformation."""
     fields: dict[str, StoredField] = {}
-    for rule in field_rules.fields:
-        # Non-extracted fields get their role as origin; transformation fills every output
-        if rule.role != "extracted":
-            fields[rule.key] = StoredField(output=FieldOutput(origin=rule.role))
+    for rule in business_rules.fields:
+        # Fields the model does not extract get their role as origin; transformation fills outputs
+        if not rule.is_extracted:
+            fields[rule.key] = StoredField(output=FieldOutput(origin=find_initial_origin(rule)))
             continue
         fields[rule.key] = StoredField(
             extraction=extracted.fields.get(rule.key), output=FieldOutput(origin="extracted")
@@ -56,11 +57,13 @@ def build_stored_record(
     )
 
 
-def build_first_records(output: ExtractionOutput, field_rules: FieldRules) -> list[StoredRecord]:
+def build_first_records(
+    output: ExtractionOutput, business_rules: BusinessRules
+) -> list[StoredRecord]:
     """Give every extracted record a new record ID, in response order."""
     counter = make_record_id_counter()
     return [
-        build_stored_record(counter.next_id(), extracted, field_rules, is_re_extracted=False)
+        build_stored_record(counter.next_id(), extracted, business_rules, is_re_extracted=False)
         for extracted in output.records
     ]
 
@@ -69,7 +72,7 @@ def merge_reextraction(
     records: Sequence[StoredRecord],
     output: ExtractionOutput,
     affected_ids: set[str],
-    field_rules: FieldRules,
+    business_rules: BusinessRules,
 ) -> MergeResult:
     """Replace the affected records that came back, keep the others, and add new items."""
     returned = {extracted.record_ref: extracted for extracted in output.records}
@@ -78,7 +81,7 @@ def merge_reextraction(
     for record in records:
         extracted = returned.get(record.record_id)
         if record.record_id in affected_ids and extracted is not None:
-            merged.append(build_stored_record(record.record_id, extracted, field_rules, True))
+            merged.append(build_stored_record(record.record_id, extracted, business_rules, True))
         else:
             merged.append(record)
         # An affected record the re-extraction left out is kept and flagged, never deleted
@@ -88,7 +91,7 @@ def merge_reextraction(
     counter = make_record_id_counter(record.record_id for record in records)
     for extracted in output.records:
         if extracted.record_ref not in affected_ids:
-            merged.append(build_stored_record(counter.next_id(), extracted, field_rules, True))
+            merged.append(build_stored_record(counter.next_id(), extracted, business_rules, True))
     return MergeResult(records=merged, dropped_record_ids=dropped)
 
 

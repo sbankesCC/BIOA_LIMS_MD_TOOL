@@ -6,7 +6,7 @@ Records and values are synthetic; field keys come from the client config, never 
 import pytest
 
 from app.config.bundle import ConfigBundle
-from app.config.field_rules import FieldRules
+from app.config.business_rules import BusinessRules
 from app.contracts.eval_case import (
     ExpectedExtraction,
     ExpectedField,
@@ -49,27 +49,27 @@ def conflicting(*values: str) -> ExtractedField:
     return ExtractedField(status="conflicting", alternatives=alternatives, warning="synthetic")
 
 
-def plain_key(field_rules: FieldRules, position: int = 0) -> str:
+def plain_key(business_rules: BusinessRules, position: int = 0) -> str:
     """Return the key of an extracted, single-value field other than the record name."""
-    name_key = field_rules.record_name_field().key
+    name_key = business_rules.record_name_field().key
     keys = [
         rule.key
-        for rule in field_rules.extracted_fields()
+        for rule in business_rules.extracted_fields()
         if rule.key != name_key and not rule.multi_value
     ]
     return keys[position]
 
 
-def scored_keys(field_rules: FieldRules) -> list[str]:
+def scored_keys(business_rules: BusinessRules) -> list[str]:
     """Return every extracted field key (nothing unscored)."""
-    return [rule.key for rule in field_rules.extracted_fields()]
+    return [rule.key for rule in business_rules.extracted_fields()]
 
 
 def actual_record(
-    record_id: str, name: str, fields: dict[str, ExtractedField], field_rules: FieldRules
+    record_id: str, name: str, fields: dict[str, ExtractedField], business_rules: BusinessRules
 ) -> ActualRecord:
     """Return a scoring record with the name field found and the given fields."""
-    name_key = field_rules.record_name_field().key
+    name_key = business_rules.record_name_field().key
     all_fields = {name_key: found(name), **fields}
     return ActualRecord(
         record_id=record_id,
@@ -164,7 +164,7 @@ def test_field_missing_from_the_run_is_wrong() -> None:
 
 def test_unlabeled_key_is_not_counted_as_wrong(bundle: ConfigBundle) -> None:
     """A field the case does not label is left out, whatever the run extracted for it."""
-    rules = bundle.field_rules
+    rules = bundle.business_rules
     labeled, unlabeled = plain_key(rules, 0), plain_key(rules, 1)
     expected = ExpectedExtraction(
         records=[
@@ -186,7 +186,7 @@ def test_unlabeled_key_is_not_counted_as_wrong(bundle: ConfigBundle) -> None:
 
 def test_unscored_field_is_left_out(bundle: ConfigBundle) -> None:
     """A labeled but unscored field is not counted, even when the run got it wrong."""
-    rules = bundle.field_rules
+    rules = bundle.business_rules
     key = plain_key(rules)
     expected = ExpectedExtraction(
         records=[expected_record("Synthetic A", {key: ExpectedField(status="not_found")})]
@@ -199,7 +199,7 @@ def test_unscored_field_is_left_out(bundle: ConfigBundle) -> None:
 
 def test_description_is_excluded_from_scoring(bundle: ConfigBundle) -> None:
     """The evals scoring config leaves the description field out of automatic scoring."""
-    keys = scored_keys(bundle.field_rules)
+    keys = scored_keys(bundle.business_rules)
     unscored = load_scoring_config().unscored_keys()
     assert "description" in unscored
     assert "description" in keys
@@ -231,7 +231,7 @@ def test_citation_needs_the_expected_document_and_section() -> None:
 
 def test_record_recall_and_precision(bundle: ConfigBundle) -> None:
     """Missed expected records lower recall; extra records lower precision."""
-    rules = bundle.field_rules
+    rules = bundle.business_rules
     expected = ExpectedExtraction(
         records=[expected_record("Synthetic A", {}), expected_record("Synthetic B", {})]
     )
@@ -252,7 +252,7 @@ def test_seeded_error_is_caught_with_the_expected_verdict(
     bundle: ConfigBundle, verdict: str, is_caught: bool
 ) -> None:
     """A planted error counts as caught only when a finding gives the expected verdict."""
-    rules = bundle.field_rules
+    rules = bundle.business_rules
     key = plain_key(rules)
     error = SeededError(
         record="Synthetic A", field=key, planted_value="x", expected_verdict="contradicted"
@@ -269,7 +269,7 @@ def test_seeded_error_is_caught_with_the_expected_verdict(
 
 def test_seeded_error_not_planted_is_not_counted(bundle: ConfigBundle) -> None:
     """An error that could not be planted is reported but not scored."""
-    rules = bundle.field_rules
+    rules = bundle.business_rules
     error = SeededError(
         record="Synthetic A",
         field=plain_key(rules),
@@ -285,7 +285,7 @@ def test_seeded_error_not_planted_is_not_counted(bundle: ConfigBundle) -> None:
 
 def test_finding_on_a_correct_value_counts_as_wrongly_flagged(bundle: ConfigBundle) -> None:
     """Verification flagging a value that matches the label is counted; seeded fields are not."""
-    rules = bundle.field_rules
+    rules = bundle.business_rules
     good, seeded_key = plain_key(rules, 0), plain_key(rules, 1)
     labels = {
         good: ExpectedField(status="found", value="x"),

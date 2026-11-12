@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
-from app.config.field_rules import FieldRule, FieldRules
+from app.config.business_rules import BusinessRules, FieldDefinition
 from app.contracts.changes import (
     AcceptWarningChange,
     Change,
@@ -57,7 +57,7 @@ class AuditSource:
     changes: Sequence[StoredChangeRow]
     documents: Sequence[DocumentInfo]
     chunks: Sequence[Chunk]
-    field_rules: FieldRules
+    business_rules: BusinessRules
     models: Mapping[str, str]
 
 
@@ -112,7 +112,7 @@ def build_version_entries(source: AuditSource) -> list[tuple[str, str]]:
     """Return the config versions the run used, its reference data version and the models."""
     versions = source.run.config_versions
     entries = [
-        ("Field rules version", versions.field_rules),
+        ("Business rules version", versions.business_rules),
         ("Issue catalogue version", versions.issue_catalogue),
         ("Lookup lists version", versions.lookup_lists),
         ("DFD template version", versions.dfd_template),
@@ -142,13 +142,13 @@ def build_count_entries(
 
 def build_value_rows(source: AuditSource, locator: SourceLocator) -> list[AuditValueRow]:
     """Return one row per included record and loader field, in loader column order."""
-    name_rule = find_name_rule(source.field_rules)
+    name_rule = find_name_rule(source.business_rules)
     rows: list[AuditValueRow] = []
     for record in source.records:
         if record.exclusion is not None:
             continue
         own_issues = [issue for issue in source.issues if issue.record_id == record.record_id]
-        for rule in source.field_rules.fields:
+        for rule in source.business_rules.fields:
             # Record-level issues have no field; they are shown on the record name's row
             field_issues = [
                 issue
@@ -161,8 +161,8 @@ def build_value_rows(source: AuditSource, locator: SourceLocator) -> list[AuditV
 
 def build_value_row(
     record: StoredRecord,
-    rule: FieldRule,
-    name_rule: FieldRule,
+    rule: FieldDefinition,
+    name_rule: FieldDefinition,
     issues: Sequence[Issue],
     locator: SourceLocator,
 ) -> AuditValueRow:
@@ -190,7 +190,7 @@ def build_value_row(
     )
 
 
-def find_written_text(rule: FieldRule, stored: StoredField | None) -> str | None:
+def find_written_text(rule: FieldDefinition, stored: StoredField | None) -> str | None:
     """Return the value as written in the document; a conflict lists each alternative.
 
     A list value is joined with the field's separator. A conflict's alternatives go one per
@@ -262,9 +262,9 @@ def join_lines(values: Iterable[str]) -> str | None:
 
 def build_edit_rows(source: AuditSource) -> list[AuditEditRow]:
     """Return one row per applied change, in the order the changes were saved."""
-    name_rule = find_name_rule(source.field_rules)
+    name_rule = find_name_rule(source.business_rules)
     names = {record.record_id: read_name(record, name_rule) for record in source.records}
-    columns = {rule.key: rule.column for rule in source.field_rules.fields}
+    columns = {rule.key: rule.column for rule in source.business_rules.fields}
     issues_by_id = {issue.issue_id: issue for issue in source.issues}
     rows: list[AuditEditRow] = []
     for row in source.changes:
@@ -316,7 +316,7 @@ def describe_change(
 
 def build_excluded_rows(source: AuditSource, locator: SourceLocator) -> list[AuditExcludedRow]:
     """Return one row per excluded record: name, where it was found, who excluded it and why."""
-    name_rule = find_name_rule(source.field_rules)
+    name_rule = find_name_rule(source.business_rules)
     rows: list[AuditExcludedRow] = []
     for record in source.records:
         if record.exclusion is None:

@@ -1,4 +1,4 @@
-"""No-client-literals test: nothing under `backend/` hard-codes client lookup values or columns.
+"""No-client-literals test: nothing under `backend/` hard-codes client values or columns.
 
 Client content must live only in the client config folder (ARCHITECTURE §10), so a scrubbed copy
 of the repo can be made. Python files are checked by their string constants; JSON by its strings.
@@ -10,6 +10,15 @@ from pathlib import Path
 from typing import Any
 
 from app.config.bundle import ConfigBundle
+from app.config.business_rules import (
+    ANY_VALUE,
+    GRAMMAR_WORDS,
+    KEYWORD_COLUMNS,
+    BusinessRules,
+    is_blank_cell,
+    split_list_cell,
+)
+from app.config.business_rules_checks import all_tables
 from app.settings import PROJECT_ROOT
 
 BACKEND_DIR = PROJECT_ROOT / "backend"
@@ -20,10 +29,30 @@ MINIMUM_LENGTH = 2
 
 
 def client_literals(bundle: ConfigBundle) -> set[str]:
-    """Return every lookup value and column name from the client config worth checking."""
+    """Return every lookup value, column name and data-table cell worth checking."""
     values = {value for sheet in bundle.lookup_lists.sheets.values() for value in sheet}
-    values |= set(bundle.field_rules.columns())
-    return {value for value in values if len(value) >= MINIMUM_LENGTH}
+    values |= set(bundle.business_rules.columns())
+    values |= table_cell_values(bundle.business_rules)
+    # Grammar words (such as the Status column header) can equal a column name; they are structure
+    return {
+        value
+        for value in values
+        if len(value) >= MINIMUM_LENGTH and value not in GRAMMAR_WORDS and value != ANY_VALUE
+    }
+
+
+def table_cell_values(business_rules: BusinessRules) -> set[str]:
+    """Return every cell of every data table in `business_rules.md`, `;` lists split.
+
+    Keyword columns (Entry, Match type, Status ...) hold row types and bookkeeping, not client data.
+    """
+    values: set[str] = set()
+    for table in all_tables(business_rules):
+        for row in table.rows:
+            for column, cell in row.items():
+                if column not in KEYWORD_COLUMNS and not is_blank_cell(cell):
+                    values.update(split_list_cell(cell))
+    return values
 
 
 def python_strings(path: Path) -> set[str]:

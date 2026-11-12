@@ -1,19 +1,30 @@
 """Stored record (CONTRACTS §4): one record with a section per layer, for every loader field.
 
-Each layer writes only its own section. Field keys come from `field_rules.yaml`, so the check
-that a record holds every field (all 22 today) takes the field rules as input.
+Each layer writes only its own section. Field keys come from `business_rules.md`, so the check
+that a record holds every field (all 22 today) takes the business rules as input.
 """
 
 from datetime import datetime
 from typing import Literal
 
-from app.config.field_rules import FieldRules
+from app.config.business_rules import BusinessRules, FieldDefinition
 from app.contracts.base import ContractModel
 from app.contracts.extraction import ExtractedField
 from app.contracts.verification import CitationCheck, FieldVerdict, RecordFinding
 
-Origin = Literal["extracted", "default", "fixed", "user_edited", "blank_for_now", "system"]
+Origin = Literal[
+    "extracted", "default", "fixed", "user_edited", "blank_for_now", "system", "derived"
+]
 ActionNeeded = Literal["fix", "check", "none", "excluded"]
+
+
+def find_initial_origin(rule: FieldDefinition) -> Origin:
+    """Return a field's first origin: `extracted` if the model extracts it, else its role."""
+    if rule.is_extracted:
+        return "extracted"
+    if rule.role == "derived" or rule.role == "system":
+        return rule.role
+    return "blank_for_now"
 
 
 class RecordExtraction(ContractModel):
@@ -78,15 +89,15 @@ class StoredRecord(ContractModel):
     action_needed: ActionNeeded = "none"
 
 
-def find_record_field_problems(record: StoredRecord, field_rules: FieldRules) -> list[str]:
+def find_record_field_problems(record: StoredRecord, business_rules: BusinessRules) -> list[str]:
     """Return a problem for each loader field missing from the record and each unknown key."""
-    expected_keys = [field.key for field in field_rules.fields]
+    expected_keys = [field.key for field in business_rules.fields]
     problems: list[str] = []
     # Every loader field must be present, whatever its role
     for key in expected_keys:
         if key not in record.fields:
             problems.append(f"Record {record.record_id} has no entry for field '{key}'.")
-    # Keys the field rules do not define would never be exported
+    # Keys the business rules do not define would never be exported
     for key in record.fields:
         if key not in expected_keys:
             problems.append(f"Record {record.record_id} has unknown field '{key}'.")

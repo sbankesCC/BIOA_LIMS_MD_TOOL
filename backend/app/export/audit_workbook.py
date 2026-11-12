@@ -1,7 +1,7 @@
 """Audit workbook (CONTRACTS §8): writes the five audit sheets to an Excel file.
 
 Each sheet has a header row, then one row per item. The record name column takes its header
-from the field rules (the field flagged `is_record_name`), so no client column name is written here.
+from the business rules (the field marked `Record name`), so no client column name is written here.
 """
 
 from collections.abc import Sequence

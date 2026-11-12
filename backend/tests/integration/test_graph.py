@@ -107,7 +107,7 @@ def process_run(
 def happy_replies(bundle: ConfigBundle) -> dict[str, list[FakeReply]]:
     """Return replies for a clean run: two records, nothing to report."""
     return {
-        "extraction": [extraction_reply(bundle.field_rules, TWO_ROWS)],
+        "extraction": [extraction_reply(bundle.business_rules, TWO_ROWS)],
         "extraction_verification": [verification_reply()],
     }
 
@@ -133,7 +133,7 @@ def test_happy_path_ends_in_review(
     records = run.database.read_records(RUN_ID)
     assert [record.record_id for record in records] == ["rec_0001", "rec_0002"]
     # The name is copied from the synthetic table, transformed into the output section
-    name_key = bundle.field_rules.record_name_field().key
+    name_key = bundle.business_rules.record_name_field().key
     assert records[0].fields[name_key].output.value == REAGENT_TABLE[1][0]
     verification = records[0].fields[name_key].verification
     assert verification is not None
@@ -170,8 +170,8 @@ def test_problems_found_trigger_one_reextraction(
     """A missed candidate is re-extracted: existing IDs are kept and the new item gets one."""
     replies: dict[str, list[FakeReply]] = {
         "extraction": [
-            extraction_reply(bundle.field_rules, TWO_ROWS),
-            extraction_reply(bundle.field_rules, [("R1", 3)]),
+            extraction_reply(bundle.business_rules, TWO_ROWS),
+            extraction_reply(bundle.business_rules, [("R1", 3)]),
         ],
         "extraction_verification": [
             verification_reply(missed=[missed_row(3)]),
@@ -196,7 +196,7 @@ def test_reextraction_stops_at_the_limit(
     """Problems that stay after MAX_REEXTRACT attempts become issues; the run goes to review."""
     replies: dict[str, list[FakeReply]] = {
         "extraction": [
-            extraction_reply(bundle.field_rules, TWO_ROWS),
+            extraction_reply(bundle.business_rules, TWO_ROWS),
             empty_extraction_reply(),
         ],
         "extraction_verification": [verification_reply(missed=[missed_row(3)])],
@@ -213,7 +213,7 @@ def test_no_reextraction_when_the_limit_is_zero(
 ) -> None:
     """With MAX_REEXTRACT=0 problems go straight to validation as issues."""
     replies: dict[str, list[FakeReply]] = {
-        "extraction": [extraction_reply(bundle.field_rules, TWO_ROWS)],
+        "extraction": [extraction_reply(bundle.business_rules, TWO_ROWS)],
         "extraction_verification": [verification_reply(missed=[missed_row(3)])],
     }
     run = process_run(tmp_path, bundle, synthetic_documents, replies, max_reextract=0)
@@ -225,9 +225,9 @@ def test_dropped_record_is_kept_and_flagged(
     tmp_path: Path, bundle: ConfigBundle, synthetic_documents: dict[str, Path]
 ) -> None:
     """An affected record the re-extraction does not return is kept, with an issue."""
-    finding = unsupported_name(bundle.field_rules, "rec_0002")
+    finding = unsupported_name(bundle.business_rules, "rec_0002")
     replies: dict[str, list[FakeReply]] = {
-        "extraction": [extraction_reply(bundle.field_rules, TWO_ROWS), empty_extraction_reply()],
+        "extraction": [extraction_reply(bundle.business_rules, TWO_ROWS), empty_extraction_reply()],
         "extraction_verification": [verification_reply(field_findings=[finding])],
     }
     run = process_run(tmp_path, bundle, synthetic_documents, replies)
@@ -261,9 +261,9 @@ def test_status_rule_violation_is_retried_then_succeeds(
     tmp_path: Path, bundle: ConfigBundle, synthetic_documents: dict[str, Path]
 ) -> None:
     """A response citing an unknown chunk is retried; a good second response continues."""
-    bad = extraction_reply(bundle.field_rules, TWO_ROWS).replace(TABLE_CHUNK_ID, "doc09-c999")
+    bad = extraction_reply(bundle.business_rules, TWO_ROWS).replace(TABLE_CHUNK_ID, "doc09-c999")
     replies: dict[str, list[FakeReply]] = {
-        "extraction": [bad, extraction_reply(bundle.field_rules, TWO_ROWS)],
+        "extraction": [bad, extraction_reply(bundle.business_rules, TWO_ROWS)],
         "extraction_verification": [verification_reply()],
     }
     run = process_run(tmp_path, bundle, synthetic_documents, replies)

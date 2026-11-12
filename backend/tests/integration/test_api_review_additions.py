@@ -101,11 +101,11 @@ def test_page_image_is_served_for_a_scanned_page(
 # ----- Run fields -----
 
 
-def test_run_fields_follow_the_field_rules_and_the_run_lookup_version(
+def test_run_fields_follow_the_business_rules_and_the_run_lookup_version(
     tmp_path: Path, bundle: ConfigBundle, synthetic_documents: dict[str, Path]
 ) -> None:
     """Fields come in loader order; list values stay the run's own version after an admin apply."""
-    rules = bundle.field_rules.fields
+    rules = bundle.business_rules.fields
     list_rule = next(rule for rule in rules if rule.lookup_sheet is not None)
     sheet = list_rule.lookup_sheet or ""
     with open_api(make_settings(tmp_path), happy_replies(bundle)) as api:
@@ -115,9 +115,9 @@ def test_run_fields_follow_the_field_rules_and_the_run_lookup_version(
         api.start_run([read_file(synthetic_documents, WORD_FILE)])
         new_run = api.client.get("/runs/run_0002/fields").json()
         assert_error(api.client.get("/runs/run_9999/fields"), 404, "RUN_NOT_FOUND")
-    # Count and order match the field rules
+    # Count and order match the business rules
     assert [field["key"] for field in old_run["fields"]] == [rule.key for rule in rules]
-    assert old_run["field_rules_version"] == bundle.field_rules.version
+    assert old_run["business_rules_version"] == bundle.business_rules.version
     # The older run keeps the lookup version it captured; the new run gets v1
     old_field = next(field for field in old_run["fields"] if field["key"] == list_rule.key)
     new_field = next(field for field in new_run["fields"] if field["key"] == list_rule.key)
@@ -134,7 +134,7 @@ def test_run_fields_give_boolean_values_and_none_for_free_fields(
     with open_api(make_settings(tmp_path), happy_replies(bundle)) as api:
         api.start_run([read_file(synthetic_documents, WORD_FILE)])
         fields = api.client.get("/runs/run_0001/fields").json()["fields"]
-    rules = {rule.key: rule for rule in bundle.field_rules.fields}
+    rules = {rule.key: rule for rule in bundle.business_rules.fields}
     booleans = [field for field in fields if field["is_boolean"]]
     assert booleans
     for field in fields:

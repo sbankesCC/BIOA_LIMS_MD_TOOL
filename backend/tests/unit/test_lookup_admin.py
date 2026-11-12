@@ -18,7 +18,7 @@ from app.admin.errors import AdminError
 from app.admin.lookup_checks import diff_sheets
 from app.admin.lookup_lists import LookupListAdmin, LookupUploadResult
 from app.config.bundle import ConfigBundle
-from app.config.field_rules import FieldRule
+from app.config.business_rules import FieldDefinition
 from app.config.lookup_lists import HEADER, METADATA_SHEET
 from app.storage.review_db import ReviewDatabase
 from tests.unit.review_helpers import NOW
@@ -37,11 +37,11 @@ def admin(tmp_path: Path, bundle: ConfigBundle) -> LookupListAdmin:
     return LookupListAdmin(database, tmp_path / "storage", bundle)
 
 
-def roomy_rule(bundle: ConfigBundle) -> FieldRule:
+def roomy_rule(bundle: ConfigBundle) -> FieldDefinition:
     """Return a lookup field with at least two values and room for the synthetic values."""
     return next(
         rule
-        for rule in bundle.field_rules.fields
+        for rule in bundle.business_rules.fields
         if rule.lookup_sheet is not None
         and len(bundle.lookup_lists.sheets[rule.lookup_sheet]) >= 2
         and (rule.max_length or 0) >= len(SYNTHETIC_VALUE) + 5
@@ -127,7 +127,7 @@ def test_unchanged_upload_passes_with_length_warnings(
     result = upload_edited(admin, lambda workbook: None)
     expected_warnings = sum(
         1
-        for rule in bundle.field_rules.fields
+        for rule in bundle.business_rules.fields
         if rule.lookup_sheet is not None and rule.max_length is not None
         for value in bundle.lookup_lists.sheets[rule.lookup_sheet]
         if len(value) > rule.max_length
@@ -168,7 +168,7 @@ def set_metadata_version(workbook: Workbook, version_id: str) -> None:
 
 def first_used_sheet(workbook: Workbook, bundle: ConfigBundle) -> Worksheet:
     """Return the sheet of the first field that has a lookup sheet."""
-    rule = next(rule for rule in bundle.field_rules.fields if rule.lookup_sheet is not None)
+    rule = next(rule for rule in bundle.business_rules.fields if rule.lookup_sheet is not None)
     assert rule.lookup_sheet is not None
     sheet = workbook[rule.lookup_sheet]
     assert isinstance(sheet, Worksheet)
@@ -258,7 +258,7 @@ def test_broken_upload_is_rejected_with_its_problem(
 def test_problem_names_sheet_row_and_field(admin: LookupListAdmin, bundle: ConfigBundle) -> None:
     """A renamed used sheet names the field's column; a value problem names sheet and row."""
     renamed = upload_edited(admin, lambda workbook: rename_used_sheet(workbook, bundle))
-    rule = next(rule for rule in bundle.field_rules.fields if rule.lookup_sheet is not None)
+    rule = next(rule for rule in bundle.business_rules.fields if rule.lookup_sheet is not None)
     assert rule.column in renamed.report.problems[0].message
     spaced = upload_edited(
         admin, lambda wb: append_values(roomy_sheet(wb, bundle), f"{SYNTHETIC_VALUE} ")

@@ -111,11 +111,11 @@ def test_every_call_writes_a_trace_and_its_files(tmp_path: Path) -> None:
     """A call writes the trace record, request and response files in the run's llm folder."""
     folder = make_folder(tmp_path)
     client = FakeLLMClient({"duplicate_judge": [LLMResponse(text="{}", model="m", input_tokens=5)]})
-    caller = TracedCaller(client, folder, {"field_rules": "0.3"}, retries=0)
+    caller = TracedCaller(client, folder, {"business_rules": "0.3"}, retries=0)
     result = caller.call(make_request(), 1, always_fine)
     [trace] = read_traces(folder)
     assert (trace.trace_id, trace.status, trace.input_tokens) == (result.trace_id, "ok", 5)
-    assert trace.config_versions == {"field_rules": "0.3"}
+    assert trace.config_versions == {"business_rules": "0.3"}
     assert trace.request_file == f"runs/{RUN_ID}/llm/llm_0001_request.json"
     request_file = json.loads((folder.llm_dir / "llm_0001_request.json").read_text("utf-8"))
     assert request_file["parts"][0]["text"] == "synthetic prompt"
@@ -169,7 +169,7 @@ def test_judge_that_cannot_answer_gives_unsure(tmp_path: Path, bundle: ConfigBun
     client = FakeLLMClient({"duplicate_judge": ['{"judgments": []}']})
     caller = TracedCaller(client, folder, {}, retries=0)
     agent = DuplicateJudgeAgent(
-        caller, RUN_ID, bundle.prompts["duplicate_judge"], bundle.field_rules
+        caller, RUN_ID, bundle.prompts["duplicate_judge"], bundle.business_rules
     )
     candidate = ReferenceType(candidate_id="ref_0001", name="Syn A2", version="1")
     output = agent.judge(JudgeRequest(record_id="rec_0001", values={}, candidates=[candidate]))
@@ -182,7 +182,7 @@ def test_judge_that_cannot_answer_gives_unsure(tmp_path: Path, bundle: ConfigBun
 def test_record_id_not_given_for_reextraction_is_a_problem(bundle: ConfigBundle) -> None:
     """The LLM may echo only the record IDs it was asked to re-extract."""
     output = ExtractionOutput.model_validate_json(
-        extraction_reply(bundle.field_rules, [("rec_0001", 1), ("rec_0009", 2), ("R1", 3)])
+        extraction_reply(bundle.business_rules, [("rec_0001", 1), ("rec_0009", 2), ("R1", 3)])
     )
     problems = find_record_id_problems(output, frozenset({"rec_0001"}))
     assert problems == ["record_ref rec_0009 is not a record_id given in the problems to fix."]

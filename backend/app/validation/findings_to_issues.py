@@ -9,7 +9,7 @@ from collections.abc import Sequence
 
 from pydantic import JsonValue
 
-from app.config.field_rules import FieldRule
+from app.config.business_rules import FieldDefinition
 from app.contracts.extraction import ExcludedItem
 from app.contracts.record import StoredField, StoredRecord
 from app.contracts.verification import (
@@ -60,7 +60,7 @@ def is_set_by_person(stored: StoredField) -> bool:
 
 
 def find_field_finding_issues(
-    record_id: str, rule: FieldRule, stored: StoredField
+    record_id: str, rule: FieldDefinition, stored: StoredField
 ) -> list[IssueDraft]:
     """Return the issues from a field's citation check, agent verdict and transform notes."""
     value = stored.output.value
@@ -87,7 +87,7 @@ def find_field_finding_issues(
 
 
 def find_transform_note_issues(
-    record_id: str, rule: FieldRule, stored: StoredField
+    record_id: str, rule: FieldDefinition, stored: StoredField
 ) -> list[IssueDraft]:
     """Return one issue per coded transform note (FORMAT_CORRECTED, DEFAULT_APPLIED, ...)."""
     drafts: list[IssueDraft] = []

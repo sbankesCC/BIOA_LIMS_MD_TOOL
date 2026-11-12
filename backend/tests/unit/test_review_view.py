@@ -14,6 +14,7 @@ from tests.unit.review_helpers import NOW, USER
 from tests.unit.validation_helpers import (
     find_rule,
     make_record,
+    make_red_record,
     run_validation,
     set_output,
     update_field,
@@ -44,19 +45,21 @@ DOCUMENT = DocumentInfo(
 def build_rows(bundle: ConfigBundle, records: list[StoredRecord]) -> list[ReviewRow]:
     """Validate the records with the real config and build the view's rows."""
     result = run_validation(bundle, records)
-    view = build_review_view(result.records, result.issues, bundle.field_rules, [CHUNK], [DOCUMENT])
+    view = build_review_view(
+        result.records, result.issues, bundle.business_rules, [CHUNK], [DOCUMENT]
+    )
     return view.rows
 
 
-def test_blank_for_now_cells_show_the_placeholder(bundle: ConfigBundle) -> None:
-    """blank_for_now fields show the config placeholder but keep an empty value."""
+def test_blank_for_now_cells_are_empty_placeholders(bundle: ConfigBundle) -> None:
+    """blank_for_now fields are greyed placeholders with an empty value and display value."""
     row = build_rows(bundle, [make_record(bundle)])[0]
-    roles = {rule.key: rule.role for rule in bundle.field_rules.fields}
+    roles = {rule.key: rule.role for rule in bundle.business_rules.fields}
     for cell in row.cells:
         if roles[cell.field] == "blank_for_now":
             assert (cell.value, cell.display_value, cell.is_placeholder) == (
                 None,
-                bundle.field_rules.placeholder_value,
+                None,
                 True,
             )
         else:
@@ -67,23 +70,23 @@ def test_blank_for_now_cells_show_the_placeholder(bundle: ConfigBundle) -> None:
 def test_cells_are_in_loader_order_with_column_names(bundle: ConfigBundle) -> None:
     """Every loader field has a cell, in field-rules order, with its DFD column name."""
     row = build_rows(bundle, [make_record(bundle)])[0]
-    assert [cell.column for cell in row.cells] == bundle.field_rules.columns()
+    assert [cell.column for cell in row.cells] == bundle.business_rules.columns()
 
 
 def test_cell_color_follows_its_open_issue(bundle: ConfigBundle) -> None:
     """A red issue tints its cell red; a cell without issues has no tint."""
-    row = build_rows(bundle, [make_record(bundle)])[0]
+    row = build_rows(bundle, [make_red_record(bundle)])[0]
     colors = {cell.field: cell.color for cell in row.cells}
     too_long = [cell for cell in row.cells if any(i.code == codes.TOO_LONG for i in cell.issues)]
     assert [cell.color for cell in too_long] == ["red"]
-    name_key = bundle.field_rules.fields[0].key
+    name_key = bundle.business_rules.fields[0].key
     assert colors[name_key] == "none"
     assert row.action_needed == "fix"
 
 
 def test_value_as_written_is_shown_when_it_differs(bundle: ConfigBundle) -> None:
     """The extracted text appears next to the exported value only when they differ."""
-    rule = find_rule(bundle.field_rules, lambda r: r.type == "decimal")
+    rule = find_rule(bundle.business_rules, lambda r: r.type == "decimal")
     record = make_record(bundle)
     stored = record.fields[rule.key]
     extraction = ExtractedField(
@@ -97,13 +100,13 @@ def test_value_as_written_is_shown_when_it_differs(bundle: ConfigBundle) -> None
     assert (cells[rule.key].value, cells[rule.key].written_value) == ("10000", "1e4 synthetic")
     assert cells[rule.key].sources[0].location.file_name == DOCUMENT.file_name
     assert cells[rule.key].sources[0].location.page == 2
-    name_key = bundle.field_rules.fields[0].key
+    name_key = bundle.business_rules.fields[0].key
     assert cells[name_key].written_value is None
 
 
 def test_found_in_and_alternatives_are_resolved(bundle: ConfigBundle) -> None:
     """Found in gives document and page; a conflict lists its alternatives with sources."""
-    rule = find_rule(bundle.field_rules, lambda r: r.type == "text" and r.lookup_sheet is None)
+    rule = find_rule(bundle.business_rules, lambda r: r.type == "text" and r.lookup_sheet is None)
     alternatives = [
         Alternative(value=v, evidence=[Evidence(chunk_id=CHUNK.chunk_id, quote=v)])
         for v in ("synthetic one", "synthetic two")
@@ -133,8 +136,8 @@ def test_counts_leave_out_excluded_records(bundle: ConfigBundle) -> None:
     excluded = make_record(bundle, "rec_0002", "Syn B").model_copy(
         update={"exclusion": Exclusion(by=USER, at=NOW, reason="synthetic")}
     )
-    result = run_validation(bundle, [make_record(bundle), excluded])
-    view = build_review_view(result.records, result.issues, bundle.field_rules, [], [])
+    result = run_validation(bundle, [make_red_record(bundle), excluded])
+    view = build_review_view(result.records, result.issues, bundle.business_rules, [], [])
     counts = view.counts
     assert (counts.records, counts.to_fix, counts.excluded) == (2, 1, 1)
     assert counts.open_errors == 1

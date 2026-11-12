@@ -143,7 +143,7 @@ def build_run_view(workspace: Workspace, run_id: str) -> ReviewView:
     return build_review_view(
         database.read_records(run_id),
         database.read_issues(run_id),
-        workspace.bundle.field_rules,
+        workspace.bundle.business_rules,
         read_chunks(folder),
         folder.read_documents(),
     )
@@ -229,7 +229,7 @@ def preview_bulk_change(workspace: Workspace, run_id: str, request: BulkRequest)
         database.read_records(run_id),
         database.read_issues(run_id),
         request,
-        workspace.bundle.field_rules,
+        workspace.bundle.business_rules,
     )
 
 

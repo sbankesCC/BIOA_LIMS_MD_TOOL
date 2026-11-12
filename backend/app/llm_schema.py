@@ -1,4 +1,4 @@
-"""JSON Schemas sent to the LLM, generated from the contract models plus `field_rules.yaml`.
+"""JSON Schemas sent to the LLM, generated from the contract models plus `business_rules.md`.
 
 Every schema is OpenAI strict-mode compatible: references inlined, every object closed
 (`additionalProperties: false`) with all its properties required, and only supported keywords.
@@ -9,7 +9,7 @@ from typing import Any, cast
 
 from pydantic import BaseModel
 
-from app.config.field_rules import FieldRule, FieldRules
+from app.config.business_rules import BusinessRules, FieldDefinition
 from app.contracts.extraction import ExtractedField, ExtractionOutput
 from app.contracts.judge import JudgeOutput
 from app.contracts.verification import VerificationOutput
@@ -25,21 +25,21 @@ STRING_LIST_SCHEMA: JsonSchema = {"type": "array", "items": {"type": "string"}}
 NULL_SCHEMA: JsonSchema = {"type": "null"}
 
 
-def build_extraction_schema(field_rules: FieldRules) -> JsonSchema:
+def build_extraction_schema(business_rules: BusinessRules) -> JsonSchema:
     """Build the extraction schema: one property per extracted field, a list for multi_value."""
     schema = build_strict_schema(ExtractionOutput)
     # The model's `fields` is an open mapping; replace it with the configured fields
     record_schema = schema["properties"]["records"]["items"]
-    record_schema["properties"]["fields"] = build_fields_schema(field_rules)
+    record_schema["properties"]["fields"] = build_fields_schema(business_rules)
     return schema
 
 
-def build_verification_schema(field_rules: FieldRules) -> JsonSchema:
+def build_verification_schema(business_rules: BusinessRules) -> JsonSchema:
     """Build the verification schema; field keys are limited to the extracted fields."""
     schema = build_strict_schema(VerificationOutput)
     field_key_schema: JsonSchema = {
         "type": "string",
-        "enum": [field.key for field in field_rules.extracted_fields()],
+        "enum": [field.key for field in business_rules.extracted_fields()],
     }
     # Both finding lists that name a field may only name an extracted one
     for list_name in ("field_findings", "unreported_conflicts"):
@@ -53,17 +53,17 @@ def build_judge_schema() -> JsonSchema:
     return build_strict_schema(JudgeOutput)
 
 
-def build_fields_schema(field_rules: FieldRules) -> JsonSchema:
+def build_fields_schema(business_rules: BusinessRules) -> JsonSchema:
     """Build the closed `fields` object: one required property per extracted field, in order."""
     base_field_schema = build_strict_schema(ExtractedField)
     properties = {
         field.key: build_field_schema(base_field_schema, field)
-        for field in field_rules.extracted_fields()
+        for field in business_rules.extracted_fields()
     }
     return close_object({"type": "object", "properties": properties})
 
 
-def build_field_schema(base_field_schema: JsonSchema, field: FieldRule) -> JsonSchema:
+def build_field_schema(base_field_schema: JsonSchema, field: FieldDefinition) -> JsonSchema:
     """Narrow the generic field schema to one field: a string, or a list of strings."""
     schema = copy.deepcopy(base_field_schema)
     value_schema = STRING_LIST_SCHEMA if field.multi_value else STRING_SCHEMA

@@ -54,10 +54,10 @@ class LookupListAdmin:
     """Lookup list versions: the seed from the client config plus admin uploads."""
 
     def __init__(self, database: ReviewDatabase, storage_dir: Path, bundle: ConfigBundle) -> None:
-        """Use the review database, STORAGE_DIR, and the seed and field rules from the bundle."""
+        """Use the review database, STORAGE_DIR, and the seed and business rules from the bundle."""
         self.database = database
         self.storage_dir = storage_dir
-        self.field_rules = bundle.field_rules
+        self.business_rules = bundle.business_rules
         self.seed = bundle.lookup_lists
         self.seed_path = bundle.config_dir / FILE_NAME
 
@@ -116,7 +116,7 @@ class LookupListAdmin:
     ) -> LookupUploadResult:
         """Check an uploaded workbook; without problems it is stored as a pending version."""
         current = self.find_current_lookup_lists()
-        result = check_lookup_upload(file_name, content, self.field_rules, current)
+        result = check_lookup_upload(file_name, content, self.business_rules, current)
         version = None
         if result.lookup_lists is not None:
             version = self.store_upload(content, result.report, user, at)

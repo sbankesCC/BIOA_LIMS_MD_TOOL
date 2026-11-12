@@ -67,7 +67,7 @@ def check_processed_run(api: ApiHarness) -> None:
 
 
 def check_review_view(api: ApiHarness, bundle: ConfigBundle) -> dict[str, Any]:
-    """Check one row per record; placeholder fields show the placeholder, value empty."""
+    """Check one row per record; placeholder fields have an empty value and display value."""
     view = api.client.get(f"/runs/{RUN_ID}/records").json()
     assert [row["record_id"] for row in view["rows"]] == ["rec_0001", "rec_0002"]
     assert view["rows"][0]["name"] == REAGENT_TABLE[1][0]
@@ -75,7 +75,7 @@ def check_review_view(api: ApiHarness, bundle: ConfigBundle) -> dict[str, Any]:
     assert placeholders
     for cell in placeholders:
         assert cell["value"] is None
-        assert cell["display_value"] == bundle.field_rules.placeholder_value
+        assert cell["display_value"] is None
     return view
 
 

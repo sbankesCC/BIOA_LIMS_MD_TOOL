@@ -397,3 +397,20 @@ Every milestone does the following:
 - Tests: 544 passed, 1 skipped, 6 failed. All six are in `test_contracts.py`, which parses the `CONTRACTS.md` examples; they fail on the new contract fields and are fixed in M3.
 - Decisions the docs did not cover: Decisions 9–12 above.
 - Review answers: the placeholder was renamed to `{matching_rules}` (`matching.md` 0.2), and the rendered diagrams were deleted (user decisions 5 and 6).
+
+### M2: Business rules file (done; awaiting review)
+- New `config/business_rules.py` (models, Markdown reader, builders) and `config/business_rules_checks.py` (raw, model and cross-file checks; `parse_business_rules` / `load_business_rules` live here so the checks run before models are built). `bundle.py` loads `business_rules.md` with no fallback.
+- Every `field_rules` reader renamed to `business_rules` (`ConfigVersions.business_rules`, `business_rules_version` on run fields and eval cases, audit row "Business rules version").
+- Prompts: the package's `extraction.md` 0.5, `extraction_verification.md` 0.5 and `duplicate_judge.md` 0.4 with converted headers; `EXPECTED_PLACEHOLDERS` covers all six. The prompt builder fills `{general_rules}`, `{candidate_rules}`, `{field_section}`, `{context_section}`, `{matching_rules}`, `{naming_rules}`, `{checks}`; the extraction and verification agents fill the first four now.
+- Config files: `lookup_lists.xlsx` `v0-seed-4` (tracking codes `i`/`t`, Approval Type and Worksheet Template seeded, two sheets deleted, `_Instructions` updated); `dfd_template.xlsx` at 22 columns; `rule` marker in `pyproject.toml`; `env.example` comment.
+- Deleted: `field_rules.yaml`, `config/field_rules.py`, the field-rules cases of `test_broken_config.py`, `test_container_tracking_default_is_applied_literally`, and its twin `test_default_longer_than_its_limit_is_too_long_on_every_record` (same retired behavior). Fake replies drop the removed fields and `critical` / `consumable_class`; `expected_extraction.json` drops its 5 `consumable_class` / `critical` labels (user approved), so `test_evals` totals are 32/33.
+- Tests: 580 passed, 1 skipped, 6 failed. The 6 are the `test_contracts.py` example tests from M1, fixed in M3. ruff and pyright clean. `backend/openapi.json` regenerated (renames and the new role/origin values only); `schema.ts` waits for M9.
+- Decisions the docs did not cover:
+  - Roles bridge until M4: `extracted_fields()` and `is_extracted` cover `extracted` and `generated`; derived fields get origin `derived` (added to `Origin` now, ahead of M3) and stay blank, unvalidated and not editable until Assembly.
+  - Context attributes are kept in `BusinessRules.context`, not in `fields`, so every loop over loader fields stays 22 columns.
+  - `FieldDefinition` keeps the old reader names (`lookup_sheet`, `separator`, `is_record_name`); `multi_value` is a property (separator set).
+  - Grammar words that equal a column name (Status, Version) and keyword columns (Entry, Match type, Status, ...) are declared in `business_rules.py` and left out of the no-client-literals check; it now also checks every other data-table cell.
+  - `blank_for_now` cells show an empty display value (TEST VALUE removed); `is_placeholder` stays in the API until M8.
+  - The "relaxed config" test helper is gone: no lookup list is impossible to meet any more, so tests that need a red record plant an overlong value (`make_red_record`).
+  - Rule notes cannot contain nested parentheses (the last parentheses of a rule line hold the status); the real file has none.
+  - `evals/cases/_template/` still labels `consumable_class` / `critical`; left for M10.

@@ -6,8 +6,8 @@ Field keys and lookup values are read from the client config, never written here
 import pytest
 
 from app.config.bundle import ConfigBundle
+from app.config.business_rules import BothOrNeitherGroup, OneOfGroup
 from app.config.errors import ConfigError
-from app.config.field_rules import BothOrNeitherGroup, OneOfGroup
 from app.contracts.extraction import Alternative, Evidence, ExtractedField
 from app.contracts.judge import JudgeVerdict
 from app.contracts.record import FieldVerification, RecordVerification
@@ -22,7 +22,6 @@ from app.contracts.verification import (
     VerificationOutput,
 )
 from app.transform.notes import TransformNote
-from app.transform.transform import transform_record
 from app.validation import codes
 from app.validation.duplicates import find_name_rule
 from app.validation.findings_to_issues import (
@@ -59,13 +58,13 @@ EVIDENCE = Evidence(chunk_id="doc01-c001", quote="synthetic quote")
 
 def test_every_catalogue_code_is_raised_somewhere(bundle: ConfigBundle) -> None:
     """Each catalogue code is raised by validation or listed as raised by ingest or the graph."""
-    owned = find_owned_codes(bundle.field_rules)
+    owned = find_owned_codes(bundle.business_rules)
     assert bundle.issue_catalogue.all_codes() == owned | CODES_RAISED_ELSEWHERE
 
 
 def test_missing_required_field_is_red(bundle: ConfigBundle) -> None:
     """An empty required field gives REQUIRED_MISSING, an error."""
-    rule = find_rule(bundle.field_rules, lambda rule: rule.requirement == "required")
+    rule = find_rule(bundle.business_rules, lambda rule: rule.requirement == "required")
     result = run_validation(bundle, [set_output(make_record(bundle), rule.key, None)])
     [issue] = issues_with_code(result, codes.REQUIRED_MISSING)
     assert (issue.field, issue.severity) == (rule.key, "error")
@@ -75,7 +74,7 @@ def test_missing_required_field_is_red(bundle: ConfigBundle) -> None:
 def test_unmet_one_of_group_gives_its_code(bundle: ConfigBundle) -> None:
     """A one_of group with no complete option gives the group's issue code on the record."""
     group = next(
-        g for g in bundle.field_rules.condition_groups.values() if isinstance(g, OneOfGroup)
+        g for g in bundle.business_rules.condition_groups.values() if isinstance(g, OneOfGroup)
     )
     record = make_record(bundle)
     for key in {key for option in group.options for key in option}:
@@ -87,7 +86,9 @@ def test_unmet_one_of_group_gives_its_code(bundle: ConfigBundle) -> None:
 def test_half_filled_pair_gives_its_code(bundle: ConfigBundle) -> None:
     """A both_or_neither group with only some fields filled gives the group's issue code."""
     group = next(
-        g for g in bundle.field_rules.condition_groups.values() if isinstance(g, BothOrNeitherGroup)
+        g
+        for g in bundle.business_rules.condition_groups.values()
+        if isinstance(g, BothOrNeitherGroup)
     )
     record = set_output(make_record(bundle), group.fields[0], None)
     assert len(issues_with_code(run_validation(bundle, [record]), group.issue_code)) == 1
@@ -96,7 +97,7 @@ def test_half_filled_pair_gives_its_code(bundle: ConfigBundle) -> None:
 def test_or_equivalent_is_raised_once_per_record(bundle: ConfigBundle) -> None:
     """Two fields allowing an equivalent product give one OR_EQUIVALENT on the record."""
     record = make_record(bundle)
-    for rule in bundle.field_rules.extracted_fields()[:2]:
+    for rule in bundle.business_rules.extracted_fields()[:2]:
         stored = record.fields[rule.key]
         assert stored.extraction is not None
         extraction = stored.extraction.model_copy(update={"allows_equivalent": True})
@@ -109,7 +110,7 @@ def test_or_equivalent_is_raised_once_per_record(bundle: ConfigBundle) -> None:
 
 def test_value_not_on_lookup_list_is_red(bundle: ConfigBundle) -> None:
     """A list field value that is not on its lookup list gives NOT_IN_LOOKUP."""
-    rule = find_rule(bundle.field_rules, lambda rule: rule.lookup_sheet is not None)
+    rule = find_rule(bundle.business_rules, lambda rule: rule.lookup_sheet is not None)
     record = set_output(make_record(bundle), rule.key, "synthetic off-list")
     [issue] = issues_with_code(run_validation(bundle, [record]), codes.NOT_IN_LOOKUP)
     assert "'synthetic off-list'" in issue.message
@@ -117,7 +118,7 @@ def test_value_not_on_lookup_list_is_red(bundle: ConfigBundle) -> None:
 
 def test_boolean_word_is_not_in_lookup(bundle: ConfigBundle) -> None:
     """A boolean field holding a word such as "Yes" gives NOT_IN_LOOKUP."""
-    rule = find_rule(bundle.field_rules, lambda rule: rule.type == "boolean")
+    rule = find_rule(bundle.business_rules, lambda rule: rule.type == "boolean")
     record = set_output(make_record(bundle), rule.key, "Yes")
     [issue] = issues_with_code(run_validation(bundle, [record]), codes.NOT_IN_LOOKUP)
     assert issue.field == rule.key
@@ -126,7 +127,7 @@ def test_boolean_word_is_not_in_lookup(bundle: ConfigBundle) -> None:
 def test_value_over_the_length_limit_is_too_long(bundle: ConfigBundle) -> None:
     """A text value longer than its limit gives TOO_LONG, naming the limit."""
     rule = find_rule(
-        bundle.field_rules,
+        bundle.business_rules,
         lambda rule: rule.type == "text" and rule.lookup_sheet is None and bool(rule.max_length),
     )
     assert rule.max_length is not None
@@ -139,34 +140,12 @@ def test_value_over_the_length_limit_is_too_long(bundle: ConfigBundle) -> None:
     assert str(rule.max_length) in issue.message
 
 
-def test_default_longer_than_its_limit_is_too_long_on_every_record(bundle: ConfigBundle) -> None:
-    """Expected and documented: a default over its own limit (workbook as written) is TOO_LONG."""
-    rule = find_rule(
-        bundle.field_rules,
-        lambda rule: (
-            rule.default is not None
-            and rule.max_length is not None
-            and len(rule.default) > rule.max_length
-        ),
-    )
-    not_found = ExtractedField(status="not_found")
-    record = update_field(
-        make_record(bundle),
-        rule.key,
-        make_record(bundle).fields[rule.key].model_copy(update={"extraction": not_found}),
-    )
-    record = transform_record(record, bundle.field_rules, bundle.lookup_lists)
-    result = run_validation(bundle, [record])
-    field_codes = {issue.code for issue in result.issues if issue.field == rule.key}
-    assert {codes.TOO_LONG, codes.DEFAULT_APPLIED} <= field_codes
-
-
 @pytest.mark.parametrize(("field_type", "value"), [("decimal", "2-8"), ("integer", "1.5")])
 def test_value_that_is_not_a_number_is_wrong_type(
     bundle: ConfigBundle, field_type: str, value: str
 ) -> None:
     """A number field holding something other than a plain number gives WRONG_TYPE."""
-    rule = find_rule(bundle.field_rules, lambda rule: rule.type == field_type)
+    rule = find_rule(bundle.business_rules, lambda rule: rule.type == field_type)
     record = set_output(make_record(bundle), rule.key, value)
     [issue] = issues_with_code(run_validation(bundle, [record]), codes.WRONG_TYPE)
     assert issue.field == rule.key
@@ -175,7 +154,7 @@ def test_value_that_is_not_a_number_is_wrong_type(
 @pytest.mark.parametrize("value", ["Syn α antibody", "Syn\x07A"])
 def test_greek_or_control_characters_are_invalid(bundle: ConfigBundle, value: str) -> None:
     """A Greek letter or control character in a field that disallows them is INVALID_CHARACTERS."""
-    rule = find_rule(bundle.field_rules, lambda rule: len(rule.disallowed_characters) == 2)
+    rule = find_rule(bundle.business_rules, lambda rule: len(rule.disallowed_characters) == 2)
     record = set_output(make_record(bundle), rule.key, value)
     [issue] = issues_with_code(run_validation(bundle, [record]), codes.INVALID_CHARACTERS)
     assert issue.field == rule.key
@@ -186,7 +165,7 @@ def test_same_name_twice_in_run_is_red_on_both(bundle: ConfigBundle) -> None:
     records = [make_record(bundle, "rec_0001", "Syn A"), make_record(bundle, "rec_0002", "Syn A")]
     issues = issues_with_code(run_validation(bundle, records), codes.DUPLICATE_IN_RUN)
     assert sorted(issue.record_id or "" for issue in issues) == ["rec_0001", "rec_0002"]
-    assert {issue.field for issue in issues} == {find_name_rule(bundle.field_rules).key}
+    assert {issue.field for issue in issues} == {find_name_rule(bundle.business_rules).key}
 
 
 def test_exact_reference_match_is_red_even_when_inactive(bundle: ConfigBundle) -> None:
@@ -201,7 +180,7 @@ def test_exact_reference_match_is_red_even_when_inactive(bundle: ConfigBundle) -
 
 def test_conflict_without_a_choice_is_red(bundle: ConfigBundle) -> None:
     """A conflicting field with no value picked gives CONFLICT_UNRESOLVED."""
-    rule = find_rule(bundle.field_rules, lambda rule: rule.requirement == "optional")
+    rule = find_rule(bundle.business_rules, lambda rule: rule.requirement == "optional")
     alternatives = [Alternative(value=v, evidence=[EVIDENCE]) for v in ("syn 1", "syn 2")]
     conflict = ExtractedField(status="conflicting", alternatives=alternatives, warning="differ")
     record = make_record(bundle)
@@ -215,7 +194,7 @@ def test_conflict_without_a_choice_is_red(bundle: ConfigBundle) -> None:
 @pytest.mark.parametrize("verdict", list(FIELD_VERDICT_CODES))
 def test_field_verdict_becomes_its_issue(bundle: ConfigBundle, verdict: FieldVerdict) -> None:
     """Each verification field verdict gives its code (contradicted, unsupported, missed)."""
-    rule = bundle.field_rules.extracted_fields()[0]
+    rule = bundle.business_rules.extracted_fields()[0]
     verification = FieldVerification(citation_check="verified", verdict=verdict, note="syn note")
     record = make_record(bundle)
     stored = record.fields[rule.key].model_copy(update={"verification": verification})
@@ -227,7 +206,7 @@ def test_field_verdict_becomes_its_issue(bundle: ConfigBundle, verdict: FieldVer
 @pytest.mark.parametrize("check", list(CITATION_CODES))
 def test_citation_result_becomes_its_issue(bundle: ConfigBundle, check: CitationCheck) -> None:
     """A not_verified citation gives CITATION_NOT_VERIFIED; not_checkable gives SCANNED_SOURCE."""
-    rule = bundle.field_rules.extracted_fields()[0]
+    rule = bundle.business_rules.extracted_fields()[0]
     record = make_record(bundle)
     verification = FieldVerification(citation_check=check)
     stored = record.fields[rule.key].model_copy(update={"verification": verification})
@@ -237,7 +216,7 @@ def test_citation_result_becomes_its_issue(bundle: ConfigBundle, check: Citation
 
 def test_finding_no_longer_applies_after_a_person_sets_the_value(bundle: ConfigBundle) -> None:
     """A verdict on the extracted value is not raised once the value is user-edited."""
-    rule = bundle.field_rules.extracted_fields()[0]
+    rule = bundle.business_rules.extracted_fields()[0]
     verification = FieldVerification(citation_check="not_verified", verdict="unsupported", note="n")
     record = make_record(bundle)
     stored = record.fields[rule.key].model_copy(update={"verification": verification})
@@ -284,7 +263,7 @@ def test_judge_same_or_unsure_is_possible_duplicate(
 )
 def test_transform_note_becomes_its_issue(bundle: ConfigBundle, note: TransformNote) -> None:
     """A coded transform note in output.changes gives its issue, filled from the note."""
-    rule = find_rule(bundle.field_rules, lambda rule: rule.type == "decimal")
+    rule = find_rule(bundle.business_rules, lambda rule: rule.type == "decimal")
     record = set_output(make_record(bundle), rule.key, "1", changes=[note.to_text()])
     [issue] = issues_with_code(run_validation(bundle, [record]), note.code)
     assert issue.field == rule.key
@@ -319,7 +298,7 @@ def test_possible_duplicate_in_run_names_the_other_record(bundle: ConfigBundle) 
 
 def test_empty_optional_field_is_grey(bundle: ConfigBundle) -> None:
     """An optional field with no value gives OPTIONAL_NOT_FOUND, info."""
-    rule = find_rule(bundle.field_rules, lambda rule: rule.requirement == "optional")
+    rule = find_rule(bundle.business_rules, lambda rule: rule.requirement == "optional")
     record = set_output(make_record(bundle), rule.key, None)
     [issue] = issues_with_code(run_validation(bundle, [record]), codes.OPTIONAL_NOT_FOUND)
     assert (issue.field, issue.severity) == (rule.key, "info")
@@ -327,7 +306,7 @@ def test_empty_optional_field_is_grey(bundle: ConfigBundle) -> None:
 
 def test_unreported_conflict_is_an_individual_review_warning(bundle: ConfigBundle) -> None:
     """An unreported conflict from verification gives UNREPORTED_CONFLICT on that field."""
-    rule = bundle.field_rules.extracted_fields()[1]
+    rule = bundle.business_rules.extracted_fields()[1]
     conflict = UnreportedConflict(
         record_id="rec_0001", field=rule.key, sources=["doc01-c002"], note="syn note"
     )

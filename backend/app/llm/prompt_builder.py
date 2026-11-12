@@ -11,7 +11,13 @@ from collections.abc import Mapping, Sequence
 
 from pydantic import BaseModel
 
-from app.config.field_rules import FieldRules
+from app.config.business_rules import (
+    CANDIDATE_HEADING,
+    BusinessRules,
+    RuleLine,
+    RuleOwner,
+    Step,
+)
 from app.config.prompts import HTML_COMMENT_PATTERN, PLACEHOLDER_PATTERN, PromptTemplate
 from app.contracts.chunk import Chunk
 from app.contracts.extraction import ExcludedItem
@@ -102,13 +108,82 @@ def merge_text_parts(parts: Sequence[PromptPart]) -> list[PromptPart]:
     return [part for part in merged if not isinstance(part, TextPart) or part.text]
 
 
-def build_field_section(field_rules: FieldRules) -> str:
-    """Return one line per extracted field: key, column name and extraction guidance."""
-    lines: list[str] = []
-    for field in field_rules.extracted_fields():
+def format_rule_lines(rules: Sequence[RuleLine]) -> str:
+    """Return active rule lines as `- <ID> <text>`, without step, status or source."""
+    lines = [f"- {rule.rule_id} {rule.text}" for rule in rules if rule.is_active]
+    return "\n".join(lines) or NOTHING_TEXT
+
+
+def build_general_rules(business_rules: BusinessRules) -> str:
+    """Return the active [Extraction] lines of the General rules section."""
+    return format_rule_lines(
+        [rule for rule in business_rules.general.rules if rule.step == "Extraction"]
+    )
+
+
+def build_candidate_rules(business_rules: BusinessRules) -> str:
+    """Return the active [Extraction] lines under Candidate criteria (Business rules)."""
+    return format_rule_lines(
+        [
+            rule
+            for rule in business_rules.business.rules
+            if rule.step == "Extraction" and rule.heading == CANDIDATE_HEADING
+        ]
+    )
+
+
+def build_field_section(business_rules: BusinessRules) -> str:
+    """Return one block per extracted or generated field: key, column and [Extraction] lines."""
+    blocks: list[str] = []
+    for field in business_rules.extracted_fields():
         list_note = " (a list: one entry per value)" if field.multi_value else ""
-        lines.append(f"- {field.key} ({field.column}){list_note}: {field.extraction_guidance}")
-    return "\n".join(lines)
+        heading = f"{field.key} ({field.column}){list_note}"
+        blocks.append(f"{heading}\n{format_owner_rules(field, 'Extraction')}")
+    return "\n\n".join(blocks) or NOTHING_TEXT
+
+
+def build_context_section(business_rules: BusinessRules) -> str:
+    """Return one block per context attribute: key and its [Extraction] lines."""
+    blocks = [
+        f"{attribute.key}\n{format_owner_rules(attribute, 'Extraction')}"
+        for attribute in business_rules.context_fields()
+    ]
+    return "\n\n".join(blocks) or NOTHING_TEXT
+
+
+def format_owner_rules(owner: RuleOwner, step: Step) -> str:
+    """Return one field's or attribute's active rule lines for one step."""
+    return format_rule_lines([rule for rule in owner.rules if rule.step == step])
+
+
+def build_matching_rules(business_rules: BusinessRules, field_keys: Sequence[str]) -> str:
+    """Return the active [Matching] lines of the fields that have items in the call."""
+    rules = [
+        rule
+        for key in dict.fromkeys(field_keys)
+        for rule in business_rules.rules_for("Matching", key)
+    ]
+    return format_rule_lines(rules)
+
+
+def build_naming_rules(business_rules: BusinessRules) -> str:
+    """Return every active [Naming] line."""
+    return format_rule_lines(business_rules.rules_for("Naming"))
+
+
+def build_checks(business_rules: BusinessRules) -> str:
+    """Return every active [Plausibility] line."""
+    return format_rule_lines(business_rules.rules_for("Plausibility"))
+
+
+def build_rule_placeholders(business_rules: BusinessRules) -> dict[str, str]:
+    """Return the four rule placeholders the extraction and verification prompts share."""
+    return {
+        "general_rules": build_general_rules(business_rules),
+        "candidate_rules": build_candidate_rules(business_rules),
+        "field_section": build_field_section(business_rules),
+        "context_section": build_context_section(business_rules),
+    }
 
 
 def build_reextraction_section(
@@ -168,9 +243,9 @@ def format_excluded_items(items: Sequence[ExcludedItem]) -> str:
     return "\n".join(lines) or NOTHING_TEXT
 
 
-def format_judge_record(values: Mapping[str, str | None], field_rules: FieldRules) -> str:
+def format_judge_record(values: Mapping[str, str | None], business_rules: BusinessRules) -> str:
     """Return the new record's identifying values, one line each with the column name."""
-    columns = {field.key: field.column for field in field_rules.fields}
+    columns = {field.key: field.column for field in business_rules.fields}
     lines = [
         f"- {columns.get(key, key)}: {value if value else NOT_GIVEN_TEXT}"
         for key, value in values.items()

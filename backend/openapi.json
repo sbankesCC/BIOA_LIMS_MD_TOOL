@@ -495,7 +495,7 @@
           "review"
         ],
         "summary": "Get the review view",
-        "description": "Return one row per record, with each cell's value, display value, color and sources.\n\nPlaceholder fields have an empty value and the placeholder as their display value.",
+        "description": "Return one row per record, with each cell's value, display value, color and sources.\n\nPlaceholder (blank_for_now) fields have an empty value and an empty display value.",
         "operationId": "get_review_view",
         "parameters": [
           {
@@ -2863,7 +2863,7 @@
       },
       "ConfigVersions": {
         "properties": {
-          "field_rules": {
+          "business_rules": {
             "type": "string"
           },
           "issue_catalogue": {
@@ -2887,7 +2887,7 @@
         },
         "type": "object",
         "required": [
-          "field_rules",
+          "business_rules",
           "issue_catalogue",
           "lookup_lists",
           "dfd_template",
@@ -3266,7 +3266,8 @@
               "fixed",
               "user_edited",
               "blank_for_now",
-              "system"
+              "system",
+              "derived"
             ]
           },
           "changes": {
@@ -3917,7 +3918,8 @@
               "fixed",
               "user_edited",
               "blank_for_now",
-              "system"
+              "system",
+              "derived"
             ]
           },
           "extraction_status": {
@@ -4367,8 +4369,11 @@
             "type": "string",
             "enum": [
               "extracted",
-              "blank_for_now",
-              "system"
+              "derived",
+              "generated",
+              "context",
+              "system",
+              "blank_for_now"
             ]
           },
           "requirement": {
@@ -4447,7 +4452,7 @@
       },
       "RunFieldList": {
         "properties": {
-          "field_rules_version": {
+          "business_rules_version": {
             "type": "string"
           },
           "lookup_lists_version": {
@@ -4463,7 +4468,7 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "field_rules_version",
+          "business_rules_version",
           "lookup_lists_version",
           "fields"
         ],

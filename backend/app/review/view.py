@@ -1,8 +1,8 @@
 """Flattened review view (CONTRACTS §13 `GET /runs/{run_id}/records`): one row per record.
 
 Each cell has its value, display value, the value as written, origin, color, issues, sources
-and alternatives. Fields with role `blank_for_now` show the config's placeholder value; they
-stay empty in the record and the loader. Sources are locations only, never chunk text.
+and alternatives. Fields with role `blank_for_now` are greyed placeholders with an empty
+value; they stay empty in the record and the loader. Sources are locations only, never chunk text.
 """
 
 from collections.abc import Sequence
@@ -10,11 +10,18 @@ from typing import Literal
 
 from pydantic import BaseModel, ValidationError
 
-from app.config.field_rules import FieldRule, FieldRules
+from app.config.business_rules import BusinessRules, FieldDefinition
 from app.contracts.chunk import Chunk
 from app.contracts.extraction import Evidence, ExtractedValue, FieldStatus
 from app.contracts.issue import DuplicateCandidate, Issue, IssueSeverity, IssueStatus
-from app.contracts.record import ActionNeeded, Exclusion, Origin, StoredField, StoredRecord
+from app.contracts.record import (
+    ActionNeeded,
+    Exclusion,
+    Origin,
+    StoredField,
+    StoredRecord,
+    find_initial_origin,
+)
 from app.storage.run_store import DocumentInfo
 from app.validation.duplicates import find_name_rule, read_name
 
@@ -138,14 +145,14 @@ class ReviewView(BaseModel):
 def build_review_view(
     records: Sequence[StoredRecord],
     issues: Sequence[Issue],
-    field_rules: FieldRules,
+    business_rules: BusinessRules,
     chunks: Sequence[Chunk],
     documents: Sequence[DocumentInfo],
 ) -> ReviewView:
     """Build the flattened view of a run from its records, issues, chunks and documents."""
     locator = SourceLocator(chunks, documents)
     shown = [issue for issue in issues if issue.status != "resolved"]
-    rows = [build_row(record, shown, field_rules, locator) for record in records]
+    rows = [build_row(record, shown, business_rules, locator) for record in records]
     run_issues = [summarize_issue(issue, locator) for issue in shown if issue.record_id is None]
     return ReviewView(rows=rows, run_issues=run_issues, counts=count_review(records, issues))
 
@@ -184,17 +191,20 @@ class SourceLocator:
 
 
 def build_row(
-    record: StoredRecord, issues: Sequence[Issue], field_rules: FieldRules, locator: SourceLocator
+    record: StoredRecord,
+    issues: Sequence[Issue],
+    business_rules: BusinessRules,
+    locator: SourceLocator,
 ) -> ReviewRow:
-    """Build one grid row; cells follow the field rules (loader column) order."""
+    """Build one grid row; cells follow the business rules (loader column) order."""
     own = [issue for issue in issues if issue.record_id == record.record_id]
     cells = [
-        build_cell(rule, record.fields.get(rule.key), own, field_rules, locator)
-        for rule in field_rules.fields
+        build_cell(rule, record.fields.get(rule.key), own, business_rules, locator)
+        for rule in business_rules.fields
     ]
     return ReviewRow(
         record_id=record.record_id,
-        name=read_name(record, find_name_rule(field_rules)),
+        name=read_name(record, find_name_rule(business_rules)),
         action_needed=record.action_needed,
         found_in=[locator.locate(chunk_id) for chunk_id in record.found_in],
         exclusion=record.exclusion,
@@ -204,19 +214,19 @@ def build_row(
 
 
 def build_cell(
-    rule: FieldRule,
+    rule: FieldDefinition,
     stored: StoredField | None,
     record_issues: Sequence[Issue],
-    field_rules: FieldRules,
+    business_rules: BusinessRules,
     locator: SourceLocator,
 ) -> ReviewCell:
     """Build one cell: value, display value, as written, color, issues, sources, alternatives."""
     field_issues = [issue for issue in record_issues if issue.field == rule.key]
     value = stored.output.value if stored is not None else None
     extraction = stored.extraction if stored is not None else None
+    # blank_for_now cells are greyed and stay empty: the tool does not fill them yet
     is_placeholder = rule.role == "blank_for_now"
-    # The placeholder is display only: the value stays empty and is exported blank
-    display_value = field_rules.placeholder_value if is_placeholder else value
+    display_value = None if is_placeholder else value
     written = format_written(rule, extraction.value) if extraction is not None else None
     return ReviewCell(
         field=rule.key,
@@ -234,12 +244,12 @@ def build_cell(
     )
 
 
-def rule_origin(rule: FieldRule) -> Origin:
+def rule_origin(rule: FieldDefinition) -> Origin:
     """Return the origin of a field missing from the record (only non-extracted roles)."""
-    return "extracted" if rule.role == "extracted" else rule.role
+    return find_initial_origin(rule)
 
 
-def format_written(rule: FieldRule, value: ExtractedValue | None) -> str | None:
+def format_written(rule: FieldDefinition, value: ExtractedValue | None) -> str | None:
     """Return an extracted value as one text, as written (a list joined for display)."""
     if value is None or isinstance(value, str):
         return value
@@ -247,7 +257,7 @@ def format_written(rule: FieldRule, value: ExtractedValue | None) -> str | None:
 
 
 def build_alternatives(
-    rule: FieldRule, stored: StoredField | None, locator: SourceLocator
+    rule: FieldDefinition, stored: StoredField | None, locator: SourceLocator
 ) -> list[CellAlternative]:
     """Return a conflicting field's alternatives, as written, with their sources."""
     if stored is None or stored.extraction is None:

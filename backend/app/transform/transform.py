@@ -9,10 +9,16 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel
 
-from app.config.field_rules import FieldRule, FieldRules
+from app.config.business_rules import BusinessRules, FieldDefinition
 from app.config.lookup_lists import LookupLists
 from app.contracts.extraction import ExtractedField, ExtractedValue
-from app.contracts.record import FieldOutput, Origin, StoredField, StoredRecord
+from app.contracts.record import (
+    FieldOutput,
+    Origin,
+    StoredField,
+    StoredRecord,
+    find_initial_origin,
+)
 from app.transform.cleaning import clean_text
 from app.transform.lookup_matching import match_boolean_value, match_lookup_value
 from app.transform.notes import TransformNote
@@ -33,25 +39,25 @@ class TransformedValue(BaseModel):
 
 
 def transform_records(
-    records: Sequence[StoredRecord], field_rules: FieldRules, lookup_lists: LookupLists
+    records: Sequence[StoredRecord], business_rules: BusinessRules, lookup_lists: LookupLists
 ) -> list[StoredRecord]:
     """Return the records with every field's output section rebuilt from its extraction."""
-    return [transform_record(record, field_rules, lookup_lists) for record in records]
+    return [transform_record(record, business_rules, lookup_lists) for record in records]
 
 
 def transform_record(
-    record: StoredRecord, field_rules: FieldRules, lookup_lists: LookupLists
+    record: StoredRecord, business_rules: BusinessRules, lookup_lists: LookupLists
 ) -> StoredRecord:
     """Return a copy of the record with each loader field's output written by transformation."""
     fields = dict(record.fields)
     # Every loader field gets an entry; keys the rules do not know are left for validation
-    for rule in field_rules.fields:
+    for rule in business_rules.fields:
         fields[rule.key] = transform_field(rule, record.fields.get(rule.key), lookup_lists)
     return record.model_copy(update={"fields": fields})
 
 
 def transform_field(
-    rule: FieldRule, stored: StoredField | None, lookup_lists: LookupLists
+    rule: FieldDefinition, stored: StoredField | None, lookup_lists: LookupLists
 ) -> StoredField:
     """Return the field with a new output section, unless a person already set its value."""
     if stored is not None and stored.output.origin in USER_ORIGINS:
@@ -65,12 +71,12 @@ def transform_field(
 
 
 def build_field_output(
-    rule: FieldRule, extraction: ExtractedField | None, lookup_lists: LookupLists
+    rule: FieldDefinition, extraction: ExtractedField | None, lookup_lists: LookupLists
 ) -> FieldOutput:
     """Build a field's output from its role, its extraction and its default."""
-    # Fields the tool does not fill are exported blank
-    if rule.role == "blank_for_now" or rule.role == "system":
-        return FieldOutput(value=None, origin=rule.role)
+    # Fields the model does not extract are exported blank (derived ones until Assembly, M4)
+    if not rule.is_extracted:
+        return FieldOutput(value=None, origin=find_initial_origin(rule))
     # A found value is transformed; a conflict waits for the user's choice
     if extraction is not None and extraction.status == "found" and extraction.value is not None:
         transformed = transform_value(rule, extraction.value, lookup_lists)
@@ -87,7 +93,7 @@ def build_field_output(
 
 
 def transform_value(
-    rule: FieldRule, raw_value: ExtractedValue, lookup_lists: LookupLists
+    rule: FieldDefinition, raw_value: ExtractedValue, lookup_lists: LookupLists
 ) -> TransformedValue:
     """Clean a value as written, then format it by the field's lookup list or type."""
     cleaned = join_values(rule, raw_value)
@@ -112,7 +118,7 @@ def transform_value(
     return TransformedValue(value=value, changes=changes)
 
 
-def join_values(rule: FieldRule, raw_value: ExtractedValue) -> TransformedValue:
+def join_values(rule: FieldDefinition, raw_value: ExtractedValue) -> TransformedValue:
     """Clean each value; a multi-value field's values are joined with its separator."""
     parts = [raw_value] if isinstance(raw_value, str) else raw_value
     changes: list[str] = []

@@ -14,9 +14,28 @@ FOLDER_NAME = "prompts"
 
 # Each prompt the code uses, with the placeholders the prompt builder fills in
 EXPECTED_PLACEHOLDERS: dict[str, set[str]] = {
-    "extraction": {"field_section", "reextraction_section", "chunks"},
-    "extraction_verification": {"chunks", "citation_results", "records", "excluded_items"},
+    "extraction": {
+        "general_rules",
+        "candidate_rules",
+        "field_section",
+        "context_section",
+        "reextraction_section",
+        "chunks",
+    },
+    "extraction_verification": {
+        "general_rules",
+        "candidate_rules",
+        "field_section",
+        "context_section",
+        "chunks",
+        "citation_results",
+        "records",
+        "excluded_items",
+    },
     "duplicate_judge": {"record", "candidates"},
+    "matching": {"matching_rules", "items"},
+    "naming": {"naming_rules", "records"},
+    "plausibility": {"checks", "records"},
 }
 
 HEADER_PATTERN = re.compile(

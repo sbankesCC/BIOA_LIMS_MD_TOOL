@@ -6,7 +6,7 @@ Field keys and lookup values are read from the client config, never written here
 from collections.abc import Callable, Sequence
 
 from app.config.bundle import ConfigBundle
-from app.config.field_rules import FieldRule, FieldRules
+from app.config.business_rules import BusinessRules, FieldDefinition
 from app.config.lookup_lists import LookupLists
 from app.contracts.extraction import ExtractedField
 from app.contracts.issue import Issue
@@ -18,6 +18,7 @@ from app.contracts.record import (
     RecordExtraction,
     StoredField,
     StoredRecord,
+    find_initial_origin,
 )
 from app.contracts.reference import ReferenceData, ReferenceType
 from app.transform.lookup_matching import BOOLEAN_VALUES
@@ -54,12 +55,14 @@ class FakeJudge:
         )
 
 
-def find_rule(field_rules: FieldRules, is_wanted: Callable[[FieldRule], bool]) -> FieldRule:
-    """Return the first extracted field rule that `is_wanted` accepts."""
-    return next(rule for rule in field_rules.extracted_fields() if is_wanted(rule))
+def find_rule(
+    business_rules: BusinessRules, is_wanted: Callable[[FieldDefinition], bool]
+) -> FieldDefinition:
+    """Return the first extracted field definition that `is_wanted` accepts."""
+    return next(rule for rule in business_rules.extracted_fields() if is_wanted(rule))
 
 
-def valid_value(rule: FieldRule, lookup_lists: LookupLists) -> str:
+def valid_value(rule: FieldDefinition, lookup_lists: LookupLists) -> str:
     """Return a value that passes the field's checks (as far as the config allows)."""
     if rule.lookup_sheet is not None:
         values = lookup_lists.sheets[rule.lookup_sheet]
@@ -77,10 +80,10 @@ def make_record(
 ) -> StoredRecord:
     """Build a synthetic record with a valid found value in every extracted field."""
     fields: dict[str, StoredField] = {}
-    name_key = find_name_rule(bundle.field_rules).key
-    for rule in bundle.field_rules.fields:
-        if rule.role != "extracted":
-            fields[rule.key] = StoredField(output=FieldOutput(origin=rule.role))
+    name_key = find_name_rule(bundle.business_rules).key
+    for rule in bundle.business_rules.fields:
+        if not rule.is_extracted:
+            fields[rule.key] = StoredField(output=FieldOutput(origin=find_initial_origin(rule)))
             continue
         value = name if rule.key == name_key else valid_value(rule, bundle.lookup_lists)
         fields[rule.key] = StoredField(
@@ -94,6 +97,20 @@ def make_record(
         extraction=RecordExtraction(record_ref="R1", record_summary="synthetic record"),
         fields=fields,
     )
+
+
+def make_red_record(
+    bundle: ConfigBundle, record_id: str = "rec_0001", name: str = "Syn A"
+) -> StoredRecord:
+    """Build a synthetic record whose first free-text field with a limit is too long (an error)."""
+    rule = find_rule(
+        bundle.business_rules,
+        lambda rule: (
+            rule.max_length is not None and rule.lookup_sheet is None and not rule.is_record_name
+        ),
+    )
+    record = make_record(bundle, record_id, name)
+    return set_output(record, rule.key, "x" * ((rule.max_length or 0) + 1))
 
 
 def set_output(

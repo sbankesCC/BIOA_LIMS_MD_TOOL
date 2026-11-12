@@ -20,10 +20,10 @@ NAME = REAGENT_TABLE[ROW][0]
 
 def plain_key(bundle: ConfigBundle) -> str:
     """Return an extracted single-value field other than the record name."""
-    name_key = bundle.field_rules.record_name_field().key
+    name_key = bundle.business_rules.record_name_field().key
     return next(
         rule.key
-        for rule in bundle.field_rules.extracted_fields()
+        for rule in bundle.business_rules.extracted_fields()
         if rule.key != name_key and not rule.multi_value
     )
 
@@ -53,7 +53,7 @@ def test_seeded_value_is_planted_as_found(bundle: ConfigBundle) -> None:
         expected_verdict="unsupported",
     )
     text, planted = plant_seeded_errors(
-        extraction_reply(bundle.field_rules, [("R1", ROW)]), [error], bundle.field_rules
+        extraction_reply(bundle.business_rules, [("R1", ROW)]), [error], bundle.business_rules
     )
     assert planted == [error]
     field = ExtractionOutput.model_validate_json(text).records[0].fields[key]
@@ -70,9 +70,9 @@ def test_unknown_record_or_bad_reply_plants_nothing(bundle: ConfigBundle) -> Non
         planted_value="x",
         expected_verdict="unsupported",
     )
-    reply = extraction_reply(bundle.field_rules, [("R1", ROW)])
-    assert plant_seeded_errors(reply, [error], bundle.field_rules) == (reply, [])
-    assert plant_seeded_errors("not JSON", [error], bundle.field_rules) == ("not JSON", [])
+    reply = extraction_reply(bundle.business_rules, [("R1", ROW)])
+    assert plant_seeded_errors(reply, [error], bundle.business_rules) == (reply, [])
+    assert plant_seeded_errors("not JSON", [error], bundle.business_rules) == ("not JSON", [])
 
 
 def test_only_the_first_extraction_is_seeded_and_verification_replies_are_kept(
@@ -81,9 +81,9 @@ def test_only_the_first_extraction_is_seeded_and_verification_replies_are_kept(
     """A re-extraction is passed through unchanged; every verification reply is kept."""
     key = plain_key(bundle)
     error = SeededError(record=NAME, field=key, planted_value="x", expected_verdict="unsupported")
-    reply = extraction_reply(bundle.field_rules, [("R1", ROW)])
+    reply = extraction_reply(bundle.business_rules, [("R1", ROW)])
     fake = FakeLLMClient({"extraction": [reply], "extraction_verification": [verification_reply()]})
-    client = EvalLLMClient(fake, [error], bundle.field_rules)
+    client = EvalLLMClient(fake, [error], bundle.business_rules)
     first = client.complete(make_request("extraction"))
     second = client.complete(make_request("extraction"))
     client.complete(make_request("extraction_verification"))

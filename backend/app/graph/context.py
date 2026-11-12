@@ -88,7 +88,7 @@ def make_caller(
 def make_judge_runner(context: ProcessingContext, caller: TracedCaller, run_id: str) -> JudgeRunner:
     """Return the duplicate judge runner for one validation pass of a run."""
     template = context.bundle.prompts[JUDGE_PROMPT]
-    judge = DuplicateJudgeAgent(caller, run_id, template, context.bundle.field_rules)
+    judge = DuplicateJudgeAgent(caller, run_id, template, context.bundle.business_rules)
     return JudgeRunner(
         judge, context.judge_cache, template.version, context.limits.max_duplicate_judge_calls
     )

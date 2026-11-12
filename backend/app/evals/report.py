@@ -65,8 +65,8 @@ class CaseResult(BaseModel):
     tags: list[str]
     llm_provider: str
     models: dict[str, str]
-    field_rules_version: str
-    has_field_rules_mismatch: bool
+    business_rules_version: str
+    has_business_rules_mismatch: bool
     warnings: list[str]
     runs: list[RunResult]
     summary: dict[str, Spread]
@@ -112,8 +112,8 @@ def make_case_result(case: EvalCase, outcome: CaseOutcome, runs: list[RunResult]
         tags=case.info.tags,
         llm_provider=outcome.provider,
         models=outcome.models,
-        field_rules_version=case.info.field_rules_version,
-        has_field_rules_mismatch=case.has_field_rules_mismatch,
+        business_rules_version=case.info.business_rules_version,
+        has_business_rules_mismatch=case.has_business_rules_mismatch,
         warnings=case.warnings,
         runs=runs,
         summary={name: summarize_score(runs, name) for name in SCORE_NAMES},

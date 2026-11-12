@@ -29,6 +29,9 @@ packages = ["backend/app"]
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
 pythonpath = ["backend"]
+markers = [
+    "rule(rule_id): the business_rules.md rule ID a test checks (used from M4 on)",
+]
 
 [tool.ruff]
 line-length = 100

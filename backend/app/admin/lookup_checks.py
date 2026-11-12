@@ -12,7 +12,7 @@ from openpyxl import Workbook, load_workbook
 from pydantic import BaseModel
 
 from app.admin.reports import UploadFinding, make_problem, make_warning
-from app.config.field_rules import FieldRules
+from app.config.business_rules import BusinessRules
 from app.config.lookup_lists import (
     HEADER,
     RESERVED_PREFIX,
@@ -94,9 +94,9 @@ class LookupCheckResult(BaseModel):
 
 
 def check_lookup_upload(
-    file_name: str, content: bytes, field_rules: FieldRules, current: LookupLists
+    file_name: str, content: bytes, business_rules: BusinessRules, current: LookupLists
 ) -> LookupCheckResult:
-    """Check an uploaded lookup workbook against the field rules and the current version."""
+    """Check an uploaded lookup workbook against the business rules and the current version."""
     workbook = open_workbook(content)
     if workbook is None:
         problem = make_problem(
@@ -110,8 +110,8 @@ def check_lookup_upload(
     findings: list[UploadFinding] = []
     metadata = check_metadata(workbook, current.version, findings)
     sheets = read_uploaded_sheets(workbook)
-    findings += check_used_sheets(sheets, field_rules)
-    limits = find_sheet_limits(field_rules)
+    findings += check_used_sheets(sheets, business_rules)
+    limits = find_sheet_limits(business_rules)
     for sheet in sheets:
         findings += check_sheet(sheet, limits.get(sheet.name))
     uploaded = {sheet.name: read_sheet_values(sheet) for sheet in sheets}
@@ -211,7 +211,7 @@ def is_blank(cell: object) -> bool:
 
 
 def check_used_sheets(
-    sheets: Sequence[UploadedSheet], field_rules: FieldRules
+    sheets: Sequence[UploadedSheet], business_rules: BusinessRules
 ) -> list[UploadFinding]:
     """Return a problem for each sheet a field uses that is missing (renamed or deleted)."""
     names = {sheet.name for sheet in sheets}
@@ -222,15 +222,15 @@ def check_used_sheets(
             "cannot be renamed or deleted. Put it back with its exact name and upload again.",
             sheet=rule.lookup_sheet,
         )
-        for rule in field_rules.fields
+        for rule in business_rules.fields
         if rule.lookup_sheet is not None and rule.lookup_sheet not in names
     ]
 
 
-def find_sheet_limits(field_rules: FieldRules) -> dict[str, int]:
+def find_sheet_limits(business_rules: BusinessRules) -> dict[str, int]:
     """Return the length limit of each lookup sheet (the smallest of the fields using it)."""
     limits: dict[str, int] = {}
-    for rule in field_rules.fields:
+    for rule in business_rules.fields:
         if rule.lookup_sheet is None or rule.max_length is None:
             continue
         limits[rule.lookup_sheet] = min(

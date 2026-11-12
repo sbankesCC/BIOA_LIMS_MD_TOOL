@@ -10,7 +10,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, JsonValue
 
-from app.config.field_rules import FieldRule
+from app.config.business_rules import FieldDefinition
 from app.contracts.changes import (
     AcceptWarningChange,
     ExcludeRecordChange,
@@ -91,9 +91,9 @@ def apply_pick_alternative(
     return replace_output(state, change.change_id, change.record_id, change.field, output, at)
 
 
-def find_rule(config: ValidationConfig, field: str) -> FieldRule:
+def find_rule(config: ValidationConfig, field: str) -> FieldDefinition:
     """Return a field's rule from the run's config."""
-    return next(rule for rule in config.field_rules.fields if rule.key == field)
+    return next(rule for rule in config.business_rules.fields if rule.key == field)
 
 
 def replace_output(

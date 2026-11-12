@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from app.config.field_rules import FieldRule, FieldRules
+from app.config.business_rules import BusinessRules, FieldDefinition
 from app.contracts.extraction import (
     Evidence,
     ExcludedItem,
@@ -50,12 +50,12 @@ class StatusViolation(BaseModel):
 
 
 def find_status_violations(
-    output: ExtractionOutput, field_rules: FieldRules, chunk_ids: set[str]
+    output: ExtractionOutput, business_rules: BusinessRules, chunk_ids: set[str]
 ) -> list[StatusViolation]:
     """Check an extraction response against the status table, field set and known chunk IDs."""
     violations = find_duplicate_record_refs(output.records)
     for record in output.records:
-        violations.extend(find_record_violations(record, field_rules, chunk_ids))
+        violations.extend(find_record_violations(record, business_rules, chunk_ids))
     for item in output.excluded_items:
         violations.extend(find_excluded_item_violations(item, chunk_ids))
     return violations
@@ -75,7 +75,7 @@ def find_duplicate_record_refs(records: list[ExtractedRecord]) -> list[StatusVio
 
 
 def find_record_violations(
-    record: ExtractedRecord, field_rules: FieldRules, chunk_ids: set[str]
+    record: ExtractedRecord, business_rules: BusinessRules, chunk_ids: set[str]
 ) -> list[StatusViolation]:
     """Check one record: found_in, its chunk IDs, the field set, then each field."""
     ref = record.record_ref
@@ -85,9 +85,9 @@ def find_record_violations(
         message = f"Record {ref} has no found_in chunk IDs; at least one is required."
         violations.append(make_violation("found_in_empty", ref, None, message))
     violations.extend(find_unknown_chunk_ids(record.found_in, ref, None, chunk_ids))
-    violations.extend(find_field_set_violations(record, field_rules))
+    violations.extend(find_field_set_violations(record, business_rules))
     # Each known extracted field is checked on its own; unknown keys were reported above
-    rules_by_key = {field.key: field for field in field_rules.extracted_fields()}
+    rules_by_key = {field.key: field for field in business_rules.extracted_fields()}
     for key, field in record.fields.items():
         rule = rules_by_key.get(key)
         if rule is not None:
@@ -96,11 +96,11 @@ def find_record_violations(
 
 
 def find_field_set_violations(
-    record: ExtractedRecord, field_rules: FieldRules
+    record: ExtractedRecord, business_rules: BusinessRules
 ) -> list[StatusViolation]:
     """Report extracted fields the record lacks and keys that are not extracted fields."""
     ref = record.record_ref
-    extracted_keys = [field.key for field in field_rules.extracted_fields()]
+    extracted_keys = [field.key for field in business_rules.extracted_fields()]
     violations: list[StatusViolation] = []
     for key in extracted_keys:
         if key not in record.fields:
@@ -114,7 +114,7 @@ def find_field_set_violations(
 
 
 def find_field_violations(
-    ref: str, rule: FieldRule, field: ExtractedField, chunk_ids: set[str]
+    ref: str, rule: FieldDefinition, field: ExtractedField, chunk_ids: set[str]
 ) -> list[StatusViolation]:
     """Check one field: value shapes, the status table row, and every cited chunk ID."""
     violations = find_value_shape_violations(ref, rule, field)
@@ -132,7 +132,7 @@ def find_field_violations(
 
 
 def find_value_shape_violations(
-    ref: str, rule: FieldRule, field: ExtractedField
+    ref: str, rule: FieldDefinition, field: ExtractedField
 ) -> list[StatusViolation]:
     """Report a value or alternative that is a list for a single field, or text for a list field."""
     values: list[ExtractedValue] = [alternative.value for alternative in field.alternatives]

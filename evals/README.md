@@ -17,7 +17,7 @@ Evaluation foundation. No real BioAgilytix test data yet.
 - Runs use the seed lookup lists from the client config and no reference data.
 - Seeded errors are planted into the first extraction response of each run; a re-extraction
   may correct them. Only planted errors are scored.
-- If a case's `field_rules_version` differs from the current field rules, the loader flags it in the report: the expected output may need relabeling.
+- If a case's `business_rules_version` differs from the current business rules, the loader flags it in the report: the expected output may need relabeling.
 
 Scores:
 - Records: recall (expected consumables found) and precision (no invented records).

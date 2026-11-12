@@ -12,7 +12,7 @@ from pydantic import JsonValue, StringConstraints
 from app.admin.lookup_checks import LookupUploadReport
 from app.admin.reference_data import ReferenceUploadReport
 from app.config.bundle import ConfigVersions
-from app.config.field_rules import FieldRole, FieldType, Requirement
+from app.config.business_rules import FieldRole, FieldType, Requirement
 from app.contracts.base import ContractModel
 from app.contracts.changes import BulkChangeType
 from app.contracts.chunk import ChunkKind
@@ -202,7 +202,7 @@ class RunField(ContractModel):
 class RunFieldList(ContractModel):
     """Every loader field of a run, in loader order, with the versions they come from."""
 
-    field_rules_version: str
+    business_rules_version: str
     lookup_lists_version: str
     fields: list[RunField]
 

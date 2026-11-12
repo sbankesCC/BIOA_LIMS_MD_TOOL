@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app.config.bundle import ConfigBundle
-from app.config.field_rules import FieldRule
 from app.contracts.changes import (
     AcceptWarningChange,
     Change,
@@ -26,7 +25,6 @@ from app.validation.judge_cache import InMemoryJudgeCache, JudgeRunner
 from app.validation.service import (
     ProcessingFindings,
     ValidationConfig,
-    make_validation_config,
     validate_run,
 )
 from tests.unit.validation_helpers import EMPTY_REFERENCE, JUDGE_PROMPT_VERSION, FakeJudge
@@ -34,28 +32,6 @@ from tests.unit.validation_helpers import EMPTY_REFERENCE, JUDGE_PROMPT_VERSION,
 RUN_ID = "run_0001"
 USER = "synthetic.user"
 NOW = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
-
-
-def make_relaxed_config(bundle: ConfigBundle) -> ValidationConfig:
-    """Return the run config without length limits no list value can meet.
-
-    The workbook gives Container Tracking Method a 1-character limit and longer values, so every
-    record is red (as documented). Tests that need a clean record drop such limits here.
-    """
-    config = make_validation_config(bundle)
-    rules = [relax_rule(rule, bundle) for rule in config.field_rules.fields]
-    field_rules = config.field_rules.model_copy(update={"fields": rules})
-    return config.model_copy(update={"field_rules": field_rules})
-
-
-def relax_rule(rule: FieldRule, bundle: ConfigBundle) -> FieldRule:
-    """Drop a lookup field's length limit when none of its list values fits it."""
-    if rule.lookup_sheet is None or rule.max_length is None:
-        return rule
-    values = bundle.lookup_lists.sheets[rule.lookup_sheet]
-    if any(len(value) <= rule.max_length for value in values):
-        return rule
-    return rule.model_copy(update={"max_length": None})
 
 
 def make_context(config: ValidationConfig, judge: FakeJudge | None = None) -> ReviewContext:

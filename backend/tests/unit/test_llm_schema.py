@@ -1,4 +1,4 @@
-"""LLM schema tests: built from field rules and models, and accepted by OpenAI strict mode."""
+"""LLM schema tests: built from business rules and models, and accepted by OpenAI strict mode."""
 
 from collections.abc import Iterator
 from typing import Any, cast
@@ -47,52 +47,52 @@ def field_properties(schema: dict[str, Any]) -> dict[str, Any]:
 def all_schemas(bundle: ConfigBundle) -> list[dict[str, Any]]:
     """Build every schema sent to the LLM."""
     return [
-        build_extraction_schema(bundle.field_rules),
-        build_verification_schema(bundle.field_rules),
+        build_extraction_schema(bundle.business_rules),
+        build_verification_schema(bundle.business_rules),
         build_judge_schema(),
     ]
 
 
 def test_extraction_schema_has_exactly_the_extracted_fields(bundle: ConfigBundle) -> None:
-    """The record's fields are the 17 extracted fields, in field-rules order."""
-    properties = field_properties(build_extraction_schema(bundle.field_rules))
-    extracted_keys = [field.key for field in bundle.field_rules.extracted_fields()]
+    """The record's fields are the 13 extracted and generated fields, in loader order."""
+    properties = field_properties(build_extraction_schema(bundle.business_rules))
+    extracted_keys = [field.key for field in bundle.business_rules.extracted_fields()]
     assert list(properties) == extracted_keys
-    assert len(properties) == 17
+    assert len(properties) == 13
 
 
 def test_non_extracted_fields_are_not_in_extraction_schema(bundle: ConfigBundle) -> None:
-    """Fields with role blank_for_now or system are never sent to the LLM."""
-    properties = field_properties(build_extraction_schema(bundle.field_rules))
-    other_keys = {field.key for field in bundle.field_rules.fields if field.role != "extracted"}
+    """Derived, system and blank_for_now fields are never sent to the LLM for extraction."""
+    properties = field_properties(build_extraction_schema(bundle.business_rules))
+    other_keys = {field.key for field in bundle.business_rules.fields if not field.is_extracted}
     assert other_keys
     assert not other_keys & set(properties)
 
 
 def test_multi_value_field_is_a_list(bundle: ConfigBundle) -> None:
     """A multi_value field's value and alternatives are lists of strings; others are strings."""
-    properties = field_properties(build_extraction_schema(bundle.field_rules))
-    for field in bundle.field_rules.extracted_fields():
+    properties = field_properties(build_extraction_schema(bundle.business_rules))
+    for field in bundle.business_rules.extracted_fields():
         field_schema = properties[field.key]
         value_type = field_schema["properties"]["value"]["anyOf"][0]["type"]
         alternative = field_schema["properties"]["alternatives"]["items"]
         expected_type = "array" if field.multi_value else "string"
         assert value_type == expected_type
         assert alternative["properties"]["value"]["type"] == expected_type
-    assert any(field.multi_value for field in bundle.field_rules.extracted_fields())
+    assert any(field.multi_value for field in bundle.business_rules.extracted_fields())
 
 
 def test_field_schema_names_its_column(bundle: ConfigBundle) -> None:
-    """Each field's schema description is its DFD column name, read from the field rules."""
-    properties = field_properties(build_extraction_schema(bundle.field_rules))
-    for field in bundle.field_rules.extracted_fields():
+    """Each field's schema description is its DFD column name, read from the business rules."""
+    properties = field_properties(build_extraction_schema(bundle.business_rules))
+    for field in bundle.business_rules.extracted_fields():
         assert properties[field.key]["description"] == field.column
 
 
 def test_verification_field_keys_are_limited_to_extracted_fields(bundle: ConfigBundle) -> None:
     """Field findings and unreported conflicts may only name extracted fields."""
-    schema = build_verification_schema(bundle.field_rules)
-    extracted_keys = [field.key for field in bundle.field_rules.extracted_fields()]
+    schema = build_verification_schema(bundle.business_rules)
+    extracted_keys = [field.key for field in bundle.business_rules.extracted_fields()]
     for list_name in ("field_findings", "unreported_conflicts"):
         item = schema["properties"][list_name]["items"]
         assert item["properties"]["field"]["enum"] == extracted_keys
@@ -118,6 +118,6 @@ def test_schemas_are_strict_mode_compatible(bundle: ConfigBundle, index: int) ->
 
 def test_building_twice_gives_the_same_schema(bundle: ConfigBundle) -> None:
     """Schemas are generated deterministically, so traces and caches stay comparable."""
-    assert build_extraction_schema(bundle.field_rules) == build_extraction_schema(
-        bundle.field_rules
+    assert build_extraction_schema(bundle.business_rules) == build_extraction_schema(
+        bundle.business_rules
     )

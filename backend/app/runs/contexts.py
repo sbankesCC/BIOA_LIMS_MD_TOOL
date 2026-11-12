@@ -88,7 +88,7 @@ def make_judge_agent(workspace: Workspace, run: RunInfo) -> DuplicateJudgeAgent:
     folder = workspace.run_store.open_run(run.run_id)
     caller = TracedCaller(workspace.make_client(), folder, make_run_versions(run), retries)
     template = workspace.bundle.prompts[JUDGE_PROMPT]
-    return DuplicateJudgeAgent(caller, run.run_id, template, workspace.bundle.field_rules)
+    return DuplicateJudgeAgent(caller, run.run_id, template, workspace.bundle.business_rules)
 
 
 def load_export_context(workspace: Workspace, run_id: str) -> ExportContext:

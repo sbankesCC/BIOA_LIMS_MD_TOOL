@@ -36,7 +36,7 @@ def mark_run_interrupted(
 ) -> None:
     """Add the PROCESSING_INTERRUPTED run issue (history opened) and set the run to failed."""
     issue = make_issue(
-        IssueDraft(code=PROCESSING_INTERRUPTED), bundle.issue_catalogue, bundle.field_rules
+        IssueDraft(code=PROCESSING_INTERRUPTED), bundle.issue_catalogue, bundle.business_rules
     )
     with database.transaction():
         # Keep any issue already stored; a repeated mark does not add the issue twice

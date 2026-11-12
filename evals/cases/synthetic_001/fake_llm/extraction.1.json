@@ -30,14 +30,6 @@
           "allows_equivalent": false,
           "warning": null
         },
-        "consumable_class": {
-          "status": "not_found",
-          "value": null,
-          "evidence": [],
-          "alternatives": [],
-          "allows_equivalent": false,
-          "warning": null
-        },
         "storage_condition": {
           "status": "conflicting",
           "value": null,
@@ -64,14 +56,6 @@
           ],
           "allows_equivalent": false,
           "warning": "synthetic: method and worksheet give different storage conditions"
-        },
-        "critical": {
-          "status": "not_found",
-          "value": null,
-          "evidence": [],
-          "alternatives": [],
-          "allows_equivalent": false,
-          "warning": null
         },
         "expected_amount": {
           "status": "found",
@@ -124,22 +108,6 @@
           "warning": null
         },
         "container_type": {
-          "status": "not_found",
-          "value": null,
-          "evidence": [],
-          "alternatives": [],
-          "allows_equivalent": false,
-          "warning": null
-        },
-        "container_type_size": {
-          "status": "not_found",
-          "value": null,
-          "evidence": [],
-          "alternatives": [],
-          "allows_equivalent": false,
-          "warning": null
-        },
-        "container_type_unit": {
           "status": "not_found",
           "value": null,
           "evidence": [],
@@ -227,14 +195,6 @@
           "allows_equivalent": false,
           "warning": null
         },
-        "consumable_class": {
-          "status": "not_found",
-          "value": null,
-          "evidence": [],
-          "alternatives": [],
-          "allows_equivalent": false,
-          "warning": null
-        },
         "storage_condition": {
           "status": "found",
           "value": "2–8 °C",
@@ -244,14 +204,6 @@
               "quote": "Synthetic Wash Buffer | Synthetic Vendor Two | SYN-2001, SYN-2002 | 500 mL bottle | 2–8 °C"
             }
           ],
-          "alternatives": [],
-          "allows_equivalent": false,
-          "warning": null
-        },
-        "critical": {
-          "status": "not_found",
-          "value": null,
-          "evidence": [],
           "alternatives": [],
           "allows_equivalent": false,
           "warning": null
@@ -315,22 +267,6 @@
               "quote": "Synthetic Wash Buffer | Synthetic Vendor Two | SYN-2001, SYN-2002 | 500 mL bottle | 2–8 °C"
             }
           ],
-          "alternatives": [],
-          "allows_equivalent": false,
-          "warning": null
-        },
-        "container_type_size": {
-          "status": "not_found",
-          "value": null,
-          "evidence": [],
-          "alternatives": [],
-          "allows_equivalent": false,
-          "warning": null
-        },
-        "container_type_unit": {
-          "status": "not_found",
-          "value": null,
-          "evidence": [],
           "alternatives": [],
           "allows_equivalent": false,
           "warning": null

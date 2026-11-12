@@ -127,7 +127,7 @@ def extraction_node(state: ProcessingState, context: ProcessingContext) -> State
     task = ExtractionTask(
         run_id=state["run_id"],
         chunks=load_chunks(folder, state["chunk_ids"]),
-        field_rules=context.bundle.field_rules,
+        business_rules=context.bundle.business_rules,
         template=context.bundle.prompts[EXTRACTION_PROMPT],
         max_input_tokens=context.limits.max_input_tokens,
         reextraction_section=build_reextraction_section(records, problems),
@@ -148,7 +148,7 @@ def extraction_node(state: ProcessingState, context: ProcessingContext) -> State
 
 def first_extraction_update(output: ExtractionOutput, context: ProcessingContext) -> StateUpdate:
     """Give the extracted records their IDs and store them with the excluded items."""
-    records = build_first_records(output, context.bundle.field_rules)
+    records = build_first_records(output, context.bundle.business_rules)
     return {
         "records": dump_records(records),
         "excluded_items": dump_excluded_items(output.excluded_items),
@@ -163,7 +163,7 @@ def reextraction_update(
 ) -> StateUpdate:
     """Merge a re-extraction: replace returned records, flag dropped ones, add new items."""
     merged = merge_reextraction(
-        read_records(state), output, affected_ids, context.bundle.field_rules
+        read_records(state), output, affected_ids, context.bundle.business_rules
     )
     # A record dropped earlier but returned now is no longer dropped
     returned_ids = affected_ids - set(merged.dropped_record_ids)
@@ -204,7 +204,7 @@ def verification_node(state: ProcessingState, context: ProcessingContext) -> Sta
         chunks=chunks,
         records=records,
         excluded_items=read_excluded_items(state),
-        field_rules=context.bundle.field_rules,
+        business_rules=context.bundle.business_rules,
         template=context.bundle.prompts[VERIFICATION_PROMPT],
     )
     try:
@@ -221,7 +221,7 @@ def verification_node(state: ProcessingState, context: ProcessingContext) -> Sta
 def transformation_node(state: ProcessingState, context: ProcessingContext) -> StateUpdate:
     """Write every field's output section (code only)."""
     records = transform_records(
-        read_records(state), context.bundle.field_rules, context.lookup_lists
+        read_records(state), context.bundle.business_rules, context.lookup_lists
     )
     return {"records": dump_records(records)}
 
@@ -306,7 +306,7 @@ def read_processing_findings(state: ProcessingState) -> ProcessingFindings:
 def make_run_issue(context: ProcessingContext, code: str) -> Issue:
     """Build a run issue the graph raises, from the catalogue."""
     bundle = context.bundle
-    return make_issue(IssueDraft(code=code), bundle.issue_catalogue, bundle.field_rules)
+    return make_issue(IssueDraft(code=code), bundle.issue_catalogue, bundle.business_rules)
 
 
 def fail_update(state: ProcessingState, context: ProcessingContext, code: str) -> StateUpdate:

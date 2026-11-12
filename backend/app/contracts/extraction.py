@@ -1,6 +1,6 @@
 """Extraction output (CONTRACTS §2): what the extraction LLM returns, values copied as written.
 
-Field keys are not fixed here: they come from `field_rules.yaml`. `status_rules.py` checks the
+Field keys are not fixed here: they come from `business_rules.md`. `status_rules.py` checks the
 status table and the field set after parsing.
 """
 

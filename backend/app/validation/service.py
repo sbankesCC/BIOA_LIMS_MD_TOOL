@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from pydantic import BaseModel
 
 from app.config.bundle import ConfigBundle
-from app.config.field_rules import FieldRules
+from app.config.business_rules import BusinessRules
 from app.config.issue_catalogue import IssueCatalogue
 from app.config.lookup_lists import LookupLists
 from app.config.reference_mapping import ReferenceRules
@@ -39,7 +39,7 @@ from app.validation.lifecycle import merge_issues
 class ValidationConfig(BaseModel):
     """The config a run validates with: the versions captured at its start."""
 
-    field_rules: FieldRules
+    business_rules: BusinessRules
     issue_catalogue: IssueCatalogue
     lookup_lists: LookupLists
     reference_rules: ReferenceRules
@@ -71,7 +71,7 @@ def make_validation_config(
 ) -> ValidationConfig:
     """Build the validation config from a bundle; a run may use its own lookup list version."""
     return ValidationConfig(
-        field_rules=bundle.field_rules,
+        business_rules=bundle.business_rules,
         issue_catalogue=bundle.issue_catalogue,
         lookup_lists=lookup_lists or bundle.lookup_lists,
         reference_rules=bundle.reference_mapping.rules,
@@ -94,7 +94,7 @@ def validate_run(
     drafts = find_record_drafts(active, config, findings)
     drafts += find_run_drafts(active, config, runner, reference, findings)
     found = make_unique_issues(drafts, config)
-    owned_codes = find_owned_codes(config.field_rules)
+    owned_codes = find_owned_codes(config.business_rules)
     issues = merge_issues(previous_issues, found, owned_codes, skipped_ids)
     # Only the validation section of each record changes
     updated = [attach_issues(record, issues) for record in records]
@@ -110,7 +110,7 @@ def find_record_drafts(
     drafts: list[IssueDraft] = []
     for record in records:
         drafts += find_field_drafts(record, config)
-        drafts += check_conditions(record, config.field_rules)
+        drafts += check_conditions(record, config.business_rules)
         drafts += find_or_equivalent_issue(record)
         drafts += find_unreported_conflict_issues(record, findings.verification)
         drafts += find_record_finding_issues(record, run_record_ids, dropped_ids)
@@ -120,7 +120,7 @@ def find_record_drafts(
 def find_field_drafts(record: StoredRecord, config: ValidationConfig) -> list[IssueDraft]:
     """Return the field checks and field findings of every checked field of a record."""
     drafts: list[IssueDraft] = []
-    for rule in config.field_rules.fields:
+    for rule in config.business_rules.fields:
         stored = record.fields.get(rule.key)
         # Fields the tool does not fill (blank_for_now, system) are not validated
         if stored is None or not is_checked_field(rule):
@@ -138,7 +138,7 @@ def find_run_drafts(
     findings: ProcessingFindings,
 ) -> list[IssueDraft]:
     """Return the problems that compare records: duplicates, plus run-level findings."""
-    name_rule = find_name_rule(config.field_rules)
+    name_rule = find_name_rule(config.business_rules)
     drafts = find_run_duplicates(records, name_rule)
     drafts += find_reference_drafts(records, config, runner, reference)
     drafts += find_run_finding_issues(findings.verification, findings.excluded_items)
@@ -158,7 +158,7 @@ def find_reference_drafts(
     skipped_count = 0
     for record in records:
         check = check_reference(
-            record, config.field_rules, reference, config.reference_rules, runner
+            record, config.business_rules, reference, config.reference_rules, runner
         )
         drafts += check.drafts
         skipped_count += 1 if check.is_judge_skipped else 0
@@ -178,14 +178,14 @@ def make_unique_issues(drafts: Sequence[IssueDraft], config: ValidationConfig) -
     """Turn drafts into issues; two checks finding the same key give one issue (the first)."""
     issues: dict[str, Issue] = {}
     for draft in drafts:
-        issue = make_issue(draft, config.issue_catalogue, config.field_rules)
+        issue = make_issue(draft, config.issue_catalogue, config.business_rules)
         issues.setdefault(issue.issue_id, issue)
     return list(issues.values())
 
 
-def find_owned_codes(field_rules: FieldRules) -> set[str]:
+def find_owned_codes(business_rules: BusinessRules) -> set[str]:
     """Return every code validation raises, including the condition groups' own codes."""
-    group_codes = {group.issue_code for group in field_rules.condition_groups.values()}
+    group_codes = {group.issue_code for group in business_rules.condition_groups.values()}
     return set(codes.VALIDATION_CODES) | group_codes
 
 

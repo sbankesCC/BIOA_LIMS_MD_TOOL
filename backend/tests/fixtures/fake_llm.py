@@ -7,7 +7,7 @@ document does not give are not_found. Field keys come from the client config, ne
 import json
 from collections.abc import Sequence
 
-from app.config.field_rules import FieldRules
+from app.config.business_rules import BusinessRules
 from app.contracts.extraction import (
     Evidence,
     ExtractedField,
@@ -43,13 +43,15 @@ def found_field(value: str | list[str], quote: str) -> ExtractedField:
     return ExtractedField(status="found", value=value, evidence=evidence)
 
 
-def make_extracted_record(field_rules: FieldRules, ref: str, row_number: int) -> ExtractedRecord:
+def make_extracted_record(
+    business_rules: BusinessRules, ref: str, row_number: int
+) -> ExtractedRecord:
     """Return a record for one table row: its name and catalog number found, the rest not_found."""
     row = REAGENT_TABLE[row_number]
     quote = table_row_quote(row_number)
-    name_key = field_rules.record_name_field().key
+    name_key = business_rules.record_name_field().key
     fields: dict[str, ExtractedField] = {}
-    for rule in field_rules.extracted_fields():
+    for rule in business_rules.extracted_fields():
         if rule.key == name_key:
             fields[rule.key] = found_field(row[NAME_COLUMN], quote)
         elif rule.multi_value:
@@ -64,9 +66,9 @@ def make_extracted_record(field_rules: FieldRules, ref: str, row_number: int) ->
     )
 
 
-def extraction_reply(field_rules: FieldRules, rows: Sequence[tuple[str, int]]) -> str:
+def extraction_reply(business_rules: BusinessRules, rows: Sequence[tuple[str, int]]) -> str:
     """Return an extraction reply with one record per (record_ref, table row number)."""
-    records = [make_extracted_record(field_rules, ref, row) for ref, row in rows]
+    records = [make_extracted_record(business_rules, ref, row) for ref, row in rows]
     return ExtractionOutput(records=records, excluded_items=[]).model_dump_json()
 
 
@@ -93,11 +95,11 @@ def missed_row(row_number: int) -> MissedCandidate:
     )
 
 
-def unsupported_name(field_rules: FieldRules, record_id: str) -> FieldFinding:
+def unsupported_name(business_rules: BusinessRules, record_id: str) -> FieldFinding:
     """Return an `unsupported` finding on a record's name field."""
     return FieldFinding(
         record_id=record_id,
-        field=field_rules.record_name_field().key,
+        field=business_rules.record_name_field().key,
         verdict="unsupported",
         sources=[TABLE_CHUNK_ID],
         note="synthetic finding",

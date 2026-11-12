@@ -178,9 +178,9 @@ def test_bulk_preview_refuses_an_individual_review_issue(
 ) -> None:
     """An individual-review warning (source may not support the value) is never bulk-changed."""
     replies = {
-        "extraction": [extraction_reply(bundle.field_rules, TWO_ROWS)],
+        "extraction": [extraction_reply(bundle.business_rules, TWO_ROWS)],
         "extraction_verification": [
-            verification_reply([unsupported_name(bundle.field_rules, "rec_0001")])
+            verification_reply([unsupported_name(bundle.business_rules, "rec_0001")])
         ],
     }
     # No re-extraction, so the finding becomes an issue on the first record's name
