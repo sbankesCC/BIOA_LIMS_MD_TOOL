@@ -25,7 +25,7 @@ from app.transform.notes import TransformNote
 from app.transform.numbers import read_number
 
 # Origins of values a person set: transformation never changes these
-USER_ORIGINS: tuple[Origin, ...] = ("user_edited", "fixed")
+USER_ORIGINS: tuple[Origin, ...] = ("user_edited", "from_suggestion", "fixed")
 
 # Field types whose values are read as numbers
 NUMBER_TYPES = ("decimal", "integer")

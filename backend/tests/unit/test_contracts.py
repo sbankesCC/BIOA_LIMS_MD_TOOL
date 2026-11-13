@@ -18,6 +18,7 @@ from app.contracts.changes import (
     ExcludeRecordChange,
     PickAlternativeChange,
     SetValueChange,
+    UseSuggestionChange,
 )
 from app.contracts.chunk import Chunk
 from app.contracts.eval_case import EvalCaseInfo
@@ -25,9 +26,13 @@ from app.contracts.extraction import ExtractionOutput
 from app.contracts.issue import Issue
 from app.contracts.judge import JudgeOutput
 from app.contracts.log_line import LogLine
+from app.contracts.matching import MatchingItem, MatchingOutput
+from app.contracts.naming import NamingOutput
+from app.contracts.plausibility import PlausibilityOutput
 from app.contracts.record import (
     FieldOutput,
     RecordExtraction,
+    StoredContextAttribute,
     StoredField,
     StoredRecord,
     find_record_field_problems,
@@ -49,6 +54,9 @@ EXAMPLE_MODELS: dict[str, type[BaseModel]] = {
     "2": ExtractionOutput,
     "3": VerificationOutput,
     "3a": JudgeOutput,
+    "3b": MatchingItem,
+    "3c": NamingOutput,
+    "3d": PlausibilityOutput,
     "4": StoredRecord,
     "5": Issue,
     "6": ChangesRequest,
@@ -57,26 +65,37 @@ EXAMPLE_MODELS: dict[str, type[BaseModel]] = {
 }
 
 
-def read_contract_examples() -> dict[str, Any]:
-    """Return the first JSON example of each numbered CONTRACTS section, parsed."""
+def read_all_contract_examples() -> dict[str, list[Any]]:
+    """Return every JSON example of each numbered CONTRACTS section, parsed, in order."""
     text = CONTRACTS_DOC.read_text(encoding="utf-8")
     matches = list(SECTION_PATTERN.finditer(text))
-    examples: dict[str, Any] = {}
+    examples: dict[str, list[Any]] = {}
     for index, match in enumerate(matches):
         # A section runs from its heading to the next one
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
-        block = JSON_BLOCK_PATTERN.search(text, match.end(), end)
-        if block is not None:
-            examples[match.group(1)] = json.loads(block.group(1))
+        blocks = JSON_BLOCK_PATTERN.finditer(text, match.end(), end)
+        parsed = [json.loads(block.group(1)) for block in blocks]
+        if parsed:
+            examples[match.group(1)] = parsed
     return examples
 
 
-def expand_shorthand_alternatives(stored_record: dict[str, Any]) -> None:
-    """Replace the §4 example's `"alternatives": ["..."]` shorthand with full alternatives."""
-    for field in stored_record["fields"].values():
-        extraction = field["extraction"]
+def read_contract_examples() -> dict[str, Any]:
+    """Return the first JSON example of each numbered CONTRACTS section, parsed."""
+    return {section: blocks[0] for section, blocks in read_all_contract_examples().items()}
+
+
+def expand_shorthand(stored_record: dict[str, Any]) -> None:
+    """Replace the §4 example's `["..."]` shorthand for evidence and alternatives."""
+    entries = [*stored_record["fields"].values(), *stored_record["context"].values()]
+    for entry in entries:
+        extraction = entry["extraction"]
         if extraction is None:
             continue
+        extraction["evidence"] = [
+            {"chunk_id": item, "quote": item} if isinstance(item, str) else item
+            for item in extraction["evidence"]
+        ]
         extraction["alternatives"] = [
             {"value": item, "evidence": []} if isinstance(item, str) else item
             for item in extraction["alternatives"]
@@ -88,8 +107,26 @@ def test_contract_example_parses(section: str) -> None:
     """The JSON example in each CONTRACTS section is a valid instance of its model."""
     example = read_contract_examples()[section]
     if section == "4":
-        expand_shorthand_alternatives(example)
+        expand_shorthand(example)
     EXAMPLE_MODELS[section].model_validate(example)
+
+
+def test_matching_response_example_parses() -> None:
+    """The second §3b example (the Matching response) is a valid response."""
+    response = read_all_contract_examples()["3b"][1]
+    output = MatchingOutput.model_validate(response)
+    assert [answer.choice is None for answer in output.answers] == [False, True]
+
+
+def test_stored_record_example_has_context_and_suggestion() -> None:
+    """The §4 example keeps context apart from fields, with a suggestion and a derived origin."""
+    example = read_contract_examples()["4"]
+    expand_shorthand(example)
+    record = StoredRecord.model_validate(example)
+    assert record.context and all(entry.extraction for entry in record.context.values())
+    suggestions = [field.suggestion for field in record.fields.values() if field.suggestion]
+    assert [suggestion.source for suggestion in suggestions] == ["matching"]
+    assert "derived" in {field.output.origin for field in record.fields.values()}
 
 
 def test_every_contract_example_is_checked() -> None:
@@ -107,6 +144,7 @@ def test_change_types_are_chosen_by_type_key() -> None:
         AcceptWarningChange,
         ExcludeRecordChange,
         SetValueChange,
+        UseSuggestionChange,
     ]
 
 
@@ -157,24 +195,38 @@ def test_eval_case_template_parses() -> None:
 
 
 def build_full_record(bundle: ConfigBundle) -> StoredRecord:
-    """Build a stored record with an empty output for every loader field."""
+    """Build a stored record with an empty entry for every context attribute and loader field."""
     fields = {
         field.key: StoredField(output=FieldOutput(origin="extracted"))
         for field in bundle.business_rules.fields
+    }
+    context = {
+        attribute.key: StoredContextAttribute()
+        for attribute in bundle.business_rules.context_fields()
     }
     return StoredRecord(
         record_id="rec_0001",
         found_in=["doc01-p01-c001"],
         extraction=RecordExtraction(record_ref="R1", record_summary="synthetic record"),
+        context=context,
         fields=fields,
     )
 
 
 def test_record_with_every_field_has_no_problems(bundle: ConfigBundle) -> None:
-    """A stored record with all 22 loader fields passes the field check."""
+    """A stored record with all 22 loader fields and both context attributes passes the check."""
     record = build_full_record(bundle)
-    assert len(record.fields) == 22
+    assert (len(record.fields), len(record.context)) == (22, 2)
     assert find_record_field_problems(record, bundle.business_rules) == []
+
+
+def test_record_missing_a_context_attribute_is_reported(bundle: ConfigBundle) -> None:
+    """A stored record without one context attribute gets a problem naming it."""
+    record = build_full_record(bundle)
+    missing_key = bundle.business_rules.context_fields()[0].key
+    del record.context[missing_key]
+    problems = find_record_field_problems(record, bundle.business_rules)
+    assert problems == [f"Record rec_0001 has no entry for context attribute '{missing_key}'."]
 
 
 def test_record_missing_a_field_is_reported(bundle: ConfigBundle) -> None:

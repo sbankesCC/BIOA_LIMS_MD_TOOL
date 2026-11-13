@@ -2513,6 +2513,7 @@
             "enum": [
               "set_value",
               "pick_alternative",
+              "use_suggestion",
               "accept_warning",
               "exclude_record",
               "restore_record"
@@ -2787,6 +2788,9 @@
                   "$ref": "#/components/schemas/PickAlternativeChange"
                 },
                 {
+                  "$ref": "#/components/schemas/UseSuggestionChange"
+                },
+                {
                   "$ref": "#/components/schemas/AcceptWarningChange"
                 },
                 {
@@ -2807,7 +2811,8 @@
                   "pick_alternative": "#/components/schemas/PickAlternativeChange",
                   "restore_record": "#/components/schemas/RestoreRecordChange",
                   "set_value": "#/components/schemas/SetValueChange",
-                  "undo_bulk": "#/components/schemas/UndoBulkChange"
+                  "undo_bulk": "#/components/schemas/UndoBulkChange",
+                  "use_suggestion": "#/components/schemas/UseSuggestionChange"
                 }
               }
             },
@@ -3191,6 +3196,7 @@
             "enum": [
               "found",
               "conflicting",
+              "unclear",
               "not_found"
             ]
           },
@@ -3224,10 +3230,6 @@
             "type": "array",
             "default": []
           },
-          "allows_equivalent": {
-            "type": "boolean",
-            "default": false
-          },
           "warning": {
             "anyOf": [
               {
@@ -3244,7 +3246,55 @@
         "required": [
           "status"
         ],
-        "description": "One field of one record as the LLM returned it."
+        "description": "One field (or context attribute) of one record as the LLM returned it."
+      },
+      "FieldNormalization": {
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alternatives": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "default": []
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "default": []
+          },
+          "matching_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "choices": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "description": "Field-level normalization: the normalized value, or a conflict's normalized alternatives.\n\n`matching_value` is the value sent to Matching (else None); `choices` are the list values a\n\"Reviewer chooses\" translation row offers."
       },
       "FieldOutput": {
         "properties": {
@@ -3263,11 +3313,12 @@
             "enum": [
               "extracted",
               "default",
+              "derived",
+              "from_suggestion",
               "fixed",
               "user_edited",
               "blank_for_now",
-              "system",
-              "derived"
+              "system"
             ]
           },
           "changes": {
@@ -3319,7 +3370,8 @@
                 "enum": [
                   "contradicted",
                   "unsupported",
-                  "present_missed"
+                  "present_missed",
+                  "incomplete"
                 ]
               },
               {
@@ -3460,7 +3512,7 @@
           "field",
           "message"
         ],
-        "description": "One issue; run-level issues have no record and no field.\n\n`individual_review` and `note_required` are the catalogue's flags for the issue's code."
+        "description": "One issue; run-level issues have no record and no field.\n\n`individual_review` and `note_required` are the catalogue's flags for the issue's code.\n`details` may carry `candidates`, `suggestion`, `choices`, `check_id` and `sources` (§5)."
       },
       "IssueSummary": {
         "properties": {
@@ -3915,11 +3967,12 @@
             "enum": [
               "extracted",
               "default",
+              "derived",
+              "from_suggestion",
               "fixed",
               "user_edited",
               "blank_for_now",
-              "system",
-              "derived"
+              "system"
             ]
           },
           "extraction_status": {
@@ -3929,6 +3982,7 @@
                 "enum": [
                   "found",
                   "conflicting",
+                  "unclear",
                   "not_found"
                 ]
               },
@@ -4791,6 +4845,33 @@
         ],
         "description": "A run that was stored and queued for processing; follow it with `GET /runs/{run_id}`."
       },
+      "StoredContextAttribute": {
+        "properties": {
+          "extraction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExtractedField"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FieldVerification"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "description": "One context attribute of a stored record: extraction and verification only, no output."
+      },
       "StoredField": {
         "properties": {
           "extraction": {
@@ -4807,6 +4888,26 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/FieldVerification"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "normalization": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FieldNormalization"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "suggestion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Suggestion"
               },
               {
                 "type": "null"
@@ -4862,6 +4963,13 @@
               }
             ]
           },
+          "context": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/StoredContextAttribute"
+            },
+            "type": "object",
+            "default": {}
+          },
           "fields": {
             "additionalProperties": {
               "$ref": "#/components/schemas/StoredField"
@@ -4894,7 +5002,42 @@
           "extraction",
           "fields"
         ],
-        "description": "A stored record with its sections and one entry per loader field."
+        "description": "A stored record with its sections, one entry per context attribute and per loader field."
+      },
+      "Suggestion": {
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "matching",
+              "naming"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "rule_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "source",
+          "reason"
+        ],
+        "description": "A value a model step proposes for a field; never applied until a person uses it."
       },
       "UndoBulkChange": {
         "properties": {
@@ -4992,6 +5135,42 @@
           "max_files_per_run"
         ],
         "description": "The upload limits a new run is checked against; null means no limit."
+      },
+      "UseSuggestionChange": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "use_suggestion"
+          },
+          "change_id": {
+            "type": "string"
+          },
+          "record_id": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "bulk_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "change_id",
+          "record_id",
+          "field"
+        ],
+        "description": "Set a field to its current suggestion (origin `from_suggestion`); refused if it has none."
       },
       "VerifyResult": {
         "properties": {

@@ -110,15 +110,6 @@ def find_transform_note_issues(
     return drafts
 
 
-def find_or_equivalent_issue(record: StoredRecord) -> list[IssueDraft]:
-    """Return one OR_EQUIVALENT issue if any extracted value allows an equivalent product."""
-    for stored in record.fields.values():
-        extraction = stored.extraction
-        if extraction is not None and extraction.allows_equivalent and not is_set_by_person(stored):
-            return [IssueDraft(code=codes.OR_EQUIVALENT, record_id=record.record_id)]
-    return []
-
-
 def find_unreported_conflict_issues(
     record: StoredRecord, findings: VerificationOutput | None
 ) -> list[IssueDraft]:

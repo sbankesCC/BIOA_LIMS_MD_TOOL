@@ -414,3 +414,36 @@ Every milestone does the following:
   - The "relaxed config" test helper is gone: no lookup list is impossible to meet any more, so tests that need a red record plant an overlong value (`make_red_record`).
   - Rule notes cannot contain nested parentheses (the last parentheses of a rule line hold the status); the real file has none.
   - `evals/cases/_template/` still labels `consumable_class` / `critical`; left for M10.
+
+### M3: Contracts and schemas (done; awaiting review)
+- Contracts:
+  - Extraction: `unclear` status, `context` on the record, `allows_equivalent` removed.
+  - Verification: `incomplete` verdict, and `section` (`fields` / `context`, default `fields`) on field findings and unreported conflicts.
+  - Record: `context` (`StoredContextAttribute`: extraction and verification only), `normalization` (`FieldNormalization`) and `suggestion` (`Suggestion`) on each field, and origin `from_suggestion`. `find_record_field_problems` also checks the context attributes.
+  - Changes: `UseSuggestionChange`.
+  - Trace: the `matching`, `naming` and `plausibility` nodes.
+  - New `contracts/matching.py`, `naming.py` and `plausibility.py` hold the request items and responses.
+  - `issue.py` and `run.py`: docstrings only. `details` and `models` are already open mappings.
+- `llm_schema.py`:
+  - The extraction schema gets a closed `context` object with one single-string property per context attribute.
+  - The verification keys are the extracted fields plus the context attributes.
+  - New `build_matching_schema`, `build_naming_schema` and `build_plausibility_schema`, all generated from the models.
+- `status_rules.py`:
+  - New `unclear` row.
+  - New `context_missing` and `context_not_attribute` checks.
+  - Context attributes follow the same rows as fields, with single values only.
+- Tests:
+  - Every CONTRACTS example parses, including the §3b response. This fixes the 6 failures left from M1.
+  - Each new status rule has a test, including the context cases.
+  - All six schemas are checked for strict mode.
+  - New `test_graph_records.py`.
+  - `use_suggestion` review tests: applied, rejected without a suggestion, undone with its bulk action.
+  - Result: 618 passed, 1 skipped. ruff and pyright are clean.
+  - `backend/openapi.json` was regenerated with the new shapes. `schema.ts` waits for M9.
+- Decisions the docs did not cover:
+  - **OR_EQUIVALENT moved earlier (from M5):** `find_or_equivalent_issue`, its call and `test_or_equivalent_is_raised_once_per_record` were deleted now, because they read `allows_equivalent`. The code constant and the catalogue entry stay until M5. The review-service tests that used OR_EQUIVALENT as an ordinary warning now use SCANNED_SOURCE, so no coverage was lost.
+  - **`use_suggestion` built now (from M7):** check, apply, undo and audit description. Adding it to the change union needs a handler in each place, and the full behavior is small. It is also a bulk change type. `from_suggestion` is a person-set origin (`USER_ORIGINS`), so transformation and findings leave it alone.
+  - **Context in stored records (from M6):** `graph/records.py` already wraps the context attributes and writes `section: context` findings to them, so the stored record matches §4. Citation checks on context and the re-extraction triggers are still M6.
+  - **Fake replies (from M10):** the `synthetic_001` fake replies and the graph test fixture now carry `context`, with every attribute `not_found` (the synthetic documents give none). `allows_equivalent` is removed from them and from `evals/seeding.py`. Without this, the status rules reject them.
+  - **No `run.py` status change:** `RunStatus` keeps `transforming` until the graph changes in M6 (Decision 9).
+  - **Unrestricted IDs in the new schemas:** they do not narrow `rule_id` or `check_id` to the active rule IDs. Code checks those (M6), as CONTRACTS describes.

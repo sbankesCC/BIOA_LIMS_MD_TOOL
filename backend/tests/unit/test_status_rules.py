@@ -1,6 +1,6 @@
 """Status rule tests: one test per CONTRACTS §2 violation, on a synthetic extraction response.
 
-Field keys are read from the client business rules, never written here.
+Field and context attribute keys are read from the client business rules, never written here.
 """
 
 import pytest
@@ -32,6 +32,11 @@ def multi_key(business_rules: BusinessRules) -> str:
     return next(field.key for field in business_rules.extracted_fields() if field.multi_value)
 
 
+def context_key(business_rules: BusinessRules) -> str:
+    """Return the key of the first context attribute."""
+    return business_rules.context_fields()[0].key
+
+
 def build_valid_output(business_rules: BusinessRules) -> ExtractionOutput:
     """Build a valid response: one record, one found single field, one found list field."""
     fields = {
@@ -43,10 +48,15 @@ def build_valid_output(business_rules: BusinessRules) -> ExtractionOutput:
     fields[multi_key(business_rules)] = ExtractedField(
         status="found", value=["SYN-1", "SYN-2"], evidence=[EVIDENCE]
     )
+    context = {
+        attribute.key: ExtractedField(status="not_found")
+        for attribute in business_rules.context_fields()
+    }
     record = ExtractedRecord(
         record_ref="R1",
         found_in=["doc01-p01-c001"],
         record_summary="synthetic record",
+        context=context,
         fields=fields,
     )
     excluded = ExcludedItem(item="synthetic plate reader", reason="Instrument", chunk_ids=[])
@@ -308,6 +318,116 @@ def test_not_found_with_alternatives_is_violation(
     alternatives = build_conflicting_field().alternatives
     set_single_field(output, rules, ExtractedField(status="not_found", alternatives=alternatives))
     assert rules_found(output, rules) == ["not_found_with_alternatives"]
+
+
+def build_unclear_field() -> ExtractedField:
+    """Build a valid unclear field: no value, a warning, and the evidence that could not be read."""
+    return ExtractedField(status="unclear", evidence=[EVIDENCE], warning="Digit cannot be read")
+
+
+def test_valid_unclear_field_has_no_violations(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """An unclear field with a warning is fine, with or without evidence."""
+    set_single_field(output, rules, build_unclear_field())
+    assert rules_found(output, rules) == []
+    set_single_field(output, rules, ExtractedField(status="unclear", warning="Not assignable"))
+    assert rules_found(output, rules) == []
+
+
+def test_unclear_with_value_is_violation(output: ExtractionOutput, rules: BusinessRules) -> None:
+    """An unclear field must not give a value."""
+    field = build_unclear_field()
+    field.value = "1.? mg/mL"
+    set_single_field(output, rules, field)
+    assert rules_found(output, rules) == ["unclear_with_value"]
+
+
+def test_unclear_with_alternatives_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """An unclear field must not list alternatives (that is a conflict)."""
+    field = build_unclear_field()
+    field.alternatives = build_conflicting_field().alternatives
+    set_single_field(output, rules, field)
+    assert rules_found(output, rules) == ["unclear_with_alternatives"]
+
+
+def test_unclear_without_warning_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """An unclear field needs a warning that says what cannot be read or assigned."""
+    field = build_unclear_field()
+    field.warning = " "
+    set_single_field(output, rules, field)
+    assert rules_found(output, rules) == ["unclear_without_warning"]
+
+
+def test_found_context_attribute_has_no_violations(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """A context attribute found with a single value and evidence is fine."""
+    attribute = ExtractedField(status="found", value="synthetic heading", evidence=[EVIDENCE])
+    output.records[0].context[context_key(rules)] = attribute
+    assert rules_found(output, rules) == []
+
+
+def test_missing_context_attribute_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """Every context attribute must be returned, even when not found."""
+    del output.records[0].context[context_key(rules)]
+    assert rules_found(output, rules) == ["context_missing"]
+
+
+def test_unknown_context_attribute_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """A context key that is not a context attribute (here: a loader field) is reported."""
+    output.records[0].context[single_key(rules)] = ExtractedField(status="not_found")
+    assert rules_found(output, rules) == ["context_not_attribute"]
+
+
+def test_context_attribute_list_value_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """A context attribute holds a single value, never a list."""
+    attribute = ExtractedField(status="found", value=["a"], evidence=[EVIDENCE])
+    output.records[0].context[context_key(rules)] = attribute
+    violations = find_status_violations(output, rules, CHUNK_IDS)
+    assert [violation.rule for violation in violations] == ["value_wrong_shape"]
+    assert "context attribute" in violations[0].message
+
+
+def test_context_attribute_follows_the_status_table(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """Context attributes get the same status rows as fields, e.g. found needs evidence."""
+    attribute = ExtractedField(status="found", value="synthetic heading")
+    output.records[0].context[context_key(rules)] = attribute
+    violations = find_status_violations(output, rules, CHUNK_IDS)
+    assert [violation.rule for violation in violations] == ["found_without_evidence"]
+    assert violations[0].field == context_key(rules)
+
+
+def test_unclear_context_attribute_without_warning_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """The unclear row applies to context attributes the same way."""
+    output.records[0].context[context_key(rules)] = ExtractedField(status="unclear")
+    assert rules_found(output, rules) == ["unclear_without_warning"]
+
+
+def test_unknown_context_evidence_chunk_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """A context attribute's evidence must cite a chunk of the run."""
+    bad_evidence = Evidence(chunk_id="doc09-p01-c999", quote="synthetic quote")
+    attribute = ExtractedField(status="found", value="v", evidence=[bad_evidence])
+    output.records[0].context[context_key(rules)] = attribute
+    violations = find_status_violations(output, rules, CHUNK_IDS)
+    assert [violation.rule for violation in violations] == ["unknown_chunk_id"]
+    assert "context attribute" in violations[0].message
 
 
 def test_violation_messages_hold_no_values(output: ExtractionOutput, rules: BusinessRules) -> None:

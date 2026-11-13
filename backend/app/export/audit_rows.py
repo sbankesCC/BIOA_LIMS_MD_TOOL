@@ -17,6 +17,7 @@ from app.contracts.changes import (
     PickAlternativeChange,
     RestoreRecordChange,
     SetValueChange,
+    UseSuggestionChange,
 )
 from app.contracts.chunk import Chunk
 from app.contracts.export import (
@@ -296,7 +297,7 @@ def describe_change(
     """Return a change's record ID, field key and reason (or note), where it has them."""
     if isinstance(change, SetValueChange):
         return change.record_id, change.field, change.reason
-    if isinstance(change, PickAlternativeChange):
+    if isinstance(change, PickAlternativeChange | UseSuggestionChange):
         return change.record_id, change.field, None
     # An accepted warning is shown on the record and field of its issue
     if isinstance(change, AcceptWarningChange):

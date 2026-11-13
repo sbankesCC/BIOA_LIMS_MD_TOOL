@@ -128,7 +128,6 @@ def plant_value(record: dict[str, Any], error: SeededError, business_rules: Busi
         "value": value,
         "evidence": evidence,
         "alternatives": [],
-        "allows_equivalent": False,
         "warning": None,
     }
     return True

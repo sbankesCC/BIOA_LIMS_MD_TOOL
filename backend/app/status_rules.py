@@ -1,5 +1,6 @@
 """Status rules (CONTRACTS §2): code checks on every parsed extraction response.
 
+Fields and context attributes follow the same status table; context attributes hold one value.
 Returns the violations found and never raises; the extraction node retries on a violation.
 Messages name records, fields and chunk IDs only, never values, so they are safe to log.
 """
@@ -8,7 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from app.config.business_rules import BusinessRules, FieldDefinition
+from app.config.business_rules import BusinessRules
 from app.contracts.extraction import (
     Evidence,
     ExcludedItem,
@@ -24,6 +25,8 @@ ViolationRule = Literal[
     "unknown_chunk_id",
     "field_missing",
     "field_not_extracted",
+    "context_missing",
+    "context_not_attribute",
     "value_wrong_shape",
     "found_without_value",
     "found_without_evidence",
@@ -34,10 +37,18 @@ ViolationRule = Literal[
     "alternative_without_value",
     "alternative_without_evidence",
     "conflicting_without_warning",
+    "unclear_with_value",
+    "unclear_with_alternatives",
+    "unclear_without_warning",
     "not_found_with_value",
     "not_found_with_evidence",
     "not_found_with_alternatives",
 ]
+
+
+# How messages name the two kinds of keys
+FIELD_KIND = "field"
+CONTEXT_KIND = "context attribute"
 
 
 class StatusViolation(BaseModel):
@@ -77,7 +88,7 @@ def find_duplicate_record_refs(records: list[ExtractedRecord]) -> list[StatusVio
 def find_record_violations(
     record: ExtractedRecord, business_rules: BusinessRules, chunk_ids: set[str]
 ) -> list[StatusViolation]:
-    """Check one record: found_in, its chunk IDs, the field set, then each field."""
+    """Check one record: found_in, its chunk IDs, the key sets, then each field and attribute."""
     ref = record.record_ref
     violations: list[StatusViolation] = []
     # Every record must say where it was found
@@ -86,12 +97,20 @@ def find_record_violations(
         violations.append(make_violation("found_in_empty", ref, None, message))
     violations.extend(find_unknown_chunk_ids(record.found_in, ref, None, chunk_ids))
     violations.extend(find_field_set_violations(record, business_rules))
+    violations.extend(find_context_set_violations(record, business_rules))
     # Each known extracted field is checked on its own; unknown keys were reported above
     rules_by_key = {field.key: field for field in business_rules.extracted_fields()}
     for key, field in record.fields.items():
         rule = rules_by_key.get(key)
         if rule is not None:
-            violations.extend(find_field_violations(ref, rule, field, chunk_ids))
+            place = FieldPlace(ref=ref, key=key, kind=FIELD_KIND, is_list=rule.multi_value)
+            violations.extend(find_field_violations(place, field, chunk_ids))
+    # Context attributes follow the same table and always hold a single value
+    context_keys = {attribute.key for attribute in business_rules.context_fields()}
+    for key, field in record.context.items():
+        if key in context_keys:
+            place = FieldPlace(ref=ref, key=key, kind=CONTEXT_KIND, is_list=False)
+            violations.extend(find_field_violations(place, field, chunk_ids))
     return violations
 
 
@@ -113,43 +132,75 @@ def find_field_set_violations(
     return violations
 
 
-def find_field_violations(
-    ref: str, rule: FieldDefinition, field: ExtractedField, chunk_ids: set[str]
+def find_context_set_violations(
+    record: ExtractedRecord, business_rules: BusinessRules
 ) -> list[StatusViolation]:
-    """Check one field: value shapes, the status table row, and every cited chunk ID."""
-    violations = find_value_shape_violations(ref, rule, field)
-    # Each status has its own row in the CONTRACTS §2 table
-    if field.status == "found":
-        violations.extend(find_found_violations(ref, rule.key, field))
-    elif field.status == "conflicting":
-        violations.extend(find_conflicting_violations(ref, rule.key, field))
-    else:
-        violations.extend(find_not_found_violations(ref, rule.key, field))
-    # Evidence of the field and of its alternatives must cite real chunks
-    cited = [evidence.chunk_id for evidence in all_evidence(field)]
-    violations.extend(find_unknown_chunk_ids(cited, ref, rule.key, chunk_ids))
+    """Report context attributes the record lacks and keys that are not context attributes."""
+    ref = record.record_ref
+    context_keys = [attribute.key for attribute in business_rules.context_fields()]
+    violations: list[StatusViolation] = []
+    for key in context_keys:
+        if key not in record.context:
+            message = f"Record {ref} is missing context attribute '{key}'; every one is required."
+            violations.append(make_violation("context_missing", ref, key, message))
+    for key in record.context:
+        if key not in context_keys:
+            message = f"Record {ref} returns context '{key}', which is not a context attribute."
+            violations.append(make_violation("context_not_attribute", ref, key, message))
     return violations
 
 
-def find_value_shape_violations(
-    ref: str, rule: FieldDefinition, field: ExtractedField
+class FieldPlace(BaseModel):
+    """Where a checked value sits: its record, key, kind (field or context) and value shape."""
+
+    ref: str
+    key: str
+    kind: str
+    is_list: bool
+
+    def describe(self) -> str:
+        """Return the place as message text, e.g. `Record R1, field 'key'`."""
+        return f"Record {self.ref}, {self.kind} '{self.key}'"
+
+
+def find_field_violations(
+    place: FieldPlace, field: ExtractedField, chunk_ids: set[str]
 ) -> list[StatusViolation]:
+    """Check one field or attribute: value shapes, its status table row, every cited chunk ID."""
+    violations = find_value_shape_violations(place, field)
+    # Each status has its own row in the CONTRACTS §2 table
+    if field.status == "found":
+        violations.extend(find_found_violations(place, field))
+    elif field.status == "conflicting":
+        violations.extend(find_conflicting_violations(place, field))
+    elif field.status == "unclear":
+        violations.extend(find_unclear_violations(place, field))
+    else:
+        violations.extend(find_not_found_violations(place, field))
+    # Evidence of the field and of its alternatives must cite real chunks
+    cited = [evidence.chunk_id for evidence in all_evidence(field)]
+    violations.extend(find_unknown_chunk_ids(cited, place.ref, place.key, chunk_ids, place.kind))
+    return violations
+
+
+def find_value_shape_violations(place: FieldPlace, field: ExtractedField) -> list[StatusViolation]:
     """Report a value or alternative that is a list for a single field, or text for a list field."""
     values: list[ExtractedValue] = [alternative.value for alternative in field.alternatives]
     if field.value is not None:
         values.append(field.value)
-    expected_shape = "a list of strings" if rule.multi_value else "a single string"
+    expected_shape = "a list of strings" if place.is_list else "a single string"
     for value in values:
-        if isinstance(value, list) != rule.multi_value:
-            message = f"Record {ref}, field '{rule.key}': values must be {expected_shape}."
-            return [make_violation("value_wrong_shape", ref, rule.key, message)]
+        if isinstance(value, list) != place.is_list:
+            message = f"{place.describe()}: values must be {expected_shape}."
+            return [make_violation("value_wrong_shape", place.ref, place.key, message)]
     return []
 
 
-def find_found_violations(ref: str, key: str, field: ExtractedField) -> list[StatusViolation]:
+def find_found_violations(place: FieldPlace, field: ExtractedField) -> list[StatusViolation]:
     """Check the `found` row: a value, at least one evidence pair, no alternatives."""
     violations: list[StatusViolation] = []
-    where = f"Record {ref}, field '{key}' (found)"
+    ref, key = place.ref, place.key
+    where = f"{place.describe()} (found)"
     if not has_value(field.value):
         violations.append(make_violation("found_without_value", ref, key, f"{where} has no value."))
     if not field.evidence:
@@ -161,10 +212,11 @@ def find_found_violations(ref: str, key: str, field: ExtractedField) -> list[Sta
     return violations
 
 
-def find_conflicting_violations(ref: str, key: str, field: ExtractedField) -> list[StatusViolation]:
+def find_conflicting_violations(place: FieldPlace, field: ExtractedField) -> list[StatusViolation]:
     """Check the `conflicting` row: no value or evidence, two or more alternatives, a warning."""
     violations: list[StatusViolation] = []
-    where = f"Record {ref}, field '{key}' (conflicting)"
+    ref, key = place.ref, place.key
+    where = f"{place.describe()} (conflicting)"
     if field.value is not None:
         message = f"{where} must have a null value."
         violations.append(make_violation("conflicting_with_value", ref, key, message))
@@ -174,18 +226,19 @@ def find_conflicting_violations(ref: str, key: str, field: ExtractedField) -> li
     if len(field.alternatives) < 2:
         message = f"{where} needs at least two alternatives."
         violations.append(make_violation("conflicting_without_two_alternatives", ref, key, message))
-    violations.extend(find_alternative_violations(ref, key, field))
+    violations.extend(find_alternative_violations(place, field))
     if not has_text(field.warning):
         message = f"{where} needs a warning that describes the conflict."
         violations.append(make_violation("conflicting_without_warning", ref, key, message))
     return violations
 
 
-def find_alternative_violations(ref: str, key: str, field: ExtractedField) -> list[StatusViolation]:
+def find_alternative_violations(place: FieldPlace, field: ExtractedField) -> list[StatusViolation]:
     """Check each alternative of a conflicting field has a value and evidence."""
     violations: list[StatusViolation] = []
+    ref, key = place.ref, place.key
     for index, alternative in enumerate(field.alternatives):
-        where = f"Record {ref}, field '{key}', alternative {index}"
+        where = f"{place.describe()}, alternative {index}"
         if not has_value(alternative.value):
             message = f"{where} has no value."
             violations.append(make_violation("alternative_without_value", ref, key, message))
@@ -195,10 +248,28 @@ def find_alternative_violations(ref: str, key: str, field: ExtractedField) -> li
     return violations
 
 
-def find_not_found_violations(ref: str, key: str, field: ExtractedField) -> list[StatusViolation]:
+def find_unclear_violations(place: FieldPlace, field: ExtractedField) -> list[StatusViolation]:
+    """Check the `unclear` row: no value, no alternatives, a warning; evidence is optional."""
+    violations: list[StatusViolation] = []
+    ref, key = place.ref, place.key
+    where = f"{place.describe()} (unclear)"
+    if field.value is not None:
+        message = f"{where} must have a null value."
+        violations.append(make_violation("unclear_with_value", ref, key, message))
+    if field.alternatives:
+        message = f"{where} must have no alternatives."
+        violations.append(make_violation("unclear_with_alternatives", ref, key, message))
+    if not has_text(field.warning):
+        message = f"{where} needs a warning that says what cannot be read or assigned."
+        violations.append(make_violation("unclear_without_warning", ref, key, message))
+    return violations
+
+
+def find_not_found_violations(place: FieldPlace, field: ExtractedField) -> list[StatusViolation]:
     """Check the `not_found` row: no value, no evidence, no alternatives."""
     violations: list[StatusViolation] = []
-    where = f"Record {ref}, field '{key}' (not_found)"
+    ref, key = place.ref, place.key
+    where = f"{place.describe()} (not_found)"
     if field.value is not None:
         message = f"{where} must have a null value."
         violations.append(make_violation("not_found_with_value", ref, key, message))
@@ -217,14 +288,18 @@ def find_excluded_item_violations(item: ExcludedItem, chunk_ids: set[str]) -> li
 
 
 def find_unknown_chunk_ids(
-    cited: list[str], ref: str | None, key: str | None, chunk_ids: set[str]
+    cited: list[str],
+    ref: str | None,
+    key: str | None,
+    chunk_ids: set[str],
+    kind: str = FIELD_KIND,
 ) -> list[StatusViolation]:
     """Report each cited chunk ID that is not a chunk of this run (once per ID)."""
     violations: list[StatusViolation] = []
     for chunk_id in sorted(set(cited) - chunk_ids):
         place = f"Record {ref}" if ref is not None else "An excluded item"
         if key is not None:
-            place += f", field '{key}'"
+            place += f", {kind} '{key}'"
         message = f"{place} cites chunk {chunk_id}, which does not exist."
         violations.append(make_violation("unknown_chunk_id", ref, key, message))
     return violations

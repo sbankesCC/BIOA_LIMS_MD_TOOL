@@ -16,6 +16,7 @@ class Issue(ContractModel):
     """One issue; run-level issues have no record and no field.
 
     `individual_review` and `note_required` are the catalogue's flags for the issue's code.
+    `details` may carry `candidates`, `suggestion`, `choices`, `check_id` and `sources` (§5).
     """
 
     issue_id: str

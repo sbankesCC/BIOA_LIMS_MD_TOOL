@@ -58,10 +58,16 @@ def make_extracted_record(
             fields[rule.key] = found_field([row[CATALOG_COLUMN]], quote)
         else:
             fields[rule.key] = ExtractedField(status="not_found")
+    # The synthetic table gives no context attribute, so each one is not_found
+    context = {
+        attribute.key: ExtractedField(status="not_found")
+        for attribute in business_rules.context_fields()
+    }
     return ExtractedRecord(
         record_ref=ref,
         found_in=[TABLE_CHUNK_ID],
         record_summary="synthetic reagent from the synthetic table",
+        context=context,
         fields=fields,
     )
 

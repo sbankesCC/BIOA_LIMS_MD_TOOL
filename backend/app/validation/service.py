@@ -26,7 +26,6 @@ from app.validation.duplicates import check_reference, find_name_rule, find_run_
 from app.validation.field_checks import check_field, is_checked_field
 from app.validation.findings_to_issues import (
     find_field_finding_issues,
-    find_or_equivalent_issue,
     find_record_finding_issues,
     find_run_finding_issues,
     find_unreported_conflict_issues,
@@ -111,7 +110,6 @@ def find_record_drafts(
     for record in records:
         drafts += find_field_drafts(record, config)
         drafts += check_conditions(record, config.business_rules)
-        drafts += find_or_equivalent_issue(record)
         drafts += find_unreported_conflict_issues(record, findings.verification)
         drafts += find_record_finding_issues(record, run_record_ids, dropped_ids)
     return drafts

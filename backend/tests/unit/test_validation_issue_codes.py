@@ -94,20 +94,6 @@ def test_half_filled_pair_gives_its_code(bundle: ConfigBundle) -> None:
     assert len(issues_with_code(run_validation(bundle, [record]), group.issue_code)) == 1
 
 
-def test_or_equivalent_is_raised_once_per_record(bundle: ConfigBundle) -> None:
-    """Two fields allowing an equivalent product give one OR_EQUIVALENT on the record."""
-    record = make_record(bundle)
-    for rule in bundle.business_rules.extracted_fields()[:2]:
-        stored = record.fields[rule.key]
-        assert stored.extraction is not None
-        extraction = stored.extraction.model_copy(update={"allows_equivalent": True})
-        record = update_field(
-            record, rule.key, stored.model_copy(update={"extraction": extraction})
-        )
-    [issue] = issues_with_code(run_validation(bundle, [record]), codes.OR_EQUIVALENT)
-    assert issue.field is None
-
-
 def test_value_not_on_lookup_list_is_red(bundle: ConfigBundle) -> None:
     """A list field value that is not on its lookup list gives NOT_IN_LOOKUP."""
     rule = find_rule(bundle.business_rules, lambda rule: rule.lookup_sheet is not None)

@@ -16,11 +16,12 @@ from app.contracts.record import (
     FieldVerification,
     RecordExtraction,
     RecordVerification,
+    StoredContextAttribute,
     StoredField,
     StoredRecord,
     find_initial_origin,
 )
-from app.contracts.verification import VerificationOutput
+from app.contracts.verification import FieldVerdict, VerificationOutput
 from app.ids import make_record_id_counter
 
 
@@ -34,7 +35,7 @@ class MergeResult(BaseModel):
 def build_stored_record(
     record_id: str, extracted: ExtractedRecord, business_rules: BusinessRules, is_re_extracted: bool
 ) -> StoredRecord:
-    """Wrap an extracted record with every loader field; outputs wait for transformation."""
+    """Wrap an extracted record with every context attribute and loader field."""
     fields: dict[str, StoredField] = {}
     for rule in business_rules.fields:
         # Fields the model does not extract get their role as origin; transformation fills outputs
@@ -53,6 +54,10 @@ def build_stored_record(
             record_warning=extracted.record_warning,
         ),
         verification=RecordVerification(re_extracted=is_re_extracted),
+        context={
+            attribute.key: StoredContextAttribute(extraction=extracted.context.get(attribute.key))
+            for attribute in business_rules.context_fields()
+        },
         fields=fields,
     )
 
@@ -98,12 +103,15 @@ def merge_reextraction(
 def clear_agent_findings(record: StoredRecord) -> StoredRecord:
     """Remove the verification agent's earlier verdicts, keeping citation results."""
     fields = {key: clear_field_verdict(stored) for key, stored in record.fields.items()}
+    context = {key: clear_field_verdict(stored) for key, stored in record.context.items()}
     verification = record.verification.model_copy(update={"findings": []})
-    return record.model_copy(update={"fields": fields, "verification": verification})
+    return record.model_copy(
+        update={"fields": fields, "context": context, "verification": verification}
+    )
 
 
-def clear_field_verdict(stored: StoredField) -> StoredField:
-    """Remove a field's agent verdict and note, keeping its citation result."""
+def clear_field_verdict[Stored: StoredField | StoredContextAttribute](stored: Stored) -> Stored:
+    """Remove a field's (or context attribute's) agent verdict and note, keeping its citation."""
     if stored.verification is None:
         return stored
     verification = stored.verification.model_copy(update={"verdict": None, "note": None})
@@ -111,16 +119,31 @@ def clear_field_verdict(stored: StoredField) -> StoredField:
 
 
 def apply_findings(record: StoredRecord, findings: VerificationOutput) -> StoredRecord:
-    """Write the agent's field verdicts into the fields and its record verdicts into the record."""
+    """Write the agent's verdicts into fields and context, and record verdicts into the record."""
     fields = dict(record.fields)
+    context = dict(record.context)
     for finding in findings.field_findings:
-        stored = fields.get(finding.field)
-        # Findings on unknown records or on fields that were not extracted are ignored
-        if finding.record_id != record.record_id or stored is None or stored.extraction is None:
+        if finding.record_id != record.record_id:
             continue
-        current = stored.verification or FieldVerification()
-        verification = current.model_copy(update={"verdict": finding.verdict, "note": finding.note})
-        fields[finding.field] = stored.model_copy(update={"verification": verification})
+        # The finding's section says whether it names a loader field or a context attribute
+        if finding.section == "context":
+            write_verdict(context, finding.field, finding.verdict, finding.note)
+        else:
+            write_verdict(fields, finding.field, finding.verdict, finding.note)
     record_findings = [f for f in findings.record_findings if f.record_id == record.record_id]
     verification = record.verification.model_copy(update={"findings": record_findings})
-    return record.model_copy(update={"fields": fields, "verification": verification})
+    return record.model_copy(
+        update={"fields": fields, "context": context, "verification": verification}
+    )
+
+
+def write_verdict[Stored: StoredField | StoredContextAttribute](
+    entries: dict[str, Stored], key: str, verdict: FieldVerdict, note: str
+) -> None:
+    """Set one entry's verdict and note; unknown keys and entries not extracted are ignored."""
+    stored = entries.get(key)
+    if stored is None or stored.extraction is None:
+        return
+    current = stored.verification or FieldVerification()
+    verification = current.model_copy(update={"verdict": verdict, "note": note})
+    entries[key] = stored.model_copy(update={"verification": verification})

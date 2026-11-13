@@ -18,6 +18,7 @@ from app.contracts.changes import (
     RestoreRecordChange,
     SetValueChange,
     UndoBulkChange,
+    UseSuggestionChange,
 )
 from app.contracts.issue import IssueHistoryEntry
 from app.contracts.record import Exclusion, FieldOutput
@@ -59,6 +60,8 @@ def apply_change(
         return apply_set_value(state, change, at)
     if isinstance(change, PickAlternativeChange):
         return apply_pick_alternative(state, change, config, at)
+    if isinstance(change, UseSuggestionChange):
+        return apply_use_suggestion(state, change, at)
     if isinstance(change, AcceptWarningChange):
         return apply_accept_warning(state, change, row.stored.user, at)
     if isinstance(change, ExcludeRecordChange | RestoreRecordChange):
@@ -88,6 +91,16 @@ def apply_pick_alternative(
         changes=transformed.changes,
         selected_alternative=change.alternative_index,
     )
+    return replace_output(state, change.change_id, change.record_id, change.field, output, at)
+
+
+def apply_use_suggestion(
+    state: ReviewState, change: UseSuggestionChange, at: datetime
+) -> ApplyOutcome:
+    """Set the field to its current suggestion; the value is then the person's choice."""
+    suggestion = state.records[change.record_id].fields[change.field].suggestion
+    value = suggestion.value if suggestion is not None else None
+    output = FieldOutput(value=value, origin="from_suggestion")
     return replace_output(state, change.change_id, change.record_id, change.field, output, at)
 
 
@@ -215,7 +228,7 @@ def revert_change(
 ) -> bool:
     """Put back what one change replaced, if its target still holds what it wrote."""
     change = row.stored.change
-    if isinstance(change, SetValueChange | PickAlternativeChange):
+    if isinstance(change, SetValueChange | PickAlternativeChange | UseSuggestionChange):
         return revert_output(state, change.record_id, change.field, row)
     if isinstance(change, AcceptWarningChange):
         return revert_acceptance(state, change.issue_id, row, user, at, outcome)

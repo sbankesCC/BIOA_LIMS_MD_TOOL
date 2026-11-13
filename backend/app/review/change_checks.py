@@ -16,6 +16,7 @@ from app.contracts.changes import (
     RestoreRecordChange,
     SetValueChange,
     UndoBulkChange,
+    UseSuggestionChange,
 )
 from app.contracts.issue import Issue
 from app.contracts.record import StoredRecord
@@ -36,6 +37,8 @@ def check_change(
         check_set_value(change, state, config)
     elif isinstance(change, PickAlternativeChange):
         check_pick_alternative(change, state, config)
+    elif isinstance(change, UseSuggestionChange):
+        check_use_suggestion(change, state, config)
     elif isinstance(change, AcceptWarningChange):
         check_accept_warning(change, state, config.issue_catalogue)
     elif isinstance(change, ExcludeRecordChange):
@@ -113,6 +116,19 @@ def check_pick_alternative(
         raise ChangeRejectedError(
             f"{rule.column} has no alternative number {change.alternative_index + 1}. "
             "Reload the record and choose again."
+        )
+
+
+def check_use_suggestion(
+    change: UseSuggestionChange, state: ReviewState, config: ValidationConfig
+) -> None:
+    """Check the field has a suggestion to use."""
+    record = find_record(state, change.record_id)
+    rule = find_editable_rule(config, change.field)
+    stored = record.fields.get(rule.key)
+    if stored is None or stored.suggestion is None:
+        raise ChangeRejectedError(
+            f"{rule.column} has no suggestion to use. Pick a value or type one instead."
         )
 
 

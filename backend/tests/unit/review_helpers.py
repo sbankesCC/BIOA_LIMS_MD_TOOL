@@ -15,6 +15,7 @@ from app.contracts.changes import (
     RestoreRecordChange,
     SetValueChange,
     UndoBulkChange,
+    UseSuggestionChange,
 )
 from app.contracts.issue import Issue
 from app.contracts.record import StoredRecord
@@ -114,6 +115,13 @@ def set_value(
         value=value,
         reason=reason,
         bulk_id=bulk_id,
+    )
+
+
+def use_suggestion(change_id: str, field: str) -> UseSuggestionChange:
+    """Build a use_suggestion change on the first record."""
+    return UseSuggestionChange(
+        type="use_suggestion", change_id=change_id, record_id="rec_0001", field=field
     )
 
 
