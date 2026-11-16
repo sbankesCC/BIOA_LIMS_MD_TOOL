@@ -12,7 +12,7 @@ from app.config.business_rules import BothOrNeitherGroup, OneOfGroup
 from app.config.errors import ConfigError
 from app.contracts.extraction import Alternative, Evidence, ExtractedField
 from app.contracts.judge import JudgeVerdict
-from app.contracts.record import FieldVerification, RecordVerification
+from app.contracts.record import FieldVerification, Origin, RecordVerification
 from app.contracts.verification import (
     CitationCheck,
     ExcludedItemChallenge,
@@ -202,13 +202,20 @@ def test_citation_result_becomes_its_issue(bundle: ConfigBundle, check: Citation
     assert len(issues_with_code(result, CITATION_CODES[check])) == 1
 
 
-def test_finding_no_longer_applies_after_a_person_sets_the_value(bundle: ConfigBundle) -> None:
-    """A verdict on the extracted value is not raised once the value is user-edited."""
+# Origins that mean a person set the value (CONTRACTS §4)
+PERSON_ORIGINS: tuple[Origin, ...] = ("user_edited", "fixed", "from_suggestion")
+
+
+@pytest.mark.parametrize("origin", PERSON_ORIGINS)
+def test_finding_no_longer_applies_after_a_person_sets_the_value(
+    bundle: ConfigBundle, origin: Origin
+) -> None:
+    """A verdict on the extracted value is not raised once a person set the value."""
     rule = bundle.business_rules.extracted_fields()[0]
     verification = FieldVerification(citation_check="not_verified", verdict="unsupported", note="n")
     record = make_record(bundle)
     stored = record.fields[rule.key].model_copy(update={"verification": verification})
-    record = set_output(update_field(record, rule.key, stored), rule.key, "Syn B", "user_edited")
+    record = set_output(update_field(record, rule.key, stored), rule.key, "Syn B", origin)
     result = run_validation(bundle, [record])
     assert issues_with_code(result, codes.UNSUPPORTED_BY_SOURCE) == []
     assert issues_with_code(result, codes.CITATION_NOT_VERIFIED) == []
@@ -302,6 +309,21 @@ def test_unreported_conflict_is_an_individual_review_warning(bundle: ConfigBundl
     result = run_validation(bundle, [make_record(bundle)], findings=findings)
     [issue] = issues_with_code(result, codes.UNREPORTED_CONFLICT)
     assert (issue.field, issue.individual_review) == (rule.key, True)
+
+
+@pytest.mark.parametrize("origin", PERSON_ORIGINS)
+def test_unreported_conflict_no_longer_applies_after_a_person_sets_the_value(
+    bundle: ConfigBundle, origin: Origin
+) -> None:
+    """An unreported conflict is about the extracted value, so a person's value drops it."""
+    rule = bundle.business_rules.extracted_fields()[1]
+    conflict = UnreportedConflict(
+        record_id="rec_0001", field=rule.key, sources=["doc01-c002"], note="syn note"
+    )
+    findings = ProcessingFindings(verification=make_verification(unreported_conflicts=[conflict]))
+    record = set_output(make_record(bundle), rule.key, "Syn B", origin)
+    result = run_validation(bundle, [record], findings=findings)
+    assert issues_with_code(result, codes.UNREPORTED_CONFLICT) == []
 
 
 def test_dropped_record_is_flagged(bundle: ConfigBundle) -> None:

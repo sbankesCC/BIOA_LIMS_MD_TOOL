@@ -1,6 +1,6 @@
-<!-- prompt: naming | version: 0.1 | status: draft for review -->
+<!-- prompt: naming | version: 0.2 | status: draft for review -->
 
-<!-- Developer note: Called once per run with every record that needs a name. -->
+<!-- Developer note: Called once per run with every included record. -->
 <!-- Developer note: Code checks each suggestion after the call: length, disallowed characters, unique within the run. A suggestion that fails is not offered. -->
 <!-- Developer note: Output shape is also enforced by the API (structured outputs, schema generated from code). -->
 <!-- Developer note: BioA naming rules are inserted from business_rules.md: rule lines tagged [Naming], status not Open. -->

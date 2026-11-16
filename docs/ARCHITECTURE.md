@@ -191,7 +191,7 @@ Your "verify the extracted data" step. Two parts in one node:
 2. **Verification agent (LLM):** receives the same text and page images, and checks what code cannot: whether cited text supports the value, whether the value is whole (`incomplete` when cut short), whether `not_found` or `unclear` is right, missed consumables, wrongly excluded items, unreported conflicts, records to split. Reports only problems, each with its `section` (`fields` or `context`). It checks reading only, never plausibility. Stricter prompt than extraction, to counter its tendency to agree.
 - **Output:** verification findings (`CONTRACTS.md` §3).
 
-### 4.7 Transformation: Normalization, Matching, Naming, Assembly
+### 4.7 From extracted text to loader values: Normalization, Matching, Naming, Assembly
 Four steps turn extracted text into loader values. Models only suggest; code and people write values. Every rule and table comes from `business_rules.md`; each derivation is a small named function that reads its table (no general rules engine).
 
 #### 4.7a Normalization (code)

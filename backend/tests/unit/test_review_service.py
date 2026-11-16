@@ -267,6 +267,32 @@ def test_used_suggestion_is_undone_with_its_bulk_action(
     assert (output.value, output.origin) == (None, "extracted")
 
 
+def test_use_suggestion_on_a_field_that_is_not_extracted_is_rejected(
+    tmp_path: Path, bundle: ConfigBundle, config: ValidationConfig, context: ReviewContext
+) -> None:
+    """Derived fields are set by Assembly, not by a suggestion, so the change is rejected."""
+    derived_key = config.business_rules.derived_fields()[0].key
+    database = start_review(tmp_path, bundle, context, [make_record(bundle)])
+    with pytest.raises(ChangeRejectedError, match="cannot be changed in the tool"):
+        save(database, context, use_suggestion("chg_0001", derived_key))
+
+
+def test_undo_of_a_used_suggestion_keeps_a_later_value(
+    tmp_path: Path, bundle: ConfigBundle, config: ValidationConfig, context: ReviewContext
+) -> None:
+    """A value typed after the suggestion was used is not undone with the bulk action."""
+    rule = lookup_rule(config)
+    suggested, later = list_values(config, rule)[:2]
+    record = with_suggestion(make_record(bundle), rule.key, suggested)
+    database = start_review(tmp_path, bundle, context, [record])
+    change = use_suggestion("chg_0001", rule.key).model_copy(update={"bulk_id": "blk_0001"})
+    save(database, context, change, set_value("chg_0002", rule.key, later, reason="later"))
+    save(database, context, undo_bulk("chg_0003", "blk_0001"))
+    recheck(database, context)
+    output = read_record(database).fields[rule.key].output
+    assert (output.value, output.origin) == (later, "user_edited")
+
+
 # ----- accept_warning -----
 
 

@@ -34,7 +34,7 @@ The mockups are static and use placeholder values. Where this document and the m
 - Recent runs list: name, started, status, record count, what needs action. Clicking opens the run.
 
 ### 4.2 Processing
-- Step list (not a percentage bar): Reading documents, Extracting consumables, Checking citations, Validating against the documents, Formatting values, Matching list values, Suggesting names, Filling derived fields, Final checks, Preparing your preview. The steps follow the run status (`ARCHITECTURE.md` §6). Current step highlighted; finished steps checked.
+- Step list (not a percentage bar): Reading documents, Extracting consumables, Checking against the documents, Formatting values, Matching list values, Suggesting names, Filling derived fields, Final checks. One step per processing status. The steps follow the run status (`ARCHITECTURE.md` §6). Current step highlighted; finished steps checked.
 - "You can leave this page. Your run is saved."
 - Failed: plain-language reason and Retry. Retry starts a new run from the same files; the failed run stays in the list.
 
@@ -61,7 +61,7 @@ Records grid (read-only):
 - Fields exported blank (`system`, `blank_for_now`) show an empty grey cell (read-only).
 - Derived fields (Critical, Consumable Class, Approval Type, Worksheet Template) show their value like any other; the panel says it was derived.
 - A field with a suggestion and no value shows the suggestion in grey italics with "suggested" (it is not exported until used). The Consumable Type column shows the suggested name this way until a name is set.
-- Each value shows the text as written in the document next to the exported value when they differ (e.g. "2–8 °C" → choose from list; "1e4 cps/uL" → 10000). "or equivalent" stays in the value as written.
+- Each value shows the text as written in the document next to the exported value when they differ (e.g. "2–8 °C" → 4C; "1e4 cps/uL" → 10000). "or equivalent" stays in the value as written.
 
 Resolution panel (right side):
 - Top: Previous / Next issue arrows that move through all open issues in the run, across records ("Issue 1 of 11 open"); close button.
@@ -79,7 +79,7 @@ Issue actions (only the actions that fit the issue):
 | Name not set | When there is a Naming suggestion: shown with its reason and the naming rule, and a "Use suggestion" action. Or type a name (checked input) |
 | Reviewer choice needed | Pick one of the offered values (e.g. -20C or -80C for "frozen"), each with "Show source", or another value from the list |
 | Value unclear | Shows the extraction's warning. View source; enter the value, mark not found, or Accept |
-| Value incomplete | View source; enter the whole value, or Accept |
+| Value incomplete | View source; enter the whole value (an error, so it cannot be accepted) |
 | Not a concentration | Shows the value as written. Enter a number, or leave blank |
 | Derived value missing | Says what input is missing (e.g. no vendor). Enter the input field, or set the derived value directly |
 | Derived value differs | Shows the set value and the derived value. Use the derived value, or keep the set value with a note |
@@ -119,7 +119,7 @@ Bottom action bar (fixed to the bottom of the window):
 ### 4.4 Verify dialog
 - Opens when the user clicks Verify output with open items.
 - Red issues: "N issues to fix. These must be resolved before you can verify." Verify disabled.
-- Warnings that need individual review (citation not verified, source may not support it): "N warnings must be reviewed one at a time." Verify disabled, with a link to the first one.
+- Warnings that need individual review (citation not verified, source may not support it, unreported conflict, value unclear, reviewer choice needed, derived value differs, plausibility check): "N warnings must be reviewed one at a time." Verify disabled, with a link to the first one.
 - Other yellow warnings only: "N warnings not reviewed. If you verify, they are accepted as they are." Allows "Accept warnings and verify".
 - Includes the production reminder text.
 - "Keep reviewing" returns to the grid.

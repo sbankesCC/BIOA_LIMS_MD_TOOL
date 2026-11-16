@@ -1,6 +1,6 @@
-<!-- prompt: matching | version: 0.2 | status: draft for review -->
+<!-- prompt: matching | version: 0.3 | status: draft for review -->
 
-<!-- Developer note: Called once per run, with every unresolved lookup value, de-duplicated by (field, value). Not called when there are no items. -->
+<!-- Developer note: Called once per run, with every unresolved lookup value, de-duplicated by (field, normalized value). Not called when there are no items. -->
 <!-- Developer note: Code builds each item's shortlist from the lookup value list (excluded values removed). Code rejects any choice that is not on the item's shortlist. -->
 <!-- Developer note: Output shape is also enforced by the API (structured outputs, schema generated from code). -->
 <!-- Developer note: BioA rules are inserted from business_rules.md: rule lines tagged [Matching], status not Open, only for the fields that have items in this call. -->

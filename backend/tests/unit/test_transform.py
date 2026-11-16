@@ -219,10 +219,10 @@ def test_blank_for_now_and_system_fields_are_empty(bundle: ConfigBundle) -> None
 
 
 def test_transformation_never_overwrites_user_value(bundle: ConfigBundle) -> None:
-    """A value a person set (user_edited or fixed) is kept exactly, output section and all."""
+    """A value a person set (typed, fixed or a used suggestion) is kept exactly, notes and all."""
     rule = find_rule(bundle.business_rules, lambda rule: rule.default is not None)
     record = make_record(bundle.business_rules)
-    user_origins: tuple[Origin, ...] = ("user_edited", "fixed")
+    user_origins: tuple[Origin, ...] = ("user_edited", "fixed", "from_suggestion")
     for origin in user_origins:
         user_output = FieldOutput(value="synthetic user value", origin=origin, changes=["by user"])
         field = record.fields[rule.key].model_copy(update={"output": user_output})

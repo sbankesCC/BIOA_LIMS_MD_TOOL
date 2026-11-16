@@ -1,6 +1,6 @@
-<!-- prompt: plausibility | version: 0.1 | status: draft for review -->
+<!-- prompt: plausibility | version: 0.2 | status: draft for review -->
 
-<!-- Developer note: Part of Validation. Called once per run, after the rule checks, with only the values that passed them. Not called when business_rules.md has no active [Plausibility] check. -->
+<!-- Developer note: Part of Validation. Called once per validation pass (re-checks too), after the rule checks, with only the values that passed them. Not called when business_rules.md has no active [Plausibility] check. -->
 <!-- Developer note: Code rejects any finding whose check_id is not in the inserted checks. Every finding becomes a warning; none can block a load. -->
 <!-- Developer note: Output shape is also enforced by the API (structured outputs, schema generated from code). -->
 <!-- Developer note: The checks are inserted from business_rules.md: rule lines tagged [Plausibility], status not Open. -->

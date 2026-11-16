@@ -176,7 +176,7 @@ Citation check result (code, per field and context attribute): `verified`, `not_
 
 ## 3a. Duplicate judge output (LLM)
 
-Called once per new record with a shortlist of up to 10 existing Consumable Types: similar names, plus any with the same catalog number (code builds the shortlist; exact name matches are handled by code as `EXISTS_IN_LABVANTAGE`). The record holds the fields flagged "Sent to duplicate judge" in `business_rules.md`. While the name is not set, the record's name is the Naming suggestion, and the name as written is also given.
+Called once per new record with a shortlist of existing Consumable Types: up to 10 with similar names (`shortlist_size`), plus any with the same catalog number (code builds the shortlist; exact name matches are handled by code as `EXISTS_IN_LABVANTAGE`). The record holds the fields flagged "Sent to duplicate judge" in `business_rules.md`. While the name is not set, the record's name is the Naming suggestion, and the name as written is also given.
 
 ```json
 {
@@ -312,7 +312,7 @@ Each layer writes only its own section. Earlier sections are read-only.
 | `output` | Assembly, then user changes |
 | `issue_ids` | Validation |
 
-- `origin`: `extracted` (from the normalized value), `default`, `derived` (set by a derivation in Assembly), `from_suggestion` (a person used the suggestion), `fixed`, `user_edited`, `blank_for_now`, `system`. Assembly never overwrites `user_edited` or `from_suggestion`.
+- `origin`: `extracted` (from the normalized value), `default`, `derived` (set by a derivation in Assembly), `from_suggestion` (a person used the suggestion), `fixed`, `user_edited`, `blank_for_now`, `system`. Assembly never overwrites a value a person set: `user_edited`, `from_suggestion` or `fixed`.
 - `changes`: Normalization and Assembly notes, e.g. `"trimmed whitespace"`, a closed conflict, a default applied.
 - `exclusion`: null, or `{ "by": "...", "at": "...", "reason": "..." }`.
 - `action_needed`: `fix`, `check`, `none`, `excluded` (computed from open issues).
@@ -354,7 +354,7 @@ IDs connect user changes, bulk actions, accepted warnings, the audit trail and t
 - Run-level issues: `record_id` and `field` null.
 - Codes, severities and messages: `clients/bioa/issue_catalogue.yaml`.
 - Red issues block the verified label. They never block export.
-- `individual_review` (from the catalogue; true for `CITATION_NOT_VERIFIED` and `UNSUPPORTED_BY_SOURCE`): open ones also block the verified label. They can only be accepted one at a time, after the source was opened (see §6).
+- `individual_review` (from the catalogue; true for `CITATION_NOT_VERIFIED`, `UNSUPPORTED_BY_SOURCE`, `UNREPORTED_CONFLICT`, `VALUE_UNCLEAR`, `REVIEWER_CHOICE_NEEDED`, `DERIVED_VALUE_MISMATCH` and `PLAUSIBILITY_CHECK`): open ones also block the verified label. They can only be accepted one at a time, after the source was opened (see §6).
 - `note_required` (from the catalogue): accepting the issue needs a note (§6).
 - `details.candidates` (`EXISTS_IN_LABVANTAGE`, `POSSIBLE_DUPLICATE`): one entry per matching existing type: `candidate_id`, `name`, `match` (`exact`, `normalized`, or the judge's `same` / `unsure`), `reason` (the judge's, else null), and `description`, `consumable_class`, `active_flag` copied from the run's pinned reference data version (null when it has none). Details never key the issue, so they do not change its ID or accepted state.
 - `details.suggestion` (`NOT_IN_LOOKUP`, `NAME_NOT_SET`): the field's suggestion (value, source, reason, rule ID), when there is one.

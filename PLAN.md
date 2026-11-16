@@ -85,7 +85,7 @@ Every milestone does the following:
 - `docs/diagrams/*.{png,svg}` and `docs/design_figures.pdf` no longer matched the Mermaid. Deleted (user decision 6); the Mermaid in `ARCHITECTURE.md` is the only diagram source. Not regenerated.
 - The UI mockups stay. `UI_SPEC.md` says the spec wins where a mockup differs.
 
-**Verify:** `uv run pytest` passes except the `CONTRACTS.md` example tests in `test_contracts.py`, which fail until M3 builds the contracts the doc now describes. `rg -n "allows_equivalent|OR_EQUIVALENT|field_rules" docs CLAUDE.md README.md` finds only the history file.
+**Verify:** `uv run pytest` passes except the `CONTRACTS.md` example tests in `test_contracts.py`, which fail until M3 builds the contracts the doc now describes. `rg -n "allows_equivalent|OR_EQUIVALENT|field_rules" docs CLAUDE.md README.md` finds only the history file and the brief (`docs/REDESIGN_BUILD_PROMPT.md`, which names the removed items on purpose).
 
 ### M2. Business rules file (§7.1, §7.2)
 
@@ -295,7 +295,7 @@ Every milestone does the following:
 
 **Traceability and cleanup**
 - `test_rule_traceability.py`: every active code-step rule ID in `business_rules.md` appears in a `rule` marker.
-- Final `rg` sweep (Done criteria).
+- Final `rg` sweep (Done criteria). The history file and the brief (`docs/REDESIGN_BUILD_PROMPT.md`) are left out: they name the removed items on purpose.
 
 **End-to-end check:** one fake-provider run goes from upload to export with:
 - a Matching suggestion used;
@@ -385,6 +385,7 @@ Every milestone does the following:
 - **Greek letters outside the character table:** the business rules text says they "raise an issue for the reviewer". Today only fields with `Disallowed characters` (Consumable Type) raise INVALID_CHARACTERS. Should every text field check for them?
 - **The seeded Approval Type and Worksheet Template values are not from BioA's LabVantage export.** They should be confirmed with BR-6.
 - **Config versions per run:** `business_rules.md` and the prompts are recorded but read from the current files, as in v0.13.1. Keep this, or snapshot them per run?
+- **Critical with no `source_heading`:** the brief raises `DERIVED_VALUE_MISSING`, but CR-02 says N for every item not in the Critical Reagents table. Which applies when no heading was found? Until decided, M4 follows the brief (raise the issue, leave Critical blank).
 - **Carried over:** the record side of the duplicate comparison (expose the judge flag on `/fields`?).
 
 ## Progress log
@@ -462,3 +463,12 @@ Every milestone does the following:
 - Table cells: `\|` is a literal bar inside a cell.
 - Tests: 10 new (all fail on the old parser) and 1 widened. Result: 629 passed, 1 skipped; ruff clean. pyright not run: Node.js is not on PATH on this machine.
 
+- Docs (M1 review items):
+  - `UI_SPEC.md`: no Accept on "Value incomplete" (an error); the Verify dialog lists every individual-review warning; the Processing steps are one per status (the two verification steps merged into "Checking against the documents"; "Preparing your preview" removed); the "2–8 °C" example now shows 4C.
+  - `CONTRACTS.md`: the full individual-review list (with `UNREPORTED_CONFLICT`, already individual-review in the catalogue); Assembly never overwrites `fixed` either; the shortlist is up to 10 similar names plus the catalog-number matches.
+  - `ARCHITECTURE.md` §4.7 heading no longer says "Transformation".
+  - Prompt developer notes (HTML comments, never sent to the model) now match CONTRACTS: `matching.md` 0.3, `naming.md` 0.2, `plausibility.md` 0.2.
+  - The M1 and M10 `rg` checks leave out the brief, which names the removed items on purpose.
+  - New open question: Critical with no `source_heading`.
+  - Not changed: the BioA examples in the three prompts (no rule lines; user's call), the processing mockup and `frontend/src/lib/processingSteps.ts` (M9).
+- Tests (M3 review items): from_suggestion is kept by transformation; citation, verdict and unreported-conflict findings are dropped for every person-set origin; `use_suggestion` on a derived field is rejected; undoing a used suggestion keeps a later value. The first three fail if `from_suggestion` leaves `USER_ORIGINS`.
