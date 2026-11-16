@@ -2,7 +2,8 @@
 
 The Markdown file is read in two stages: `read_markdown` keeps its raw parts (attribute tables,
 rule lines, tables), then `build_business_rules` turns them into models once the checks in
-`business_rules_checks.py` pass. Field order here is the column order of the DFD loader.
+`business_rules_checks.py` pass. The config bundle puts the fields in the export template's
+column order (`export_template.md`); the file's own order does not matter.
 """
 
 import re

@@ -117,7 +117,7 @@ def check_draft_export(api: ApiHarness, bundle: ConfigBundle) -> None:
     sheet = load_workbook(BytesIO(loader.content)).active
     assert sheet is not None
     rows = list(sheet.iter_rows(values_only=True))
-    assert list(rows[0]) == bundle.dfd_template.headers
+    assert list(rows[0]) == bundle.export_template.headers
     assert len(rows) == 2
     audit = api.client.get(f"/runs/{RUN_ID}/exports/{export['export_id']}/audit")
     assert audit.status_code == 200

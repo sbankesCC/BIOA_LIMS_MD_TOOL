@@ -2880,7 +2880,7 @@
           "lookup_lists": {
             "type": "string"
           },
-          "dfd_template": {
+          "export_template": {
             "type": "string"
           },
           "reference_data_mapping": {
@@ -2899,7 +2899,7 @@
           "extraction_rules",
           "issue_catalogue",
           "lookup_lists",
-          "dfd_template",
+          "export_template",
           "reference_data_mapping",
           "prompts"
         ],

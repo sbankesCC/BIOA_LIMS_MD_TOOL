@@ -15,9 +15,9 @@ def test_business_rules_have_22_fields_13_extracted_and_2_context(bundle: Config
     assert len(bundle.business_rules.context_fields()) == 2
 
 
-def test_dfd_headers_equal_loader_columns(bundle: ConfigBundle) -> None:
-    """The template's header row is the loader columns, in the same order."""
-    assert bundle.dfd_template.headers == bundle.business_rules.columns()
+def test_loader_columns_follow_the_export_template_order(bundle: ConfigBundle) -> None:
+    """The bundle's loader fields are in the export template's column order."""
+    assert bundle.business_rules.columns() == bundle.export_template.headers
 
 
 def test_every_lookup_field_has_its_sheet(bundle: ConfigBundle) -> None:
@@ -53,7 +53,8 @@ def test_versions_cover_every_config_file(bundle: ConfigBundle) -> None:
     assert versions.issue_catalogue == bundle.issue_catalogue.version
     assert versions.lookup_lists == bundle.lookup_lists.metadata.version_id
     assert versions.reference_data_mapping == bundle.reference_mapping.version
-    assert versions.dfd_template.startswith("sha256:")
+    assert versions.extraction_rules == bundle.extraction_rules.version
+    assert versions.export_template == bundle.export_template.version
     assert set(versions.prompts) == set(bundle.prompts)
 
 

@@ -12,7 +12,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.config.dfd_template import DfdTemplate
+from app.config.export_template import ExportTemplate
 from app.contracts.export import ExportInfo
 from app.contracts.run import AuditEvent, RunInfo
 from app.export.audit_rows import AuditSource, build_audit_rows
@@ -48,7 +48,7 @@ class ExportContext:
     """
 
     review: ReviewContext
-    template: DfdTemplate
+    template: ExportTemplate
     models: Mapping[str, str]
 
 

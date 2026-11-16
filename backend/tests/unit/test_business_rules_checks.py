@@ -6,7 +6,6 @@ Edits are built at run time from the loaded rules, so no client value is written
 from pathlib import Path
 
 import pytest
-from openpyxl import load_workbook
 
 from app.config.bundle import ConfigBundle
 from app.config.business_rules import (
@@ -393,12 +392,3 @@ def test_table_output_not_on_lookup_list_is_reported(
     changed = {**row, column: "synthetic-not-a-value"}
     edit_business_rules(config_copy, table_row_text(table, row), table_row_text(table, changed))
     assert_config_error(config_copy, "value 'synthetic-not-a-value' is not on its lookup list")
-
-
-def test_template_headers_must_equal_loader_columns(config_copy: Path) -> None:
-    """The DFD template headers must equal the loader columns, in order."""
-    path = config_copy / "dfd_template.xlsx"
-    workbook = load_workbook(path)
-    workbook["Sheet1"]["A1"] = "Synthetic Header"
-    workbook.save(path)
-    assert_config_error(config_copy, "the headers do not match the loader columns")

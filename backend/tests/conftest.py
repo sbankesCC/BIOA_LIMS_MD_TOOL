@@ -29,7 +29,7 @@ def synthetic_documents(
 ) -> dict[str, Path]:
     """Generate the synthetic test documents once, into a temp folder, by file name."""
     folder = tmp_path_factory.mktemp("synthetic_documents")
-    return make_all_documents(folder, bundle.dfd_template.headers)
+    return make_all_documents(folder, bundle.export_template.headers)
 
 
 @pytest.fixture

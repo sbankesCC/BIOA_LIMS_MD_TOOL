@@ -96,6 +96,6 @@ def load_export_context(workspace: Workspace, run_id: str) -> ExportContext:
     run = workspace.database.read_run(run_id)
     return ExportContext(
         review=make_review_context(workspace, run),
-        template=workspace.bundle.dfd_template,
+        template=workspace.bundle.export_template,
         models=run.models,
     )

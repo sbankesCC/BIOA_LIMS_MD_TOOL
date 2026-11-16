@@ -53,7 +53,6 @@ from app.config.business_rules import (
     split_list_cell,
     split_status,
 )
-from app.config.dfd_template import DfdTemplate
 from app.config.errors import ConfigError, describe_validation_problem, require_file
 from app.config.issue_catalogue import IssueCatalogue
 from app.config.lookup_lists import LookupLists
@@ -514,18 +513,6 @@ def off_list(where: str, column: str, values: list[str], allowed: list[str]) -> 
         "Fix the value or add it to lookup_lists.xlsx."
         for value in values
         if not is_blank_cell(value) and not is_keyword_cell(value) and value not in allowed
-    ]
-
-
-def find_template_problems(rules: BusinessRules, template: DfdTemplate) -> list[str]:
-    """Check the DFD template headers equal the loader columns, in the same order."""
-    columns = rules.columns()
-    if template.headers == columns:
-        return []
-    return [
-        f"dfd_template.xlsx: the headers do not match the loader columns in {FILE_NAME} "
-        f"(template has {len(template.headers)}, {FILE_NAME} has {len(columns)}). "
-        "They must be the same names in the same order."
     ]
 
 

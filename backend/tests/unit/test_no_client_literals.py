@@ -33,6 +33,8 @@ def client_literals(bundle: ConfigBundle) -> set[str]:
     values = {value for sheet in bundle.lookup_lists.sheets.values() for value in sheet}
     values |= set(bundle.business_rules.columns())
     values |= table_cell_values(bundle.business_rules)
+    # The export template's columns are the loader columns above; its sheet name is client data
+    values.add(bundle.export_template.sheet.name)
     # Grammar words (such as the Status column header) can equal a column name; they are structure
     return {
         value

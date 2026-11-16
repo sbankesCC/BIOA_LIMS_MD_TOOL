@@ -36,7 +36,7 @@ def test_health_reports_config_versions(monkeypatch: pytest.MonkeyPatch) -> None
         "extraction_rules",
         "issue_catalogue",
         "lookup_lists",
-        "dfd_template",
+        "export_template",
         "reference_data_mapping",
         "prompts",
     }

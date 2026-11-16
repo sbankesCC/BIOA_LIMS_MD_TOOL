@@ -117,7 +117,7 @@ def build_version_entries(source: AuditSource) -> list[tuple[str, str]]:
         ("Extraction rules version", versions.extraction_rules),
         ("Issue catalogue version", versions.issue_catalogue),
         ("Lookup lists version", versions.lookup_lists),
-        ("DFD template version", versions.dfd_template),
+        ("Export template version", versions.export_template),
         ("Reference data mapping version", versions.reference_data_mapping),
         ("Reference data version", source.run.reference_data_version or NOT_SET),
     ]

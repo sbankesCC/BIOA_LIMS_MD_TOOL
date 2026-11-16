@@ -34,18 +34,6 @@ def test_invalid_yaml_is_reported(config_copy: Path) -> None:
     assert_config_error(config_copy, "issue_catalogue.yaml: not valid YAML")
 
 
-# ----- DFD template -----
-
-
-def test_template_with_extra_rows_is_reported(config_copy: Path) -> None:
-    """The template may hold only its header row."""
-    path = config_copy / "dfd_template.xlsx"
-    workbook = load_workbook(path)
-    workbook["Sheet1"]["A2"] = "synthetic record"
-    workbook.save(path)
-    assert_config_error(config_copy, "must have only the header row")
-
-
 # ----- Lookup lists -----
 
 

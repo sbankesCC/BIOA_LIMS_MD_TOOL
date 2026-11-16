@@ -4,7 +4,6 @@ Synthetic records only; field keys, columns and types are read from the client c
 """
 
 import dataclasses
-import hashlib
 from pathlib import Path
 
 import pytest
@@ -13,7 +12,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from app.config.bundle import ConfigBundle
 from app.config.business_rules import FieldDefinition
-from app.config.dfd_template import SHEET_NAME
+from app.config.export_template import ExportTemplate, SheetSettings
 from app.contracts.chunk import Chunk
 from app.contracts.export import ExportInfo
 from app.contracts.extraction import Alternative, Evidence, ExtractedField
@@ -124,11 +123,17 @@ def start_export_run(
 
 
 def export(
-    database: ReviewDatabase, bundle: ConfigBundle, context: ReviewContext, run_folder: RunFolder
+    database: ReviewDatabase,
+    bundle: ConfigBundle,
+    context: ReviewContext,
+    run_folder: RunFolder,
+    template: ExportTemplate | None = None,
 ) -> ExportInfo:
-    """Export the run for the test user."""
+    """Export the run for the test user, with the client's export template unless one is given."""
     export_context = ExportContext(
-        review=context, template=bundle.dfd_template, models={"extraction": "synthetic-model"}
+        review=context,
+        template=template or bundle.export_template,
+        models={"extraction": "synthetic-model"},
     )
     return export_run(database, export_context, run_folder, RUN_ID, USER, NOW)
 
@@ -154,8 +159,10 @@ def test_loader_round_trips_with_headers_and_rows(
     """The loader has the template headers and one row per included record, as exported."""
     database = start_export_run(tmp_path, bundle, context)
     info = export(database, bundle, context, run_folder)
-    rows = read_rows(open_sheet(run_folder.resolve_ref(info.loader_file), SHEET_NAME))
-    headers = bundle.dfd_template.headers
+    rows = read_rows(
+        open_sheet(run_folder.resolve_ref(info.loader_file), bundle.export_template.sheet.name)
+    )
+    headers = bundle.export_template.headers
     assert list(rows[0]) == headers
     name_index = headers.index(find_name_rule(bundle.business_rules).column)
     # The excluded record is left out
@@ -178,8 +185,10 @@ def test_loader_writes_numbers_as_numbers_and_unfilled_fields_blank(
     """A decimal is a float cell; blank_for_now and system fields are empty."""
     database = start_export_run(tmp_path, bundle, context)
     info = export(database, bundle, context, run_folder)
-    rows = read_rows(open_sheet(run_folder.resolve_ref(info.loader_file), SHEET_NAME))
-    headers = bundle.dfd_template.headers
+    rows = read_rows(
+        open_sheet(run_folder.resolve_ref(info.loader_file), bundle.export_template.sheet.name)
+    )
+    headers = bundle.export_template.headers
     decimal_value = rows[1][headers.index(number_rule(bundle, "decimal").column)]
     assert decimal_value == 2.5 and isinstance(decimal_value, float)
     integer_value = rows[1][headers.index(number_rule(bundle, "integer").column)]
@@ -196,8 +205,10 @@ def test_unreadable_number_stays_text(
     database = start_export_run(tmp_path, bundle, context)
     save(database, context, set_value("chg_0002", rule.key, "two", reason="synthetic edit"))
     info = export(database, bundle, context, run_folder)
-    rows = read_rows(open_sheet(run_folder.resolve_ref(info.loader_file), SHEET_NAME))
-    assert rows[1][bundle.dfd_template.headers.index(rule.column)] == "two"
+    rows = read_rows(
+        open_sheet(run_folder.resolve_ref(info.loader_file), bundle.export_template.sheet.name)
+    )
+    assert rows[1][bundle.export_template.headers.index(rule.column)] == "two"
 
 
 def test_text_starting_with_equals_is_not_a_formula(
@@ -208,18 +219,46 @@ def test_text_starting_with_equals_is_not_a_formula(
     database = start_export_run(tmp_path, bundle, context)
     save(database, context, set_value("chg_0002", rule.key, "=1+1", reason="synthetic edit"))
     info = export(database, bundle, context, run_folder)
-    sheet = open_sheet(run_folder.resolve_ref(info.loader_file), SHEET_NAME)
-    cell = sheet.cell(row=2, column=bundle.dfd_template.headers.index(rule.column) + 1)
+    sheet = open_sheet(run_folder.resolve_ref(info.loader_file), bundle.export_template.sheet.name)
+    cell = sheet.cell(row=2, column=bundle.export_template.headers.index(rule.column) + 1)
     assert (cell.value, cell.data_type) == ("=1+1", "s")
 
 
-def test_template_is_never_written(
+def test_loader_layout_comes_from_the_template(
     tmp_path: Path, bundle: ConfigBundle, context: ReviewContext, run_folder: RunFolder
 ) -> None:
-    """Exporting fills a copy; the template file is unchanged."""
-    before = hashlib.sha256(bundle.dfd_template.path.read_bytes()).hexdigest()
-    export(start_export_run(tmp_path, bundle, context), bundle, context, run_folder)
-    assert hashlib.sha256(bundle.dfd_template.path.read_bytes()).hexdigest() == before
+    """Sheet name, header style, frozen row and number format come from the export template."""
+    rule = number_rule(bundle, "decimal")
+    columns = [
+        column.model_copy(update={"format": "2 decimals"}) if column.name == rule.column else column
+        for column in bundle.export_template.columns
+    ]
+    sheet_settings = SheetSettings(name="Synthetic", is_header_bold=False, is_header_frozen=True)
+    template = bundle.export_template.model_copy(
+        update={"sheet": sheet_settings, "columns": columns}
+    )
+    database = start_export_run(tmp_path, bundle, context)
+    info = export(database, bundle, context, run_folder, template)
+    sheet = open_sheet(run_folder.resolve_ref(info.loader_file), "Synthetic")
+    assert sheet.freeze_panes == "A2"
+    assert sheet.cell(row=1, column=1).font.bold is False
+    cell = sheet.cell(row=2, column=template.headers.index(rule.column) + 1)
+    # The format only changes how Excel shows the value; the stored value is not rounded
+    assert (cell.number_format, cell.value) == ("0.00", 2.5)
+
+
+def test_loader_columns_follow_the_template_order(
+    tmp_path: Path, bundle: ConfigBundle, context: ReviewContext, run_folder: RunFolder
+) -> None:
+    """The template alone sets the column order."""
+    reversed_columns = list(reversed(bundle.export_template.columns))
+    template = bundle.export_template.model_copy(update={"columns": reversed_columns})
+    database = start_export_run(tmp_path, bundle, context)
+    info = export(database, bundle, context, run_folder, template)
+    rows = read_rows(open_sheet(run_folder.resolve_ref(info.loader_file), template.sheet.name))
+    assert list(rows[0]) == template.headers
+    name_index = template.headers.index(find_name_rule(bundle.business_rules).column)
+    assert rows[1][name_index] == "Syn A"
 
 
 # ----- Re-check, file names, export record -----
@@ -233,8 +272,10 @@ def test_export_applies_pending_changes_first(
     database = start_export_run(tmp_path, bundle, context)
     save(database, context, set_value("chg_0002", rule.key, "synthetic edited", reason="fix"))
     info = export(database, bundle, context, run_folder)
-    rows = read_rows(open_sheet(run_folder.resolve_ref(info.loader_file), SHEET_NAME))
-    assert rows[1][bundle.dfd_template.headers.index(rule.column)] == "synthetic edited"
+    rows = read_rows(
+        open_sheet(run_folder.resolve_ref(info.loader_file), bundle.export_template.sheet.name)
+    )
+    assert rows[1][bundle.export_template.headers.index(rule.column)] == "synthetic edited"
     assert database.read_changes(RUN_ID, "pending") == []
 
 
