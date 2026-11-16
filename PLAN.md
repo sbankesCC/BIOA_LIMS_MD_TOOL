@@ -9,7 +9,7 @@ v0.13.1 is complete: Ingest → Extraction ⇄ Verification → Transformation �
 - It splits Transformation into Normalization (code), Matching (model), Naming (model) and Assembly (code).
 - It adds a plausibility review to Validation.
 - It changes the extraction and verification contracts: adds `context` and `unclear`, adds `incomplete` and `section`, and drops `allows_equivalent`.
-- It replaces `clients/bioa/field_rules.yaml` with `clients/bioa/business_rules.md` as the only source of field and business rules.
+- It replaces `clients/bioa/field_rules.yaml` with `clients/bioa/business_rules.md` as the only source of field and business rules. After M3b, extraction guidance lives in `extraction_rules.md`, the loader layout in `export_template.md`, and the naming rules in `prompts/naming.md` (user decisions 7–10).
 - It changes the loader's field list: three fields are removed and three blank expiry fields are added, so it stays at 22 columns.
 
 The design comes from `docs/REDESIGN_BUILD_PROMPT.md`, with the user's changes below. Build history is in `docs/BUILD_HISTORY_v0.13.1.md`. Models only suggest or judge. Only code and people write loader values.
@@ -25,7 +25,7 @@ The design comes from `docs/REDESIGN_BUILD_PROMPT.md`, with the user's changes b
    - **Added (BioA's updated field list):** Expiry Based On, Expiry Period and Expiry Period Units.
      - Role `blank_for_now`; exported blank until BioA defines the rules.
      - Their sections, EX-01 to EX-03 and BR-7 stay in `business_rules.md` as written.
-2. **Loader has 22 columns:** the original 22, minus the three removed fields, plus the three expiry fields at the end. This is the order of `business_rules.md`.
+2. **Loader has 22 columns:** the original 22, minus the three removed fields, plus the three expiry fields at the end. This was the order of `business_rules.md`; from M3b the order comes only from `export_template.md` (decision 9).
    - M2 rewrites the `dfd_template.xlsx` header row to match and keeps the styling: it deletes three columns and appends the three expiry headers.
    - You have not given me BioA's updated template, so the three expiry header names stay provisional, as the prompt says. They are listed in Open questions.
 3. **Seed the empty lookup lists.**
@@ -39,6 +39,10 @@ The design comes from `docs/REDESIGN_BUILD_PROMPT.md`, with the user's changes b
    - `claude_code_package/`, the zip and the root `REDESIGN_BUILD_PROMPT.md` stay untracked. The user deletes them. The prompt is committed as `docs/REDESIGN_BUILD_PROMPT.md` so the plan's pointer works.
 5. **The Matching rules placeholder is `{matching_rules}`**, not `{field_rules}` as in prompt §7.1, so no `field_rules` name remains. `matching.md` is version 0.2.
 6. **Rendered diagrams are deleted, not regenerated:** `docs/diagrams/*` and `docs/design_figures.pdf`. No `npx`.
+7. **Derivation tables use a machine grammar (`business_rules.md` v1.3).** A derivation table column named after a loader column reads that field's value; a column named after a context attribute key reads whether it was found (`yes`/`no`). The Class table reads `Manufacturer`, with the rows `in BAL vendor names`, `not in BAL vendor names` and `(empty)`. Critical headings gets the row `(any other heading)` → `N`. The Approval type table's `Serial dilution level` column becomes `serial_dilution`.
+8. **Extraction guidance moves to `clients/bioa/extraction_rules.md`.** It holds the general extraction lines (GEN-01, GEN-02), the candidate criteria (CAND-01 to CAND-05) and each extracted field's and context attribute's `[Extraction]` lines. The extraction and verification prompts read guidance only from this file. The field sections of `business_rules.md` (the "Field Log") keep the structural facts every step uses: key, column, role, type, single or multi-value. Schema-building code reads those, as it does for every step; that is structure, not guidance. `business_rules.md` says so in its field sections description.
+9. **The loader layout moves to `clients/bioa/export_template.md`; `dfd_template.xlsx` is deleted.** It holds the sheet settings (sheet name, header style, frozen row) and one row per loader column: type (text / number / date) and display format. It is the only source of column order (loader, review grid, audit sheets). Export builds the workbook from it. Startup checks: the same set of columns as the field sections, and types that agree (`decimal`/`integer` → number; `text`/`boolean` → text).
+10. **The naming rules NM-01 to NM-09 move into `prompts/naming.md`.** They are style guidance read whole by one prompt and never looked up by rule ID. CLAUDE.md gets an explicit exception for this case. The Open rule NM-09 stays out of the text the model sees (developer note). The UI shows the suggestion's `rule_id` as given; code does not check it against a list. The Naming code checks read max length and disallowed characters from the record name's field section.
 
 ### Field set after the redesign (22 loader columns + 2 context attributes)
 
@@ -160,6 +164,38 @@ Every milestone does the following:
 - One test per new status rule, including context.
 - Schemas are strict.
 
+### M3b. Config restructure (user decisions 7–10; before M4)
+
+**Step 1: `business_rules.md` v1.3 (derivation tables)**
+- Edit the Class table, Critical headings and Approval type table as in decision 7. Rule lines are unchanged. Show the diff.
+- Grammar in `CONTRACTS.md` §12: input columns (loader column or context key), `any`, `(blank)`, `(empty)`, `in <heading>`, `not in <heading>`, `(blank, with an issue)`, `(any other heading)`.
+- Startup checks: an `in`/`not in` cell names a table of the same section; an input column names a loader column or a context key.
+
+**Step 2: `extraction_rules.md` and `business_rules.md` v1.4**
+- New `clients/bioa/extraction_rules.md`: a version table, `## General`, `## Candidate criteria`, then one `## Field: <key>` section per extracted field and context attribute, each with `[Extraction]` rule lines. Same rule-line format; the Markdown reader is shared.
+- Remove those lines from `business_rules.md`. Add the structural facts / guidance note to its field sections description.
+- Checks: only `[Extraction]` lines in the new file, and no `[Extraction]` line in `business_rules.md`; every extracted field and context attribute has a section with an active line; no section names an unknown key. These replace `find_extraction_rule_problems` and the Candidate-criteria half of `find_rule_placement_problems`.
+- `prompt_builder.py`: `{general_rules}`, `{candidate_rules}`, `{field_section}` and `{context_section}` read the new file.
+- `ConfigVersions` and the per-run versions get `extraction_rules`; the audit sheet gets its version row.
+
+**Step 3: naming rules into `naming.md` (0.3)**
+- Move NM-01 to NM-08 into the prompt text; NM-09 (Open) goes in a developer note. Remove `{naming_rules}`, `build_naming_rules` and the `### Naming rules` section of `business_rules.md` (same v1.4).
+- CLAUDE.md: the exception in decision 10.
+
+**Step 4: `export_template.md`; delete `dfd_template.xlsx`**
+- New `clients/bioa/export_template.md`: a version table, sheet settings, and a column table (`Column | Type | Format | Status`) in export order.
+- New `config/export_template.py` (models and reader); `bundle.py` loads it. `ConfigVersions.dfd_template` becomes `export_template`, as does the audit row.
+- `export/loader.py` builds the workbook from the template: sheet name, header style, frozen row, a number format per column. Values are written unchanged; a format never rounds the stored value.
+- Order: the field list exposed to the API, grid and audit sheets follows the template.
+- `ingest` recognizes a loader workbook by the template's columns.
+- Checks: same set of columns as the field sections; types agree.
+- `git rm` `clients/bioa/dfd_template.xlsx` and `backend/app/config/dfd_template.py`.
+
+**Step 5: docs and tests**
+- `ARCHITECTURE.md` (configuration, §4.10 export), `CONTRACTS.md` (§12, file formats, sections for the two new files), `CLAUDE.md` §5 (spec files, gotchas), `README.md`.
+- Tests: both new parsers; one per new check (column set, type mismatch, missing guidance section, `[Extraction]` line in the wrong file, bad `in` cell); loader styling (sheet name, header style, frozen row, number format); the literals test also reads the cells of the new files.
+- One commit per step.
+
 ### M4. Normalization and Assembly (steps 4 and 7)
 
 **Replace `backend/app/transform/` with two packages**
@@ -177,7 +213,7 @@ Every milestone does the following:
 `backend/app/assembly/`:
 - `conflicts.py` (7.1)
 - `loader_values.py` (7.2)
-- `derivations.py`: one small named function each, `derive_critical`, `derive_consumable_class`, `derive_approval_type` and `derive_worksheet_template`, each reading its table
+- `derivations.py`: one small named function each, `derive_critical`, `derive_consumable_class`, `derive_approval_type` and `derive_worksheet_template`, each reading its table with the v1.3 grammar (decision 7). Each finds its target field by the table it owns, and its inputs by the table's column names; no field key is written in code
 - `defaults.py` (7.4)
 - `assemble.py` (7.5, 7.6; skips origin `user_edited`)
 
@@ -221,13 +257,13 @@ Every milestone does the following:
 ### M6. Model steps and graph
 
 **Agents**
-- Change `agents/extraction.py` and `agents/extraction_verification.py`: the new placeholders, context, and the `unclear`/`incomplete` handling.
+- Change `agents/extraction.py` and `agents/extraction_verification.py`: the new placeholders (guidance from `extraction_rules.md`), context, and the `unclear`/`incomplete` handling.
 - New `agents/matching.py`:
   - de-duplicates the items;
   - builds a difflib shortlist with the same `SequenceMatcher` and `normalize_for_match` as `build_shortlist`, of size `MATCHING_SHORTLIST_SIZE`;
   - makes one call;
   - rejects off-shortlist choices.
-- New `agents/naming.py`: makes one call, then code checks each name (translation, max length, disallowed characters, unique in the run), and keeps the reason for any dropped suggestion.
+- New `agents/naming.py`: makes one call, then code checks each name (translation, max length, disallowed characters, unique in the run), and keeps the reason for any dropped suggestion. The rules are in `naming.md`; `rule_id` is stored as given.
 - New `agents/plausibility.py`: no call when there are no active `[Plausibility]` lines; drops unknown check IDs. It is called from the validation service.
 
 **Caches and settings**
@@ -259,7 +295,7 @@ Every milestone does the following:
 - A pick of an alternative goes through `normalize_field` (it used to use `transform_value`).
 
 **Export (`export/`)**
-- `loader.py` takes its columns from `business_rules.columns()`, in file order, and writes the extracted, generated and derived fields.
+- The loader layout is built in M3b from `export_template.md`. M7 keeps writing the extracted, generated and derived fields into it.
 - `audit_workbook.py` / `audit_rows.py`:
   - the Values sheet adds "How set", "Suggestion" and "Suggestion reason";
   - new sheets "Context" and "Suggestions used".
@@ -317,6 +353,7 @@ Every milestone does the following:
 | `allows_equivalent` (contract, schema, `evals/seeding.py`, fake replies, openapi, `schema.ts`, docs) | M3, M8–M10 |
 | `placeholder_value` / TEST VALUE | M2 (config), M9 (UI) |
 | `docs/diagrams/*.png/.svg`, `docs/design_figures.pdf` | M1 (done) |
+| `clients/bioa/dfd_template.xlsx`, `backend/app/config/dfd_template.py` and its loader tests (user approved) | M3b |
 
 ## Decisions carried forward (from `docs/BUILD_HISTORY_v0.13.1.md`)
 
@@ -350,7 +387,6 @@ Every milestone does the following:
 - **Roles,** the stored user and auth behave as built.
 - **"Mandatory" Expected Amount Unit and Expected No of Containers are read as conditional.**
 - **"N/A" stays in the Manufacturer and Supplier lists.**
-- **DFD template version** is the short SHA-256 of the file.
 - **The no-client-literals test** compares whole string constants and skips one-character values.
 - **Config versions per run:** lookup lists and reference data are reloaded by their captured version. The other config files (now including `business_rules.md`) are recorded, not reloaded. This is unchanged from v0.13.1; see Open questions.
 
@@ -361,6 +397,7 @@ Every milestone does the following:
 - **OR_EQUIVALENT and "Accept the named product":** removed. "or equivalent" stays in the copied value instead.
 - **The `field_rules.yaml` format, its version 0.3 and `is_record_name` / `sent_to_duplicate_judge` as YAML keys:** they are replaced by `business_rules.md` attributes.
 - **"A picked alternative goes through `transform_value`":** it now goes through `normalize_field`.
+- **DFD template version as the SHA-256 of `dfd_template.xlsx`:** the template is now `export_template.md`, with a version table.
 
 ## Decisions made in this plan (not covered by the prompt or docs)
 
@@ -380,7 +417,7 @@ Every milestone does the following:
 ## Open questions
 
 - **BR-1 to BR-9 and FL-1** are not resolved. `Assumption` rules are built as written, and `Open` rules stay inactive. They include SC-05, CO-04, EU-04, CR-03, TC-05, NM-09, EX-01 to EX-03 and PL-01 to PL-04.
-- **Expiry column names are provisional** until BioA's updated DFD template arrives. If they differ, change the `Loader column` cells in `business_rules.md` and the template header.
+- **Expiry column names are provisional** until BioA's updated DFD template arrives. If they differ, change the `Loader column` cells in `business_rules.md` and the column names in `export_template.md`.
 - **Storage Condition "Ambient":** the list has its own `Ambient` value, but SC-T05 translates "ambient" to Room Temperature first (4.3 runs before 4.4), so `Ambient` is never chosen. This belongs with BR-3.
 - **Greek letters outside the character table:** the business rules text says they "raise an issue for the reviewer". Today only fields with `Disallowed characters` (Consumable Type) raise INVALID_CHARACTERS. Should every text field check for them?
 - **The seeded Approval Type and Worksheet Template values are not from BioA's LabVantage export.** They should be confirmed with BR-6.
