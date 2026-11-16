@@ -116,6 +116,11 @@ RULE_LINE_PATTERN = re.compile(
 STATUS_WORD_PATTERN = re.compile(r"^(?P<word>[A-Za-z]+)\W*(?P<note>.*)$", re.DOTALL)
 REQUIREMENT_PATTERN = re.compile(r"^(?P<word>[a-z_]+)(?:\s*\((?P<group>[a-z0-9_]+)\))?$")
 TABLE_SEPARATOR_CELL = re.compile(r"^:?-{3,}:?$")
+# A cell boundary is a `|` that is not escaped as `\|`
+CELL_BOUNDARY = re.compile(r"(?<!\\)\|")
+ESCAPED_PIPE = r"\|"
+# Bullets other than `- `, which the file does not use for rule lines
+OTHER_BULLETS = ("* ", "+ ")
 
 
 # ----- Raw parts, as read from the Markdown -----
@@ -146,6 +151,7 @@ class RawSection(BaseModel):
     line_number: int
     attribute_table: RawTable | None = None
     lines: list[RawLine] = []
+    stray_lines: list[RawLine] = []
     tables: list[RawTable] = []
 
     def attributes(self) -> dict[str, str]:
@@ -369,8 +375,12 @@ def split_list_cell(value: str) -> list[str]:
 
 
 def split_table_row(line: str) -> list[str]:
-    """Split one Markdown table line into its trimmed cells."""
-    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+    """Split one Markdown table line into its trimmed cells; an escaped bar stays in its cell."""
+    inner = line.strip().removeprefix("|")
+    # Drop the closing bar unless it is escaped (then it belongs to the last cell)
+    if inner.endswith("|") and not inner.endswith(ESCAPED_PIPE):
+        inner = inner[:-1]
+    return [cell.strip().replace(ESCAPED_PIPE, "|") for cell in CELL_BOUNDARY.split(inner)]
 
 
 # ----- Stage 1: read the Markdown into raw parts -----
@@ -390,12 +400,13 @@ class MarkdownReader:
     def read(self, text: str) -> RawDocument:
         """Read the whole file and return its raw parts."""
         for line_number, line in enumerate(text.splitlines(), start=1):
-            self.read_line(line_number, line.strip())
+            self.read_line(line_number, line)
         self.finish_table()
         return self.document
 
-    def read_line(self, line_number: int, line: str) -> None:
-        """Route one line: table row, `##` section, `###` heading, or bullet line."""
+    def read_line(self, line_number: int, raw_line: str) -> None:
+        """Route one line: table row, `##` section, `###` heading, bullet or stray line."""
+        line = raw_line.strip()
         if line.startswith("|"):
             self.table_lines.append((line_number, line))
             return
@@ -404,8 +415,15 @@ class MarkdownReader:
             self.heading = line[4:].strip()
         elif line.startswith("## "):
             self.start_section(line_number, line[3:].strip())
-        elif line.startswith("- ") and self.section is not None:
+        elif self.section is None:
+            return
+        elif line.startswith("- "):
             self.section.lines.append(
+                RawLine(text=line, heading=self.heading, line_number=line_number)
+            )
+        elif is_stray_line(raw_line):
+            # Kept so the checks can reject it instead of silently dropping a rule
+            self.section.stray_lines.append(
                 RawLine(text=line, heading=self.heading, line_number=line_number)
             )
 
@@ -435,6 +453,13 @@ class MarkdownReader:
             self.section.attribute_table = table
         else:
             self.section.tables.append(table)
+
+
+def is_stray_line(raw_line: str) -> bool:
+    """Return True for a `*`/`+` bullet or an indented line: they look like rule text."""
+    line = raw_line.strip()
+    is_indented = bool(line) and raw_line[0].isspace()
+    return line.startswith(OTHER_BULLETS) or is_indented
 
 
 def section_kind(title: str) -> SectionKind | None:

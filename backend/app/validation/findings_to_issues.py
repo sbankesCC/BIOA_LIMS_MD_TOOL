@@ -35,6 +35,7 @@ FIELD_VERDICT_CODES: dict[FieldVerdict, str] = {
     "contradicted": codes.CONTRADICTED_BY_SOURCE,
     "unsupported": codes.UNSUPPORTED_BY_SOURCE,
     "present_missed": codes.VALUE_PRESENT_MISSED,
+    "incomplete": codes.VALUE_INCOMPLETE,
 }
 
 # Verification agent verdicts on a whole record (CONTRACTS §3)

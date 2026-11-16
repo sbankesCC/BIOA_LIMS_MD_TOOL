@@ -8,9 +8,13 @@ Each check returns plain-language problems; any problem stops the app from start
 import re
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from app.config.business_rules import (
     ALL_LISTS,
     ANY_VALUE,
+    ATTRIBUTE_HEADER,
+    CANDIDATE_HEADING,
     CONDITION_GROUP_COLUMNS,
     CONDITION_GROUPS_HEADING,
     CONTEXT_ROLE,
@@ -49,7 +53,7 @@ from app.config.business_rules import (
     split_status,
 )
 from app.config.dfd_template import DfdTemplate
-from app.config.errors import ConfigError, require_file
+from app.config.errors import ConfigError, describe_validation_problem, require_file
 from app.config.issue_catalogue import IssueCatalogue
 from app.config.lookup_lists import LookupLists
 
@@ -78,11 +82,17 @@ def parse_business_rules(text: str) -> BusinessRules:
     )
     if raw_problems:
         raise ConfigError(raw_problems)
-    rules = build_business_rules(document)
+    # The raw checks should catch everything; this keeps any gap a plain ConfigError
+    try:
+        rules = build_business_rules(document)
+    except ValidationError as error:
+        problems = [describe_validation_problem(FILE_NAME, item) for item in error.errors()]
+        raise ConfigError(problems) from error
     model_problems = (
         find_duplicate_id_problems(rules)
         + find_record_name_problems(rules)
         + find_extraction_rule_problems(rules)
+        + find_rule_placement_problems(rules)
         + find_reference_problems(rules)
     )
     if model_problems:
@@ -111,6 +121,11 @@ def find_attribute_problems(document: RawDocument) -> list[str]:
         if section.attribute_table is None:
             problems.append(f"{name} has no 'Attribute | Value' table under its heading.")
             continue
+        # A malformed or repeated row would otherwise be read silently
+        table_problems = find_attribute_table_problems(name, section.attribute_table)
+        if table_problems:
+            problems += table_problems
+            continue
         attributes = section.attributes()
         missing = [key for key in REQUIRED_ATTRIBUTES if not attributes.get(key)]
         unknown = [
@@ -120,6 +135,21 @@ def find_attribute_problems(document: RawDocument) -> list[str]:
         problems += [f"{name} has an unknown attribute '{key}'." for key in unknown]
         if not missing:
             problems += find_attribute_value_problems(name, attributes)
+    return problems
+
+
+def find_attribute_table_problems(name: str, table: RawTable) -> list[str]:
+    """Check an attribute table: two cells per row, and each attribute named once."""
+    problems = [
+        f"{name}: the attribute row '{' | '.join(row)}' has {len(row)} cells; it needs "
+        f"{len(ATTRIBUTE_HEADER)} (Attribute | Value). Write a '|' inside a value as '\\|'."
+        for row in table.rows
+        if len(row) != len(ATTRIBUTE_HEADER)
+    ]
+    keys = [row[0] for row in table.rows]
+    problems += [
+        f"{name}: the attribute '{key}' is listed twice. Keep one row." for key in repeated(keys)
+    ]
     return problems
 
 
@@ -133,6 +163,12 @@ def find_attribute_value_problems(name: str, attributes: dict[str, str]) -> list
     problems += not_in_set(name, "Type", attributes["Type"], FIELD_TYPES)
     requirement_word = requirement["word"] if requirement else attributes["Requirement"]
     problems += not_in_set(name, "Requirement", requirement_word, REQUIREMENTS)
+    # Only a conditional requirement names a group; anywhere else it would be ignored
+    if requirement and requirement["group"] and requirement_word != "conditional":
+        problems.append(
+            f"{name}: 'Requirement' is '{attributes['Requirement']}', but only 'conditional' "
+            "names a group. Remove the group or make the field conditional."
+        )
     for key in YES_NO_ATTRIBUTES:
         if key in attributes:
             problems += not_in_set(name, key, attributes[key], (YES, NO))
@@ -190,6 +226,11 @@ def find_rule_line_problems(document: RawDocument) -> list[str]:
             problems += not_in_set(where, "step", match["step"], STEPS)
             status = split_status(match["status_text"])[0]
             problems += not_in_set(where, "status", status, STATUSES)
+        problems += [
+            f"{FILE_NAME}: line {line.line_number} is not read. Start each rule line with '- ' "
+            "at the start of the line, and keep the whole rule on that one line."
+            for line in section.stray_lines
+        ]
     return problems
 
 
@@ -226,11 +267,25 @@ def find_condition_table_problems(table: RawTable) -> list[str]:
     missing = [column for column in CONDITION_GROUP_COLUMNS if column not in table.columns]
     if missing:
         return [f"{where} is missing the columns {', '.join(missing)}."]
-    rule_index = table.columns.index("Rule")
+    # Rows with the wrong cell count are reported by the shape check
+    rows = [
+        dict(zip(table.columns, row, strict=True))
+        for row in table.rows
+        if len(row) == len(table.columns)
+    ]
     problems: list[str] = []
-    for row in table.rows:
-        if len(row) == len(table.columns):
-            problems += not_in_set(where, "Rule", row[rule_index], GROUP_RULES)
+    for row in rows:
+        problems += not_in_set(where, "Rule", row["Rule"], GROUP_RULES)
+        # Each group compares at least two options (one_of) or two fields (both_or_neither)
+        if len(split_list_cell(row["Fields"])) < 2:
+            problems.append(
+                f"{where}: group '{row['Group']}' needs at least two entries in 'Fields', "
+                "separated by ';'."
+            )
+    problems += [
+        f"{where}: group '{name}' is listed twice. Give each group its own name."
+        for name in repeated([row["Group"] for row in rows])
+    ]
     return problems
 
 
@@ -298,6 +353,28 @@ def find_extraction_rule_problems(rules: BusinessRules) -> list[str]:
         for owner in owners
         if not rules.rules_for("Extraction", owner.key)
     ]
+
+
+def find_rule_placement_problems(rules: BusinessRules) -> list[str]:
+    """Check rule lines sit where a prompt reads them, so none is silently left out.
+
+    Business [Extraction] lines are read only under Candidate criteria, and [Matching] lines
+    only from field sections.
+    """
+    problems = [
+        f"{FILE_NAME}: rule {rule.rule_id} is an [Extraction] line under '### {rule.heading}', "
+        f"but only '### {CANDIDATE_HEADING}' lines reach the extraction prompt. Move it there."
+        for rule in rules.business.rules
+        if rule.step == "Extraction" and rule.heading != CANDIDATE_HEADING
+    ]
+    section_rules = [*rules.general.rules, *rules.business.rules]
+    problems += [
+        f"{FILE_NAME}: rule {rule.rule_id} is a [Matching] line outside a field section, so "
+        "no prompt reads it. Move it to the field it is about."
+        for rule in section_rules
+        if rule.step == "Matching"
+    ]
+    return problems
 
 
 def find_reference_problems(rules: BusinessRules) -> list[str]:

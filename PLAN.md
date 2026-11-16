@@ -196,7 +196,7 @@ Every milestone does the following:
 ### M5. Validation (step 8, except 8.6; §6)
 
 **Issue catalogue**
-- Edit `issue_catalogue.yaml` for every row of §6 and bump it to 0.7.
+- Edit `issue_catalogue.yaml` for every row of §6 and bump it to 0.8 (0.7 added `VALUE_INCOMPLETE` in the M1–M3 review fixes).
   - "field" level goes in `record_issues`; "run" goes in `run_issues`.
   - Remove `OR_EQUIVALENT`; `CONFLICT_UNRESOLVED` stays an error.
 - Show the diff.
@@ -205,7 +205,7 @@ Every milestone does the following:
 - Remove `find_or_equivalent_issue` and its call, and add the codes to `validation/codes.py`.
 - `findings_to_issues.py`:
   - context findings are raised on the field named by `Drives`;
-  - `incomplete` gives `VALUE_INCOMPLETE`;
+  - `incomplete` gives `VALUE_INCOMPLETE` (done in the M1–M3 review fixes);
   - `unclear` gives `VALUE_UNCLEAR`;
   - normalization notes give `REVIEWER_CHOICE_NEEDED` (with choices), `NOT_A_CONCENTRATION` and `DERIVED_VALUE_MISSING`;
   - assembly notes give `CONFLICT_CLOSED`.
@@ -447,3 +447,18 @@ Every milestone does the following:
   - **Fake replies (from M10):** the `synthetic_001` fake replies and the graph test fixture now carry `context`, with every attribute `not_found` (the synthetic documents give none). `allows_equivalent` is removed from them and from `evals/seeding.py`. Without this, the status rules reject them.
   - **No `run.py` status change:** `RunStatus` keeps `transforming` until the graph changes in M6 (Decision 9).
   - **Unrestricted IDs in the new schemas:** they do not narrow `rule_id` or `check_id` to the active rule IDs. Code checks those (M6), as CONTRACTS describes.
+
+### M1–M3 review fixes (done; awaiting review)
+- Review of M1–M3 by three reviewers (one per milestone). Fixed here: the committed package zip, the `incomplete` crash and the `business_rules.md` parser gaps. The M1 doc items and the M3 low items are not fixed yet.
+- `claude_code_package.zip` untracked (`git rm --cached`) and added to `.gitignore` with `claude_code_package/`. It is still in the history of `c6966f2`; removing it from history is the user's call before pushing.
+- `incomplete` verdict: `FIELD_VERDICT_CODES` maps it to the new `VALUE_INCOMPLETE` (error), so Validation no longer raises `KeyError`. `issue_catalogue.yaml` 0.7 adds the code (message wording is a draft). The verdict test now runs over every `FieldVerdict`, so a new verdict without a code fails.
+- `business_rules.md` checks, each now a plain startup error:
+  - attribute rows must have two cells, and an attribute may be listed once;
+  - a requirement group is allowed only on `conditional`;
+  - `*`/`+` bullets and indented lines in parsed sections are rejected (they were silently dropped);
+  - a condition group needs at least two entries in Fields, and group names are unique;
+  - business `[Extraction]` lines must sit under `### Candidate criteria`, and `[Matching]` lines must be in a field section (otherwise no prompt reads them);
+  - any Pydantic error left when building the models becomes a ConfigError naming the file.
+- Table cells: `\|` is a literal bar inside a cell.
+- Tests: 10 new (all fail on the old parser) and 1 widened. Result: 629 passed, 1 skipped; ruff clean. pyright not run: Node.js is not on PATH on this machine.
+

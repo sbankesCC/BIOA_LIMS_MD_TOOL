@@ -3,6 +3,8 @@
 Field keys and lookup values are read from the client config, never written here.
 """
 
+from typing import get_args
+
 import pytest
 
 from app.config.bundle import ConfigBundle
@@ -177,9 +179,9 @@ def test_conflict_without_a_choice_is_red(bundle: ConfigBundle) -> None:
     assert issues_with_code(result, codes.OPTIONAL_NOT_FOUND) == []
 
 
-@pytest.mark.parametrize("verdict", list(FIELD_VERDICT_CODES))
+@pytest.mark.parametrize("verdict", get_args(FieldVerdict))
 def test_field_verdict_becomes_its_issue(bundle: ConfigBundle, verdict: FieldVerdict) -> None:
-    """Each verification field verdict gives its code (contradicted, unsupported, missed)."""
+    """Every field verdict the agent can return gives its code, including incomplete."""
     rule = bundle.business_rules.extracted_fields()[0]
     verification = FieldVerification(citation_check="verified", verdict=verdict, note="syn note")
     record = make_record(bundle)

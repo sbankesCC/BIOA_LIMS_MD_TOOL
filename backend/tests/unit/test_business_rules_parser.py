@@ -170,6 +170,15 @@ def test_attributes_are_read_into_the_field() -> None:
     assert name.is_extracted and amount.is_extracted
 
 
+def test_escaped_bar_stays_inside_its_cell() -> None:
+    """An escaped bar in a table cell is a literal bar, not a cell boundary."""
+    text = SYNTHETIC_RULES.replace(
+        '| Multi-value separator | ", " |', '| Multi-value separator | "\\|" |'
+    )
+    amount = parse_business_rules(text).fields[1]
+    assert amount.separator == "|"
+
+
 def test_context_attributes_are_kept_out_of_the_loader_fields() -> None:
     """A context attribute has no column and is not one of the loader fields."""
     rules = parse_business_rules(SYNTHETIC_RULES)

@@ -9,6 +9,7 @@ from openpyxl import load_workbook
 
 from app.config.bundle import ConfigBundle
 from app.config.business_rules import (
+    CANDIDATE_HEADING,
     ENTRY_COLUMN,
     LOOKUP_VALUE_COLUMN,
     BusinessRules,
@@ -98,6 +99,30 @@ def test_bad_max_length_is_reported(config_copy: Path, bundle: ConfigBundle) -> 
     assert_config_error(config_copy, "'Max length' must be a whole number above 0")
 
 
+def test_attribute_row_with_an_extra_cell_is_reported(
+    config_copy: Path, bundle: ConfigBundle
+) -> None:
+    """An attribute row needs exactly two cells; an unescaped bar would add a third."""
+    set_attribute(config_copy, bundle.business_rules.fields[0].key, "Max length", "40 | chars")
+    assert_config_error(config_copy, "has 3 cells")
+
+
+def test_repeated_attribute_is_reported(config_copy: Path, bundle: ConfigBundle) -> None:
+    """An attribute listed twice is rejected instead of the later row silently winning."""
+    key = bundle.business_rules.fields[0].key
+    edit_business_rules(config_copy, f"| Key | {key} |", f"| Key | {key} |\n| Type | text |")
+    assert_config_error(config_copy, "the attribute 'Type' is listed twice")
+
+
+def test_group_on_a_field_that_is_not_conditional_is_reported(
+    config_copy: Path, bundle: ConfigBundle
+) -> None:
+    """Only a conditional requirement may name a group; elsewhere it would be ignored."""
+    key = bundle.business_rules.record_name_field().key
+    set_attribute(config_copy, key, "Requirement", "required (synthetic_group)")
+    assert_config_error(config_copy, "only 'conditional' names a group")
+
+
 def test_context_attribute_with_a_column_is_reported(
     config_copy: Path, bundle: ConfigBundle
 ) -> None:
@@ -113,6 +138,21 @@ def test_bullet_that_is_not_a_rule_line_is_reported(config_copy: Path) -> None:
     """Every bullet in a parsed section must be a rule line."""
     edit_business_rules(config_copy, "### Rules\n", "### Rules\n\n- a synthetic note\n", count=None)
     assert_config_error(config_copy, "is not a rule line")
+
+
+def test_star_bullet_in_a_parsed_section_is_reported(config_copy: Path) -> None:
+    """A `*` bullet would be skipped as prose, so it is rejected."""
+    edit_business_rules(config_copy, "### Rules\n", "### Rules\n\n* a synthetic note\n", count=None)
+    assert_config_error(config_copy, "is not read")
+
+
+def test_indented_line_in_a_parsed_section_is_reported(
+    config_copy: Path, bundle: ConfigBundle
+) -> None:
+    """An indented line (such as a wrapped rule) would be dropped, so it is rejected."""
+    rule_id = first_rule_id(bundle.business_rules)
+    edit_business_rules(config_copy, f"- {rule_id} [", f"  synthetic text\n- {rule_id} [")
+    assert_config_error(config_copy, "is not read")
 
 
 def test_unknown_step_tag_is_reported(config_copy: Path, bundle: ConfigBundle) -> None:
@@ -156,6 +196,46 @@ def test_unknown_condition_group_rule_is_reported(config_copy: Path, bundle: Con
     changed = {**row, "Rule": "all_or_none"}
     edit_business_rules(config_copy, table_row_text(table, row), table_row_text(table, changed))
     assert_config_error(config_copy, "'Rule' is 'all_or_none'")
+
+
+def test_condition_group_with_one_entry_is_reported(
+    config_copy: Path, bundle: ConfigBundle
+) -> None:
+    """A group needs two options or fields; the error is plain, not a raw model error."""
+    table = bundle.business_rules.table("business", "Condition groups")
+    row = table.rows[0]
+    changed = {**row, "Fields": row["Fields"].split(";")[0].strip()}
+    edit_business_rules(config_copy, table_row_text(table, row), table_row_text(table, changed))
+    assert_config_error(config_copy, f"group '{row['Group']}' needs at least two entries")
+
+
+def test_repeated_condition_group_is_reported(config_copy: Path, bundle: ConfigBundle) -> None:
+    """Two rows with the same group name are rejected instead of one replacing the other."""
+    table = bundle.business_rules.table("business", "Condition groups")
+    first, second = table.rows[0], table.rows[1]
+    changed = {**second, "Group": first["Group"]}
+    edit_business_rules(config_copy, table_row_text(table, second), table_row_text(table, changed))
+    assert_config_error(config_copy, f"group '{first['Group']}' is listed twice")
+
+
+# ----- Rule placement -----
+
+
+def test_extraction_line_outside_candidate_criteria_is_reported(config_copy: Path) -> None:
+    """Business [Extraction] lines reach the prompt only under the candidate heading."""
+    edit_business_rules(config_copy, f"### {CANDIDATE_HEADING}\n", "### Synthetic heading\n")
+    assert_config_error(config_copy, f"only '### {CANDIDATE_HEADING}' lines reach")
+
+
+def test_matching_line_outside_a_field_section_is_reported(
+    config_copy: Path, bundle: ConfigBundle
+) -> None:
+    """A [Matching] line in the General rules would reach no prompt, so it is rejected."""
+    rule = bundle.business_rules.general.rules[0]
+    edit_business_rules(
+        config_copy, f"- {rule.rule_id} [{rule.step}]", f"- {rule.rule_id} [Matching]"
+    )
+    assert_config_error(config_copy, f"rule {rule.rule_id} is a [Matching] line outside")
 
 
 # ----- Unique IDs -----
