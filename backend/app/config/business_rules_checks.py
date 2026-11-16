@@ -12,7 +12,6 @@ from pydantic import ValidationError
 
 from app.config.business_rules import (
     ALL_LISTS,
-    ANY_VALUE,
     ATTRIBUTE_HEADER,
     CANDIDATE_HEADING,
     CONDITION_GROUP_COLUMNS,
@@ -46,7 +45,9 @@ from app.config.business_rules import (
     RuleTable,
     build_business_rules,
     fields_in_group,
+    find_referenced_table,
     is_blank_cell,
+    is_keyword_cell,
     read_markdown,
     read_version,
     split_list_cell,
@@ -94,6 +95,7 @@ def parse_business_rules(text: str) -> BusinessRules:
         + find_extraction_rule_problems(rules)
         + find_rule_placement_problems(rules)
         + find_reference_problems(rules)
+        + find_table_reference_problems(rules)
     )
     if model_problems:
         raise ConfigError(model_problems)
@@ -405,6 +407,29 @@ def find_reference_problems(rules: BusinessRules) -> list[str]:
     return problems
 
 
+def find_table_reference_problems(rules: BusinessRules) -> list[str]:
+    """Check each `in <table>` cell of a derivation input column names a table of its section."""
+    problems: list[str] = []
+    input_columns = rules.input_columns()
+    for tables in rules.table_groups():
+        headings = {table.heading for table in tables}
+        for table in tables:
+            # Only input columns hold `in` cells; other columns may hold words such as "in fridge"
+            cells = [
+                row[column]
+                for row in table.rows
+                for column in table.columns
+                if column in input_columns
+            ]
+            problems += [
+                f"{FILE_NAME}: '### {table.heading}': the cell '{cell}' names no table "
+                f"'### {heading}' in the same section. Fix the name or add that table."
+                for cell in cells
+                if (heading := find_referenced_table(cell)) is not None and heading not in headings
+            ]
+    return problems
+
+
 def all_tables(rules: BusinessRules) -> list[RuleTable]:
     """Return every data table in the file."""
     owner_tables = [table for owner in rules.owners() for table in owner.tables]
@@ -494,7 +519,7 @@ def off_list(where: str, column: str, values: list[str], allowed: list[str]) -> 
         f"{FILE_NAME}: {where}: '{column}' value '{value}' is not on its lookup list. "
         "Fix the value or add it to lookup_lists.xlsx."
         for value in values
-        if not is_blank_cell(value) and value != ANY_VALUE and value not in allowed
+        if not is_blank_cell(value) and not is_keyword_cell(value) and value not in allowed
     ]
 
 

@@ -6,7 +6,11 @@ The synthetic file uses made-up fields and values only (labeled synthetic).
 import pytest
 
 from app.config.bundle import ConfigBundle
-from app.config.business_rules import OneOfGroup
+from app.config.business_rules import (
+    OneOfGroup,
+    find_referenced_table,
+    is_keyword_cell,
+)
 from app.config.business_rules_checks import parse_business_rules
 
 # A minimal synthetic business rules file: two fields, one context attribute, one group
@@ -204,3 +208,22 @@ def test_unknown_table_heading_names_the_problem() -> None:
     """Asking for a table that does not exist raises a plain KeyError."""
     with pytest.raises(KeyError, match="has no table"):
         parse_business_rules(SYNTHETIC_RULES).table("business", "No such table")
+
+
+@pytest.mark.parametrize(
+    ("cell", "heading"),
+    [("in Syn names", "Syn names"), ("not in Syn names", "Syn names"), ("syn-a", None)],
+)
+def test_in_cells_name_their_table(cell: str, heading: str | None) -> None:
+    """`in <table>` and `not in <table>` name a table; any other cell names none."""
+    assert find_referenced_table(cell) == heading
+
+
+@pytest.mark.parametrize(
+    ("cell", "is_keyword"),
+    [("any", True), ("(empty)", True), ("(any other heading)", True), ("in Syn names", True)],
+)
+def test_derivation_grammar_cells_are_keywords(cell: str, is_keyword: bool) -> None:
+    """Derivation input cells that are grammar are not field values (not lookup-checked)."""
+    assert is_keyword_cell(cell) is is_keyword
+    assert is_keyword_cell("syn-a") is False

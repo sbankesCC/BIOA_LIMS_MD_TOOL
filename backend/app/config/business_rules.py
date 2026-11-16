@@ -65,6 +65,14 @@ ALL_LISTS = "(all lists)"
 LIST_SEPARATOR = ";"
 GROUP_FIELD_JOINER = "+"
 
+# Derivation table cells (CONTRACTS §12): input cells that are not field values
+EMPTY_CELL = "(empty)"
+ANY_OTHER_HEADING = "(any other heading)"
+IN_PREFIX = "in "
+NOT_IN_PREFIX = "not in "
+# An output cell that leaves the field blank and raises an issue for the reviewer
+BLANK_WITH_ISSUE = "(blank, with an issue)"
+
 # Table headings and columns code reads by name
 STATUS_COLUMN = "Status"
 ENTRY_COLUMN = "Entry"
@@ -105,6 +113,8 @@ GRAMMAR_WORDS = frozenset(
         NO,
         NO_COLUMN,
         ALL_LISTS,
+        EMPTY_CELL,
+        ANY_OTHER_HEADING,
     }
 )
 
@@ -340,6 +350,15 @@ class BusinessRules(BaseModel):
                 return table
         raise KeyError(f"{FILE_NAME}: '{field_or_section}' has no table '### {heading}'.")
 
+    def input_columns(self) -> set[str]:
+        """Return the column names a derivation table may read: loader columns and context keys."""
+        return {*self.columns(), *(attribute.key for attribute in self.context)}
+
+    def table_groups(self) -> list[list[RuleTable]]:
+        """Return the tables of each section: general, each field and attribute, then business."""
+        owner_tables = [owner.tables for owner in self.owners()]
+        return [self.general.tables, *owner_tables, self.business.tables]
+
     def find_owner(self, key: str) -> RuleOwner:
         """Return the field or context attribute with this key."""
         for owner in self.owners():
@@ -367,6 +386,21 @@ def is_open_status(status_text: str) -> bool:
 def is_blank_cell(value: str) -> bool:
     """Return True for an empty cell or a `(blank ...)` cell: the output is left blank."""
     return not value or value.startswith(BLANK_PREFIX)
+
+
+def find_referenced_table(cell: str) -> str | None:
+    """Return the table heading an `in <table>` or `not in <table>` cell names, else None."""
+    # "not in" first: it also starts with a word that could read as a heading
+    for prefix in (NOT_IN_PREFIX, IN_PREFIX):
+        if cell.startswith(prefix):
+            return cell.removeprefix(prefix).strip()
+    return None
+
+
+def is_keyword_cell(cell: str) -> bool:
+    """Return True for a derivation input cell that is grammar, not a field value."""
+    is_keyword = cell in (ANY_VALUE, EMPTY_CELL, ANY_OTHER_HEADING)
+    return is_keyword or find_referenced_table(cell) is not None
 
 
 def split_list_cell(value: str) -> list[str]:

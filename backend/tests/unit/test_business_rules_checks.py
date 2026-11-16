@@ -11,11 +11,13 @@ from app.config.bundle import ConfigBundle
 from app.config.business_rules import (
     CANDIDATE_HEADING,
     ENTRY_COLUMN,
+    IN_PREFIX,
     LOOKUP_VALUE_COLUMN,
     BusinessRules,
     RuleTable,
     is_blank_cell,
 )
+from app.config.business_rules_checks import all_tables
 from tests.conftest import assert_config_error, edit_business_rules
 
 BUSINESS_RULES = "business_rules.md"
@@ -216,6 +218,22 @@ def test_repeated_condition_group_is_reported(config_copy: Path, bundle: ConfigB
     changed = {**second, "Group": first["Group"]}
     edit_business_rules(config_copy, table_row_text(table, second), table_row_text(table, changed))
     assert_config_error(config_copy, f"group '{first['Group']}' is listed twice")
+
+
+def test_in_cell_naming_a_missing_table_is_reported(
+    config_copy: Path, bundle: ConfigBundle
+) -> None:
+    """An `in <table>` cell must name a table of its own section."""
+    rules = bundle.business_rules
+    cell = next(
+        row[column]
+        for table in all_tables(rules)
+        for row in table.rows
+        for column in table.columns
+        if column in rules.input_columns() and row[column].startswith(IN_PREFIX)
+    )
+    edit_business_rules(config_copy, f"| {cell} |", f"| {IN_PREFIX}Synthetic names |")
+    assert_config_error(config_copy, "names no table '### Synthetic names'")
 
 
 # ----- Rule placement -----

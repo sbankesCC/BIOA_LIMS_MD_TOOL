@@ -5,4 +5,4 @@ source: synthetic
 tags: [synthetic, conflict, excel_source, reextraction]
 labeled_by: "Claude Code (synthetic case, M10)"
 labeled_on: "2026-10-20"
-business_rules_version: "1.2"
+business_rules_version: "1.3"

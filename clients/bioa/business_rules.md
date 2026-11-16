@@ -2,8 +2,8 @@
 
 | Attribute | Value |
 |---|---|
-| Version | 1.2 |
-| Last updated | 2026-11-11 |
+| Version | 1.3 |
+| Last updated | 2026-11-16 |
 
 This file is the source of truth for BioAgilytix's Consumable Type rules. Code reads it, together with the **lookup value list** (the allowed LabVantage values for each list field).
 
@@ -74,7 +74,9 @@ Prompts never copy rules. A prompt builder inserts only the lines tagged for tha
 
 ### Data tables
 
-Code reads every table under a `###` heading in a field section or in the business rules section. Values that belong to BioA (list values, vendor names, headings) appear only in these tables and in the lookup value list, never in code.
+Code reads every table under a `###` heading in a field section or in the business rules section.
+
+In a derivation table, a column named after a loader column reads that field's value, and a column named after a context attribute reads whether it was found (`yes` or `no`). Input cells: `any` matches every value, `(empty)` matches no value, and `in <table>` or `not in <table>` checks the value against the first column of that table in the same section, ignoring case and spaces. Output cells: `(blank)` leaves the field blank, and `(blank, with an issue)` leaves it blank and raises an issue for the reviewer. `(any other heading)` matches every heading the rows above did not. Values that belong to BioA (list values, vendor names, headings) appear only in these tables and in the lookup value list, never in code.
 
 ---
 
@@ -208,13 +210,13 @@ Values that must not be chosen, even though they are in the lookup value list.
 
 ### Class table
 
-Used by CC-02, CC-03 and CC-06.
+Used by CC-02, CC-03 and CC-06. The Manufacturer column reads the Manufacturer value (CC-05). Rows are checked top to bottom; the first match applies.
 
-| Vendor | Consumable Class | Status |
+| Manufacturer | Consumable Class | Status |
 |---|---|---|
-| is BAL | Prepared | Confirmed |
-| is not BAL | Purchased | Confirmed |
-| not listed | (blank, with an issue) | Assumption (BR-2) |
+| (empty) | (blank, with an issue) | Assumption (BR-2) |
+| in BAL vendor names | Prepared | Confirmed |
+| not in BAL vendor names | Purchased | Confirmed |
 
 ### BAL vendor names
 
@@ -291,11 +293,12 @@ A row with no Lookup value and a "Reviewer chooses" list is left blank with a wa
 
 ### Critical headings
 
-Used by CR-01 and CR-02. A `source_heading` is the Critical Reagents table when it contains the first phrase and none of the second (ignoring case). Every other heading gives N.
+Used by CR-01 and CR-02. A `source_heading` is the Critical Reagents table when it contains the first phrase and none of the second (ignoring case). Rows are checked top to bottom; the last row gives every other heading.
 
 | Heading contains | Unless it contains | Critical | Status |
 |---|---|---|---|
 | critical reagent | non-critical; non critical; noncritical | Y | Confirmed |
+| (any other heading) | | N | Confirmed |
 
 ---
 
@@ -712,9 +715,9 @@ Inserted into the extraction prompt (D-46).
 
 ### Approval type table
 
-Used by AT-01. Rows are checked top to bottom; the first match applies. "Serial dilution level" is yes when `serial_dilution` is found.
+Used by AT-01. Rows are checked top to bottom; the first match applies. The `serial_dilution` column is yes when that context attribute was found.
 
-| Consumable Class | Critical | Serial dilution level | Approval Type | Status |
+| Consumable Class | Critical | serial_dilution | Approval Type | Status |
 |---|---|---|---|---|
 | any | any | yes | (blank) | Confirmed (SOP 7.2.2.5.d) |
 | Prepared | Y | no | MixConsumableCritical | Confirmed (11/2; SOP 7.2.2.5.a) |
@@ -781,3 +784,4 @@ Inserted into the plausibility prompt. **None are active** until VAL-2 is decide
 | 1.0 | 2026-11-11 | Created from the earlier field rules file (v0.3), BioA's written answers, the 11/2 instruction review and Brad's confirmation. Fixes the old file's rules that contradicted BioA: "1 mL vial" split into amount and unit; batch volume as expected amount; Critical and Consumable Class only when stated; Container Tracking default "Individual"; "or equivalent" dropped from catalog numbers; no naming convention. Adds the character, storage and tracking-method translation tables, derivations, naming rules, the Container Type requirement and the expiry fields |
 | 1.1 | 2026-11-11 | Added data tables so no BioA value has to live in code: excluded lookup values, class table, critical headings, concentration units, worksheet template table, condition groups table, the "frozen" row (SC-T09) and the serial-dilution row of the approval type table. Added `Drives` to the context attributes and BR-9 |
 | 1.2 | 2026-11-11 | Removed the list of fields taken out of the loader; the loader columns are the field sections above, nothing else |
+| 1.3 | 2026-11-16 | Derivation tables written so code can read them: the class table reads the Manufacturer column and refers to the BAL vendor names table; the critical headings table has a row for every other heading; the approval type table's serial dilution column is named `serial_dilution`. No rule changed |
