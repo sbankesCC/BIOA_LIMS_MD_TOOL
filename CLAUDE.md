@@ -136,9 +136,14 @@ Machine-specific notes:
 - Extraction copies values whole and exactly as written. All formatting and lookup matching is code.
 - **A model reports, suggests or judges; it never writes a loader value.** Only code and people write
   values. A suggestion is used only when a person uses it. A value set by a person is never overwritten.
-- Field definitions, rules and data tables come only from `clients/bioa/business_rules.md`; allowed
-  values from the lookup lists. Never hard-code BioA fields, values, prompts or rules in `backend/` or
-  `frontend/`. Prompt files never contain BioA rules: the prompt builder inserts the active rule lines.
+- Field definitions, rules and data tables come only from `clients/bioa/business_rules.md`, except
+  extraction guidance, which comes only from `clients/bioa/extraction_rules.md`; allowed values from
+  the lookup lists. Never hard-code BioA fields, values, prompts or rules in `backend/` or `frontend/`.
+  Prompt files never contain BioA rules: the prompt builder inserts the active rule lines.
+- Exception: a field's self-contained style guidance, read whole by exactly one prompt and never
+  looked up by rule ID, may live in that prompt file instead of `business_rules.md`. Today this is
+  only the naming rules in `clients/bioa/prompts/naming.md`. Open rules stay out of the text the
+  model sees (keep them in a developer note).
 - A rule or table row with status `Open` is inactive: not inserted into prompts, ignored by code.
 - No general rules engine: each derivation is a small named function that reads its table.
 - LLM calls only in extraction, extraction verification, Matching, Naming, the duplicate judge and the

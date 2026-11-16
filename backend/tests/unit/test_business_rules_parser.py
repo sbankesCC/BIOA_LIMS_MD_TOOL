@@ -89,7 +89,7 @@ SYNTHETIC_RULES = """# Synthetic business rules
 
 ### Naming rules
 
-- SNM-01 [Naming] Name synthetic things plainly. (Design; synthetic)
+- SNM-01 [Validation] Name synthetic things plainly. (Design; synthetic)
 
 ### Condition groups
 
@@ -193,7 +193,7 @@ def test_context_attributes_are_kept_out_of_the_loader_fields() -> None:
 
 def test_rule_lines_keep_their_heading() -> None:
     """Business rule lines remember the `###` heading they sit under."""
-    rule = parse_business_rules(SYNTHETIC_RULES).rules_for("Naming")[0]
+    rule = parse_business_rules(SYNTHETIC_RULES).business.rules[0]
     assert (rule.rule_id, rule.heading) == ("SNM-01", "Naming rules")
 
 

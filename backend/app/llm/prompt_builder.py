@@ -151,11 +151,6 @@ def build_matching_rules(business_rules: BusinessRules, field_keys: Sequence[str
     return format_rule_lines(rules)
 
 
-def build_naming_rules(business_rules: BusinessRules) -> str:
-    """Return every active [Naming] line."""
-    return format_rule_lines(business_rules.rules_for("Naming"))
-
-
 def build_checks(business_rules: BusinessRules) -> str:
     """Return every active [Plausibility] line."""
     return format_rule_lines(business_rules.rules_for("Plausibility"))

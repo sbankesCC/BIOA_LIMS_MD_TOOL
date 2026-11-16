@@ -18,7 +18,6 @@ from app.llm.prompt_builder import (
     build_field_section,
     build_general_rules,
     build_matching_rules,
-    build_naming_rules,
     build_prompt_parts,
     build_reextraction_section,
     build_rule_placeholders,
@@ -124,7 +123,6 @@ def test_real_prompts_fill_every_placeholder(bundle: ConfigBundle) -> None:
         "candidates": "synthetic candidates",
         "items": "synthetic items",
         "matching_rules": build_matching_rules(bundle.business_rules, []),
-        "naming_rules": build_naming_rules(bundle.business_rules),
         "checks": build_checks(bundle.business_rules),
     }
     for template in bundle.prompts.values():
@@ -190,14 +188,6 @@ def test_open_lines_are_never_inserted(bundle: ConfigBundle) -> None:
     assert rules.rules_for("Plausibility", active_only=False)
     assert build_matching_rules(rules, matching_keys) == NOTHING_TEXT
     assert build_checks(rules) == NOTHING_TEXT
-
-
-def test_naming_rules_are_every_active_naming_line(bundle: ConfigBundle) -> None:
-    """{naming_rules} holds every active [Naming] line; Open ones are left out."""
-    rules = bundle.business_rules
-    every = rules.rules_for("Naming", active_only=False)
-    assert any(not rule.is_active for rule in every)
-    assert rule_ids(build_naming_rules(rules)) == active_ids(every)
 
 
 def test_matching_rules_cover_only_the_fields_in_the_call() -> None:

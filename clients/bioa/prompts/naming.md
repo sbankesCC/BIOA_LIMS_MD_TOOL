@@ -1,9 +1,11 @@
-<!-- prompt: naming | version: 0.2 | status: draft for review -->
+<!-- prompt: naming | version: 0.3 | status: draft for review -->
 
 <!-- Developer note: Called once per run with every included record. -->
-<!-- Developer note: Code checks each suggestion after the call: length, disallowed characters, unique within the run. A suggestion that fails is not offered. -->
+<!-- Developer note: Code checks each suggestion after the call: length, disallowed characters, unique within the run. A suggestion that fails is not offered. Max length and disallowed characters come from the record name's field section in business_rules.md. -->
 <!-- Developer note: Output shape is also enforced by the API (structured outputs, schema generated from code). -->
-<!-- Developer note: BioA naming rules are inserted from business_rules.md: rule lines tagged [Naming], status not Open. -->
+<!-- Developer note: BioA's naming rules (SOP 7.1, scope BAL-DUR) live in this prompt, not in business_rules.md: they are style guidance read whole by this prompt only and never looked up by rule ID (CLAUDE.md exception). rule_id in the answer is stored as given. -->
+<!-- Developer note: status and source of each naming rule: NM-01 Confirmed, SOP 7.1.3; NM-02 Confirmed, SOP 7.1.4; NM-03 Confirmed, SOP 7.1.5; NM-04 Confirmed, SOP 7.1.5; NM-05 Confirmed, SOP 7.1.5; NM-06 Confirmed, SOP 7.1.2; NM-07 Confirmed, SOP 7.1.1; NM-08 Design, D-39. -->
+<!-- Developer note: Open, so not sent to the model: NM-09 These rules apply to Durham. Conventions at other sites, and Dave's updated conventions, are not yet defined. (Open; BR-1) -->
 
 # Role
 
@@ -27,7 +29,14 @@ Each record has: record_id, the name as written in the documents, and the record
 
 # Naming rules
 
-{naming_rules}
+- NM-01 General format: `<Concentration> <Chemical/Reagent>_<Signifier1>_<Signifier2>`. Example: "Absolute Ethanol_Molecular Biology Grade".
+- NM-02 HPLC columns and plates: `<Type>_<Size>`. Example: "Allure Biphenyl_200 x 2.1 x 1.8uM".
+- NM-03 Primers: `<Concentration>_<Target>_<Species>_Primer_<FWD/REV>_<Signifier>`.
+- NM-04 Probes: `<Concentration>_<Target>_<Species>_<Probe>_<Fluorophore>_<Signifier>`. Example: "500uM_Albumin_Hum_Probe_VIC_RCL OTS".
+- NM-05 Assay mixes: `<Concentration>_<Vendor>_<Target>_<Fluorophore>_<Species>_<Signifier> Assay Mx`. Example: "20X BAL_Albumin_VIC_Hum_RCL OTS Assay Mx".
+- NM-06 Use the standard abbreviations: STD (standard), BUF (buffer), SOL (solvent), REF (reference standard), FWD (forward), REV (reverse), Hum (human).
+- NM-07 Up to 40 characters; no Greek letters (apply the character translation table).
+- NM-08 Use only parts the record holds. Leave a part out rather than invent it.
 
 # Output
 

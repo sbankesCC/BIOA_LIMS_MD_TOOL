@@ -62,6 +62,12 @@ from app.config.lookup_lists import LookupLists
 FIELD_KEY_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 YES_NO_ATTRIBUTES = ("Matching allowed", "Sent to duplicate judge", "Record name")
 
+# Steps whose rules live in another file, never in business_rules.md (user decisions 8 and 10)
+STEPS_KEPT_ELSEWHERE = {
+    "Extraction": EXTRACTION_RULES_FILE,
+    "Naming": "prompts/naming.md",
+}
+
 
 # ----- Loading -----
 
@@ -92,7 +98,7 @@ def parse_business_rules(text: str) -> BusinessRules:
     model_problems = (
         find_duplicate_id_problems(rules)
         + find_record_name_problems(rules)
-        + find_misplaced_extraction_problems(rules)
+        + find_misplaced_step_problems(rules)
         + find_rule_placement_problems(rules)
         + find_reference_problems(rules)
         + find_table_reference_problems(rules)
@@ -343,13 +349,13 @@ def find_record_name_problems(rules: BusinessRules) -> list[str]:
     return []
 
 
-def find_misplaced_extraction_problems(rules: BusinessRules) -> list[str]:
-    """Check no [Extraction] line is left here: extraction guidance lives in its own file."""
+def find_misplaced_step_problems(rules: BusinessRules) -> list[str]:
+    """Check no line is here for a step whose rules live in another file."""
     return [
-        f"{FILE_NAME}: rule {rule.rule_id} is an [Extraction] line. Extraction guidance lives "
-        f"only in {EXTRACTION_RULES_FILE}; move it there."
+        f"{FILE_NAME}: rule {rule.rule_id} is an [{rule.step}] line. Those rules live only in "
+        f"{STEPS_KEPT_ELSEWHERE[rule.step]}; move it there."
         for rule in rules.all_rules()
-        if rule.step == "Extraction"
+        if rule.step in STEPS_KEPT_ELSEWHERE
     ]
 
 

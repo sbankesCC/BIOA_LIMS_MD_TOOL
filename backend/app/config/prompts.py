@@ -34,7 +34,7 @@ EXPECTED_PLACEHOLDERS: dict[str, set[str]] = {
     },
     "duplicate_judge": {"record", "candidates"},
     "matching": {"matching_rules", "items"},
-    "naming": {"naming_rules", "records"},
+    "naming": {"records"},
     "plausibility": {"checks", "records"},
 }
 

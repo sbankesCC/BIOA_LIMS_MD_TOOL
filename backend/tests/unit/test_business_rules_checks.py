@@ -5,6 +5,7 @@ Edits are built at run time from the loaded rules, so no client value is written
 
 from pathlib import Path
 
+import pytest
 from openpyxl import load_workbook
 
 from app.config.bundle import ConfigBundle
@@ -238,15 +239,16 @@ def test_in_cell_naming_a_missing_table_is_reported(
 # ----- Rule placement -----
 
 
-def test_extraction_line_in_business_rules_is_reported(
-    config_copy: Path, bundle: ConfigBundle
+@pytest.mark.parametrize("step", ["Extraction", "Naming"])
+def test_line_for_a_step_kept_elsewhere_is_reported(
+    config_copy: Path, bundle: ConfigBundle, step: str
 ) -> None:
-    """Extraction guidance lives only in extraction_rules.md; a line left here is rejected."""
+    """Extraction and naming rules live in their own files; a line left here is rejected."""
     rule = bundle.business_rules.general.rules[0]
     edit_business_rules(
-        config_copy, f"- {rule.rule_id} [{rule.step}]", f"- {rule.rule_id} [Extraction]"
+        config_copy, f"- {rule.rule_id} [{rule.step}]", f"- {rule.rule_id} [{step}]"
     )
-    assert_config_error(config_copy, f"rule {rule.rule_id} is an [Extraction] line")
+    assert_config_error(config_copy, f"rule {rule.rule_id} is an [{step}] line")
 
 
 def test_matching_line_outside_a_field_section_is_reported(

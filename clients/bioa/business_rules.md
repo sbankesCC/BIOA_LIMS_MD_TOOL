@@ -2,7 +2,7 @@
 
 | Attribute | Value |
 |---|---|
-| Version | 1.4 |
+| Version | 1.5 |
 | Last updated | 2026-11-16 |
 
 This file is the source of truth for BioAgilytix's Consumable Type rules. Code reads it, together with the **lookup value list** (the allowed LabVantage values for each list field).
@@ -46,7 +46,7 @@ Each section has:
 | `[Extraction]` | Model step. These lines live in `extraction_rules.md`, never in this file |
 | `[Normalization]` | Code step |
 | `[Matching]` | Model step. The line is inserted into the Matching prompt |
-| `[Naming]` | Model step. The line is inserted into the Naming prompt |
+| `[Naming]` | Model step. The naming rules live in `prompts/naming.md`, never in this file: they are read whole by that prompt and never looked up by rule ID |
 | `[Assembly]` | Code step |
 | `[Validation]` | Code step |
 | `[Plausibility]` | Model check in Validation. The line is inserted into the plausibility prompt |
@@ -140,7 +140,7 @@ Values that must not be chosen, even though they are in the lookup value list.
 
 ### Rules
 
-- CT-02 [Assembly] The Naming step suggests the name, using the naming rules in the business rules section. (Confirmed; BioA written, 11/2, D-39)
+- CT-02 [Assembly] The Naming step suggests the name, using the naming rules in `prompts/naming.md`. (Confirmed; BioA written, 11/2, D-39)
 - CT-03 [Assembly] The cell stays empty until the reviewer uses the suggestion or types a name. (Confirmed; D-39)
 - CT-04 [Validation] 40 characters or fewer. (Confirmed; SOP 7.1.1.1, Data info)
 - CT-05 [Validation] No Greek letters after character translation. (Confirmed; SOP 7.1.1.2)
@@ -707,20 +707,6 @@ Used by AT-01. Rows are checked top to bottom; the first match applies. The `ser
 | amount_or_containers | one_of | expected_amount + expected_amount_unit; expected_no_of_containers | CONDITION_UNMET | Confirmed |
 | amount_with_unit | both_or_neither | expected_amount; expected_amount_unit | PAIR_INCOMPLETE | Design |
 
-### Naming rules
-
-Inserted into the Naming prompt. Source: SOP 7.1, scope BAL-DUR.
-
-- NM-01 [Naming] General format: `<Concentration> <Chemical/Reagent>_<Signifier1>_<Signifier2>`. Example: "Absolute Ethanol_Molecular Biology Grade". (Confirmed; SOP 7.1.3)
-- NM-02 [Naming] HPLC columns and plates: `<Type>_<Size>`. Example: "Allure Biphenyl_200 x 2.1 x 1.8uM". (Confirmed; SOP 7.1.4)
-- NM-03 [Naming] Primers: `<Concentration>_<Target>_<Species>_Primer_<FWD/REV>_<Signifier>`. (Confirmed; SOP 7.1.5)
-- NM-04 [Naming] Probes: `<Concentration>_<Target>_<Species>_<Probe>_<Fluorophore>_<Signifier>`. Example: "500uM_Albumin_Hum_Probe_VIC_RCL OTS". (Confirmed; SOP 7.1.5)
-- NM-05 [Naming] Assay mixes: `<Concentration>_<Vendor>_<Target>_<Fluorophore>_<Species>_<Signifier> Assay Mx`. Example: "20X BAL_Albumin_VIC_Hum_RCL OTS Assay Mx". (Confirmed; SOP 7.1.5)
-- NM-06 [Naming] Use the standard abbreviations: STD (standard), BUF (buffer), SOL (solvent), REF (reference standard), FWD (forward), REV (reverse), Hum (human). (Confirmed; SOP 7.1.2)
-- NM-07 [Naming] Up to 40 characters; no Greek letters (apply the character translation table). (Confirmed; SOP 7.1.1)
-- NM-08 [Naming] Use only parts the record holds. Leave a part out rather than invent it. (Design; D-39)
-- NM-09 [Naming] These rules apply to Durham. Conventions at other sites, and Dave's updated conventions, are not yet defined. (Open; BR-1)
-
 ### Plausibility checks
 
 Inserted into the plausibility prompt. **None are active** until VAL-2 is decided with Tina. Candidates:
@@ -758,3 +744,4 @@ Inserted into the plausibility prompt. **None are active** until VAL-2 is decide
 | 1.2 | 2026-11-11 | Removed the list of fields taken out of the loader; the loader columns are the field sections above, nothing else |
 | 1.3 | 2026-11-16 | Derivation tables written so code can read them: the class table reads the Manufacturer column and refers to the BAL vendor names table; the critical headings table has a row for every other heading; the approval type table's serial dilution column is named `serial_dilution`. No rule changed |
 | 1.4 | 2026-11-16 | Moved every [Extraction] line (general, candidate criteria, fields and context attributes) to `extraction_rules.md`, unchanged. Field sections hold structural facts; column order comes from `export_template.md` |
+| 1.5 | 2026-11-16 | Moved the naming rules (NM-01 to NM-09) into `prompts/naming.md`, unchanged; NM-09 (Open) is kept there as a note. CT-02 points to the prompt |
