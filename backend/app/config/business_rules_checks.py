@@ -13,13 +13,13 @@ from pydantic import ValidationError
 from app.config.business_rules import (
     ALL_LISTS,
     ATTRIBUTE_HEADER,
-    CANDIDATE_HEADING,
     CONDITION_GROUP_COLUMNS,
     CONDITION_GROUPS_HEADING,
     CONTEXT_ROLE,
     DISALLOWED_CHARACTERS,
     ENTRY_COLUMN,
     EXCLUDED_VALUES_HEADING,
+    EXTRACTION_RULES_FILE,
     FIELD_TYPES,
     FILE_NAME,
     GROUP_RULES,
@@ -92,7 +92,7 @@ def parse_business_rules(text: str) -> BusinessRules:
     model_problems = (
         find_duplicate_id_problems(rules)
         + find_record_name_problems(rules)
-        + find_extraction_rule_problems(rules)
+        + find_misplaced_extraction_problems(rules)
         + find_rule_placement_problems(rules)
         + find_reference_problems(rules)
         + find_table_reference_problems(rules)
@@ -105,13 +105,13 @@ def parse_business_rules(text: str) -> BusinessRules:
 # ----- Raw checks -----
 
 
-def find_version_problems(document: RawDocument) -> list[str]:
+def find_version_problems(document: RawDocument, file_name: str = FILE_NAME) -> list[str]:
     """Check the first table has a Version row and the file has field sections."""
     problems: list[str] = []
     if read_version(document) is None:
-        problems.append(f"{FILE_NAME}: the first table needs a 'Version' row with a value.")
+        problems.append(f"{file_name}: the first table needs a 'Version' row with a value.")
     if not document.field_sections():
-        problems.append(f"{FILE_NAME}: no '## Field: <name>' sections were found.")
+        problems.append(f"{file_name}: no '## Field: <name>' sections were found.")
     return problems
 
 
@@ -212,12 +212,12 @@ def find_key_problems(name: str, key: str) -> list[str]:
     return [f"{name}: 'Key' is '{key}'; use snake_case (lower case letters, digits, _)."]
 
 
-def find_rule_line_problems(document: RawDocument) -> list[str]:
+def find_rule_line_problems(document: RawDocument, file_name: str = FILE_NAME) -> list[str]:
     """Check every bullet in a parsed section is a rule line with a known step and status."""
     problems: list[str] = []
     for section in document.sections:
         for line in section.lines:
-            where = f"{FILE_NAME}: line {line.line_number}"
+            where = f"{file_name}: line {line.line_number}"
             match = RULE_LINE_PATTERN.match(line.text)
             if match is None:
                 problems.append(
@@ -229,7 +229,7 @@ def find_rule_line_problems(document: RawDocument) -> list[str]:
             status = split_status(match["status_text"])[0]
             problems += not_in_set(where, "status", status, STATUSES)
         problems += [
-            f"{FILE_NAME}: line {line.line_number} is not read. Start each rule line with '- ' "
+            f"{file_name}: line {line.line_number} is not read. Start each rule line with '- ' "
             "at the start of the line, and keep the whole rule on that one line."
             for line in section.stray_lines
         ]
@@ -343,40 +343,28 @@ def find_record_name_problems(rules: BusinessRules) -> list[str]:
     return []
 
 
-def find_extraction_rule_problems(rules: BusinessRules) -> list[str]:
-    """Check each extracted field and context attribute has an active [Extraction] line.
-
-    Those lines are the model's only instructions for the field.
-    """
-    owners = [*rules.extracted_fields(), *rules.context]
+def find_misplaced_extraction_problems(rules: BusinessRules) -> list[str]:
+    """Check no [Extraction] line is left here: extraction guidance lives in its own file."""
     return [
-        f"{FILE_NAME}: '{owner.key}' is extracted but has no active [Extraction] rule line. "
-        "Add one that says what to copy from the documents."
-        for owner in owners
-        if not rules.rules_for("Extraction", owner.key)
+        f"{FILE_NAME}: rule {rule.rule_id} is an [Extraction] line. Extraction guidance lives "
+        f"only in {EXTRACTION_RULES_FILE}; move it there."
+        for rule in rules.all_rules()
+        if rule.step == "Extraction"
     ]
 
 
 def find_rule_placement_problems(rules: BusinessRules) -> list[str]:
     """Check rule lines sit where a prompt reads them, so none is silently left out.
 
-    Business [Extraction] lines are read only under Candidate criteria, and [Matching] lines
-    only from field sections.
+    [Matching] lines are read only from field sections.
     """
-    problems = [
-        f"{FILE_NAME}: rule {rule.rule_id} is an [Extraction] line under '### {rule.heading}', "
-        f"but only '### {CANDIDATE_HEADING}' lines reach the extraction prompt. Move it there."
-        for rule in rules.business.rules
-        if rule.step == "Extraction" and rule.heading != CANDIDATE_HEADING
-    ]
     section_rules = [*rules.general.rules, *rules.business.rules]
-    problems += [
+    return [
         f"{FILE_NAME}: rule {rule.rule_id} is a [Matching] line outside a field section, so "
         "no prompt reads it. Move it to the field it is about."
         for rule in section_rules
         if rule.step == "Matching"
     ]
-    return problems
 
 
 def find_reference_problems(rules: BusinessRules) -> list[str]:

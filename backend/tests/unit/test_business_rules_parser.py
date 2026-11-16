@@ -28,8 +28,8 @@ SYNTHETIC_RULES = """# Synthetic business rules
 
 ### Rules
 
-- SG-01 [Extraction] Copy synthetic values as written. (Confirmed; synthetic)
-- SG-02 [Extraction] An open synthetic rule. (Open; synthetic question)
+- SG-01 [Validation] Copy synthetic values as written. (Confirmed; synthetic)
+- SG-02 [Validation] An open synthetic rule. (Open; synthetic question)
 
 ### Synthetic table
 
@@ -53,7 +53,7 @@ SYNTHETIC_RULES = """# Synthetic business rules
 
 ### Rules
 
-- SN-01 [Extraction] The synthetic name (e.g., "Syn A"), as written. (Assumption; SYN-1: note, BR-0)
+- SN-01 [Validation] The synthetic name (e.g., "Syn A"), as written. (Assumption; SYN-1: note, BR-0)
 
 ## Field: Synthetic Amount
 
@@ -68,7 +68,7 @@ SYNTHETIC_RULES = """# Synthetic business rules
 
 ### Rules
 
-- SA-01 [Extraction] The synthetic amount. (Design; synthetic)
+- SA-01 [Validation] The synthetic amount. (Design; synthetic)
 
 ## Field: syn_context
 
@@ -83,7 +83,7 @@ SYNTHETIC_RULES = """# Synthetic business rules
 
 ### Rules
 
-- SX-01 [Extraction] A synthetic context fact. (Confirmed; synthetic)
+- SX-01 [Validation] A synthetic context fact. (Confirmed; synthetic)
 
 ## Business rules (across fields)
 
@@ -142,7 +142,7 @@ def test_only_parsed_sections_are_read() -> None:
 
 def test_status_is_the_first_word_and_the_rest_is_a_note() -> None:
     """A rule's status is the first word in its last parentheses; the rest is its note."""
-    rule = parse_business_rules(SYNTHETIC_RULES).rules_for("Extraction", "syn_name")[0]
+    rule = parse_business_rules(SYNTHETIC_RULES).rules_for("Validation", "syn_name")[0]
     assert rule.status == "Assumption"
     assert rule.note == "SYN-1: note, BR-0"
     assert rule.text == 'The synthetic name (e.g., "Syn A"), as written.'
@@ -151,8 +151,8 @@ def test_status_is_the_first_word_and_the_rest_is_a_note() -> None:
 def test_open_rule_lines_are_inactive() -> None:
     """An Open rule line is kept but not returned by rules_for."""
     rules = parse_business_rules(SYNTHETIC_RULES)
-    active = [rule.rule_id for rule in rules.rules_for("Extraction")]
-    every = [rule.rule_id for rule in rules.rules_for("Extraction", active_only=False)]
+    active = [rule.rule_id for rule in rules.rules_for("Validation")]
+    every = [rule.rule_id for rule in rules.rules_for("Validation", active_only=False)]
     assert "SG-02" not in active
     assert "SG-02" in every
 

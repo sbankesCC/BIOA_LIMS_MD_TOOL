@@ -128,6 +128,7 @@ def extraction_node(state: ProcessingState, context: ProcessingContext) -> State
         run_id=state["run_id"],
         chunks=load_chunks(folder, state["chunk_ids"]),
         business_rules=context.bundle.business_rules,
+        extraction_rules=context.bundle.extraction_rules,
         template=context.bundle.prompts[EXTRACTION_PROMPT],
         max_input_tokens=context.limits.max_input_tokens,
         reextraction_section=build_reextraction_section(records, problems),
@@ -205,6 +206,7 @@ def verification_node(state: ProcessingState, context: ProcessingContext) -> Sta
         records=records,
         excluded_items=read_excluded_items(state),
         business_rules=context.bundle.business_rules,
+        extraction_rules=context.bundle.extraction_rules,
         template=context.bundle.prompts[VERIFICATION_PROMPT],
     )
     try:

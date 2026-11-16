@@ -9,7 +9,6 @@ from openpyxl import load_workbook
 
 from app.config.bundle import ConfigBundle
 from app.config.business_rules import (
-    CANDIDATE_HEADING,
     ENTRY_COLUMN,
     IN_PREFIX,
     LOOKUP_VALUE_COLUMN,
@@ -239,10 +238,15 @@ def test_in_cell_naming_a_missing_table_is_reported(
 # ----- Rule placement -----
 
 
-def test_extraction_line_outside_candidate_criteria_is_reported(config_copy: Path) -> None:
-    """Business [Extraction] lines reach the prompt only under the candidate heading."""
-    edit_business_rules(config_copy, f"### {CANDIDATE_HEADING}\n", "### Synthetic heading\n")
-    assert_config_error(config_copy, f"only '### {CANDIDATE_HEADING}' lines reach")
+def test_extraction_line_in_business_rules_is_reported(
+    config_copy: Path, bundle: ConfigBundle
+) -> None:
+    """Extraction guidance lives only in extraction_rules.md; a line left here is rejected."""
+    rule = bundle.business_rules.general.rules[0]
+    edit_business_rules(
+        config_copy, f"- {rule.rule_id} [{rule.step}]", f"- {rule.rule_id} [Extraction]"
+    )
+    assert_config_error(config_copy, f"rule {rule.rule_id} is an [Extraction] line")
 
 
 def test_matching_line_outside_a_field_section_is_reported(
@@ -307,18 +311,6 @@ def test_record_name_not_sent_to_judge_is_reported(config_copy: Path, bundle: Co
     name_key = bundle.business_rules.record_name_field().key
     set_attribute(config_copy, name_key, "Sent to duplicate judge", None)
     assert_config_error(config_copy, "is not sent to the duplicate judge")
-
-
-def test_extracted_field_without_extraction_line_is_reported(
-    config_copy: Path, bundle: ConfigBundle
-) -> None:
-    """A field the model extracts needs an active [Extraction] line: its only instruction."""
-    field = bundle.business_rules.extracted_fields()[0]
-    for rule in bundle.business_rules.rules_for("Extraction", field.key):
-        edit_business_rules(
-            config_copy, f"- {rule.rule_id} [Extraction]", f"- {rule.rule_id} [Assembly]"
-        )
-    assert_config_error(config_copy, f"'{field.key}' is extracted but has no active [Extraction]")
 
 
 # ----- References between parts -----

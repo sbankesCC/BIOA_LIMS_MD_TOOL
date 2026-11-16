@@ -114,6 +114,7 @@ def build_version_entries(source: AuditSource) -> list[tuple[str, str]]:
     versions = source.run.config_versions
     entries = [
         ("Business rules version", versions.business_rules),
+        ("Extraction rules version", versions.extraction_rules),
         ("Issue catalogue version", versions.issue_catalogue),
         ("Lookup lists version", versions.lookup_lists),
         ("DFD template version", versions.dfd_template),

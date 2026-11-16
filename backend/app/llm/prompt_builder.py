@@ -11,13 +11,8 @@ from collections.abc import Mapping, Sequence
 
 from pydantic import BaseModel
 
-from app.config.business_rules import (
-    CANDIDATE_HEADING,
-    BusinessRules,
-    RuleLine,
-    RuleOwner,
-    Step,
-)
+from app.config.business_rules import BusinessRules, RuleLine
+from app.config.extraction_rules import ExtractionRules
 from app.config.prompts import HTML_COMMENT_PATTERN, PLACEHOLDER_PATTERN, PromptTemplate
 from app.contracts.chunk import Chunk
 from app.contracts.extraction import ExcludedItem
@@ -114,46 +109,36 @@ def format_rule_lines(rules: Sequence[RuleLine]) -> str:
     return "\n".join(lines) or NOTHING_TEXT
 
 
-def build_general_rules(business_rules: BusinessRules) -> str:
-    """Return the active [Extraction] lines of the General rules section."""
-    return format_rule_lines(
-        [rule for rule in business_rules.general.rules if rule.step == "Extraction"]
-    )
+def build_general_rules(extraction_rules: ExtractionRules) -> str:
+    """Return the active general extraction lines."""
+    return format_rule_lines(extraction_rules.general)
 
 
-def build_candidate_rules(business_rules: BusinessRules) -> str:
-    """Return the active [Extraction] lines under Candidate criteria (Business rules)."""
-    return format_rule_lines(
-        [
-            rule
-            for rule in business_rules.business.rules
-            if rule.step == "Extraction" and rule.heading == CANDIDATE_HEADING
-        ]
-    )
+def build_candidate_rules(extraction_rules: ExtractionRules) -> str:
+    """Return the active candidate criteria."""
+    return format_rule_lines(extraction_rules.candidates)
 
 
-def build_field_section(business_rules: BusinessRules) -> str:
-    """Return one block per extracted or generated field: key, column and [Extraction] lines."""
+def build_field_section(business_rules: BusinessRules, extraction_rules: ExtractionRules) -> str:
+    """Return one block per extracted or generated field: key, column and its guidance.
+
+    The field's shape (key, column, one value or a list) comes from the business rules.
+    """
     blocks: list[str] = []
     for field in business_rules.extracted_fields():
         list_note = " (a list: one entry per value)" if field.multi_value else ""
         heading = f"{field.key} ({field.column}){list_note}"
-        blocks.append(f"{heading}\n{format_owner_rules(field, 'Extraction')}")
+        blocks.append(f"{heading}\n{format_rule_lines(extraction_rules.rules_for(field.key))}")
     return "\n\n".join(blocks) or NOTHING_TEXT
 
 
-def build_context_section(business_rules: BusinessRules) -> str:
-    """Return one block per context attribute: key and its [Extraction] lines."""
+def build_context_section(business_rules: BusinessRules, extraction_rules: ExtractionRules) -> str:
+    """Return one block per context attribute: key and its guidance."""
     blocks = [
-        f"{attribute.key}\n{format_owner_rules(attribute, 'Extraction')}"
+        f"{attribute.key}\n{format_rule_lines(extraction_rules.rules_for(attribute.key))}"
         for attribute in business_rules.context_fields()
     ]
     return "\n\n".join(blocks) or NOTHING_TEXT
-
-
-def format_owner_rules(owner: RuleOwner, step: Step) -> str:
-    """Return one field's or attribute's active rule lines for one step."""
-    return format_rule_lines([rule for rule in owner.rules if rule.step == step])
 
 
 def build_matching_rules(business_rules: BusinessRules, field_keys: Sequence[str]) -> str:
@@ -176,13 +161,18 @@ def build_checks(business_rules: BusinessRules) -> str:
     return format_rule_lines(business_rules.rules_for("Plausibility"))
 
 
-def build_rule_placeholders(business_rules: BusinessRules) -> dict[str, str]:
-    """Return the four rule placeholders the extraction and verification prompts share."""
+def build_rule_placeholders(
+    business_rules: BusinessRules, extraction_rules: ExtractionRules
+) -> dict[str, str]:
+    """Return the four rule placeholders the extraction and verification prompts share.
+
+    The guidance comes only from the extraction rules; the business rules give the field list.
+    """
     return {
-        "general_rules": build_general_rules(business_rules),
-        "candidate_rules": build_candidate_rules(business_rules),
-        "field_section": build_field_section(business_rules),
-        "context_section": build_context_section(business_rules),
+        "general_rules": build_general_rules(extraction_rules),
+        "candidate_rules": build_candidate_rules(extraction_rules),
+        "field_section": build_field_section(business_rules, extraction_rules),
+        "context_section": build_context_section(business_rules, extraction_rules),
     }
 
 

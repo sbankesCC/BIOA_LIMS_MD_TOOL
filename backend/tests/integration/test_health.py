@@ -33,6 +33,7 @@ def test_health_reports_config_versions(monkeypatch: pytest.MonkeyPatch) -> None
     versions = body["config_versions"]
     assert set(versions) == {
         "business_rules",
+        "extraction_rules",
         "issue_catalogue",
         "lookup_lists",
         "dfd_template",

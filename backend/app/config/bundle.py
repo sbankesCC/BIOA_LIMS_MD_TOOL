@@ -18,6 +18,13 @@ from app.config.business_rules_checks import (
 )
 from app.config.dfd_template import DfdTemplate, load_dfd_template
 from app.config.errors import ConfigError
+from app.config.extraction_rules import FILE_NAME as EXTRACTION_RULES_FILE
+from app.config.extraction_rules import (
+    ExtractionRules,
+    find_coverage_problems,
+    find_shared_rule_id_problems,
+    load_extraction_rules,
+)
 from app.config.issue_catalogue import IssueCatalogue, load_issue_catalogue
 from app.config.lookup_lists import LookupLists, load_lookup_lists
 from app.config.prompts import FOLDER_NAME as PROMPTS_FOLDER
@@ -29,6 +36,7 @@ class ConfigVersions(BaseModel):
     """The version of each config file; prompts are versioned one by one."""
 
     business_rules: str
+    extraction_rules: str
     issue_catalogue: str
     lookup_lists: str
     dfd_template: str
@@ -41,6 +49,7 @@ class ConfigBundle(BaseModel):
 
     config_dir: Path
     business_rules: BusinessRules
+    extraction_rules: ExtractionRules
     issue_catalogue: IssueCatalogue
     lookup_lists: LookupLists
     dfd_template: DfdTemplate
@@ -51,6 +60,7 @@ class ConfigBundle(BaseModel):
         """Return the version of every config file in this bundle."""
         return ConfigVersions(
             business_rules=self.business_rules.version,
+            extraction_rules=self.extraction_rules.version,
             issue_catalogue=self.issue_catalogue.version,
             lookup_lists=self.lookup_lists.version,
             dfd_template=self.dfd_template.version,
@@ -68,6 +78,7 @@ def load_config_bundle(config_dir: Path) -> ConfigBundle:
     bundle = ConfigBundle(
         config_dir=config_dir,
         business_rules=load_business_rules(config_dir / BUSINESS_RULES_FILE),
+        extraction_rules=load_extraction_rules(config_dir / EXTRACTION_RULES_FILE),
         issue_catalogue=load_issue_catalogue(config_dir / "issue_catalogue.yaml"),
         lookup_lists=load_lookup_lists(config_dir / "lookup_lists.xlsx"),
         dfd_template=load_dfd_template(config_dir / "dfd_template.xlsx"),
@@ -77,6 +88,8 @@ def load_config_bundle(config_dir: Path) -> ConfigBundle:
     rules = bundle.business_rules
     problems = (
         find_template_problems(rules, bundle.dfd_template)
+        + find_coverage_problems(bundle.extraction_rules, rules)
+        + find_shared_rule_id_problems(bundle.extraction_rules, rules)
         + find_lookup_list_problems(rules, bundle.lookup_lists)
         + find_lookup_value_problems(rules, bundle.lookup_lists)
         + find_issue_code_problems(rules, bundle.issue_catalogue)

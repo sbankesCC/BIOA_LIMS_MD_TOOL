@@ -115,7 +115,7 @@ def active_ids(rules: list[RuleLine]) -> list[str]:
 def test_real_prompts_fill_every_placeholder(bundle: ConfigBundle) -> None:
     """Each client prompt builds with its placeholders and keeps no comment or placeholder."""
     values = {
-        **build_rule_placeholders(bundle.business_rules),
+        **build_rule_placeholders(bundle.business_rules, bundle.extraction_rules),
         "reextraction_section": "",
         "citation_results": "synthetic results",
         "records": "synthetic records",
@@ -135,51 +135,51 @@ def test_real_prompts_fill_every_placeholder(bundle: ConfigBundle) -> None:
 
 def test_rule_lines_have_id_and_text_without_status_or_source(bundle: ConfigBundle) -> None:
     """A rule line is inserted as `- <ID> <text>`: no step tag, status or source."""
-    rule = bundle.business_rules.rules_for("Extraction")[0]
-    text = build_general_rules(bundle.business_rules)
+    rule = bundle.extraction_rules.general[0]
+    text = build_general_rules(bundle.extraction_rules)
     assert text.splitlines()[0] == f"- {rule.rule_id} {rule.text}"
     assert f"[{rule.step}]" not in text and f"({rule.status};" not in text
 
 
-def test_general_rules_are_the_active_extraction_lines(bundle: ConfigBundle) -> None:
-    """{general_rules} holds the General rules' [Extraction] lines, not their code steps."""
-    general = bundle.business_rules.general.rules
-    expected = active_ids([rule for rule in general if rule.step == "Extraction"])
-    assert rule_ids(build_general_rules(bundle.business_rules)) == expected
+def test_general_rules_come_from_the_extraction_rules(bundle: ConfigBundle) -> None:
+    """{general_rules} holds the active general lines of extraction_rules.md."""
+    expected = active_ids(bundle.extraction_rules.general)
+    assert expected
+    assert rule_ids(build_general_rules(bundle.extraction_rules)) == expected
 
 
 def test_candidate_rules_are_the_candidate_criteria(bundle: ConfigBundle) -> None:
-    """{candidate_rules} holds the [Extraction] lines under Candidate criteria only."""
-    business = bundle.business_rules.business.rules
-    expected = active_ids([rule for rule in business if rule.heading == "Candidate criteria"])
+    """{candidate_rules} holds the active candidate criteria of extraction_rules.md."""
+    expected = active_ids(bundle.extraction_rules.candidates)
     assert expected
-    assert rule_ids(build_candidate_rules(bundle.business_rules)) == expected
+    assert rule_ids(build_candidate_rules(bundle.extraction_rules)) == expected
 
 
 def test_field_section_has_one_block_per_extracted_field(bundle: ConfigBundle) -> None:
-    """{field_section}: per extracted or generated field, key, column and its [Extraction] lines."""
-    rules = bundle.business_rules
-    blocks = build_field_section(rules).split("\n\n")
+    """{field_section}: per extracted or generated field, its shape and its guidance."""
+    rules, guidance = bundle.business_rules, bundle.extraction_rules
+    blocks = build_field_section(rules, guidance).split("\n\n")
     extracted = rules.extracted_fields()
     assert len(blocks) == len(extracted)
     for block, field in zip(blocks, extracted, strict=True):
         assert block.splitlines()[0].startswith(f"{field.key} ({field.column})")
-        assert rule_ids(block) == active_ids(rules.rules_for("Extraction", field.key))
+        assert rule_ids(block) == active_ids(guidance.fields[field.key])
 
 
 def test_field_section_marks_list_fields(bundle: ConfigBundle) -> None:
     """A multi-value field is marked as a list in its block heading."""
     field = next(field for field in bundle.business_rules.extracted_fields() if field.multi_value)
-    assert f"{field.key} ({field.column}) (a list: one entry per value)" in build_field_section(
-        bundle.business_rules
-    )
+    text = build_field_section(bundle.business_rules, bundle.extraction_rules)
+    assert f"{field.key} ({field.column}) (a list: one entry per value)" in text
 
 
 def test_context_section_has_one_block_per_context_attribute(bundle: ConfigBundle) -> None:
-    """{context_section}: per context attribute, its key and its [Extraction] lines."""
-    rules = bundle.business_rules
-    blocks = build_context_section(rules).split("\n\n")
+    """{context_section}: per context attribute, its key and its guidance."""
+    rules, guidance = bundle.business_rules, bundle.extraction_rules
+    blocks = build_context_section(rules, guidance).split("\n\n")
     assert [block.splitlines()[0] for block in blocks] == [a.key for a in rules.context]
+    for block, attribute in zip(blocks, rules.context, strict=True):
+        assert rule_ids(block) == active_ids(guidance.fields[attribute.key])
 
 
 def test_open_lines_are_never_inserted(bundle: ConfigBundle) -> None:
@@ -202,7 +202,7 @@ def test_naming_rules_are_every_active_naming_line(bundle: ConfigBundle) -> None
 
 def test_matching_rules_cover_only_the_fields_in_the_call() -> None:
     """{matching_rules} holds the active [Matching] lines of the fields that have items."""
-    amount_line = "- SA-01 [Extraction] The synthetic amount. (Design; synthetic)"
+    amount_line = "- SA-01 [Validation] The synthetic amount. (Design; synthetic)"
     text = SYNTHETIC_RULES.replace(
         amount_line,
         amount_line

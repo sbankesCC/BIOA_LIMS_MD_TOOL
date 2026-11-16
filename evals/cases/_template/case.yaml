@@ -5,4 +5,4 @@ source: synthetic            # synthetic | bioa
 tags: [conflict, excel_source]
 labeled_by: ""
 labeled_on: ""
-business_rules_version: "1.3"   # business rules version the expected output was labeled against; the eval loader flags a mismatch
+business_rules_version: "1.4"   # business rules version the expected output was labeled against; the eval loader flags a mismatch

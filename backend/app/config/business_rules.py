@@ -11,6 +11,8 @@ from typing import Annotated, Literal, get_args
 from pydantic import BaseModel, ConfigDict, Field
 
 FILE_NAME = "business_rules.md"
+# Extraction guidance lives in its own file, read with the same grammar (extraction_rules.py)
+EXTRACTION_RULES_FILE = "extraction_rules.md"
 
 # ----- Grammar: the words the file uses as structure, not as BioA data -----
 

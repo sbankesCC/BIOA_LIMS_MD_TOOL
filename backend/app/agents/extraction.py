@@ -17,6 +17,7 @@ from app.agents.common import (
     summarize_problems,
 )
 from app.config.business_rules import BusinessRules
+from app.config.extraction_rules import ExtractionRules
 from app.config.prompts import PromptTemplate
 from app.contracts.chunk import Chunk
 from app.contracts.extraction import ExtractionOutput
@@ -37,7 +38,7 @@ DOCUMENT_SET_TOO_LARGE = "DOCUMENT_SET_TOO_LARGE"
 
 @dataclass(frozen=True)
 class ExtractionTask:
-    """What one extraction call needs: the run's chunks, business rules, prompt and limits.
+    """What one extraction call needs: chunks, business and extraction rules, prompt, limits.
 
     On re-extraction, `reextraction_section` lists the problems and `allowed_record_ids` the
     existing records the response may return by their record_id.
@@ -46,6 +47,7 @@ class ExtractionTask:
     run_id: str
     chunks: Sequence[Chunk]
     business_rules: BusinessRules
+    extraction_rules: ExtractionRules
     template: PromptTemplate
     max_input_tokens: int | None
     reextraction_section: str = ""
@@ -57,7 +59,7 @@ def run_extraction(
 ) -> ExtractionOutput:
     """Run the extraction call; raise AgentError (EXTRACTION_FAILED or too large) on failure."""
     values = {
-        **build_rule_placeholders(task.business_rules),
+        **build_rule_placeholders(task.business_rules, task.extraction_rules),
         "reextraction_section": task.reextraction_section,
     }
     parts = build_prompt_parts(task.template, values, task.chunks)

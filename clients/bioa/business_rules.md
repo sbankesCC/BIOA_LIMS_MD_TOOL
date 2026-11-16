@@ -2,7 +2,7 @@
 
 | Attribute | Value |
 |---|---|
-| Version | 1.3 |
+| Version | 1.4 |
 | Last updated | 2026-11-16 |
 
 This file is the source of truth for BioAgilytix's Consumable Type rules. Code reads it, together with the **lookup value list** (the allowed LabVantage values for each list field).
@@ -15,7 +15,11 @@ The structure is strict, because code reads parts of this file. Code checks the 
 
 ### Field sections
 
-There is one section per loader field, in export column order, headed `## Field: <Loader column>`. Each has:
+There is one section per loader field, headed `## Field: <Loader column>`. Column order is set by `export_template.md`, not by this file.
+
+A field section holds the field's **structural facts**: its key, loader column, role, requirement, data type, and whether it holds one value or several. Every step reads these to know the field's shape. **Guidance** on what a field means and how to read it lives elsewhere: in `extraction_rules.md` for extraction, and in the rule lines and tables of this file for every later step.
+
+Each section has:
 
 - **An attribute table**, with keys in this order:
   - required keys: Key, Loader column, Role, Requirement, Type;
@@ -39,7 +43,7 @@ There is one section per loader field, in export column order, headed `## Field:
 
 | Tag | Meaning |
 |---|---|
-| `[Extraction]` | Model step. The line is inserted into the extraction prompt |
+| `[Extraction]` | Model step. These lines live in `extraction_rules.md`, never in this file |
 | `[Normalization]` | Code step |
 | `[Matching]` | Model step. The line is inserted into the Matching prompt |
 | `[Naming]` | Model step. The line is inserted into the Naming prompt |
@@ -84,8 +88,6 @@ In a derivation table, a column named after a loader column reads that field's v
 
 ### Rules
 
-- GEN-01 [Extraction] Copy every value exactly as written in the documents, whole: no formatting, conversion, completion or inference. (Confirmed; D-03, D-05)
-- GEN-02 [Extraction] If a value is not written in the documents, it is not_found. Never fill a value to complete a record. (Confirmed; charter review)
 - GEN-03 [Normalization] Replace micro and Greek characters in every text field using the character translation table below. Reason: Consumable Type names are the key and are sorted and filtered on. (Confirmed; 11/2, BioA written, SOP 7.1.1.2)
 - GEN-04 [Normalization] Trim leading and trailing spaces and collapse repeated spaces. (Design; built)
 - GEN-05 [Normalization] Never convert units or magnitudes. Keep the number and unit as stated: 500 uL stays 500 uL. Reason: LabVantage has its own unit conversion rules, and some volumes are very small. (Confirmed; 11/2)
@@ -138,7 +140,6 @@ Values that must not be chosen, even though they are in the lookup value list.
 
 ### Rules
 
-- CT-01 [Extraction] The material's name exactly as written. Do not shorten it or apply a naming convention. (Confirmed; build)
 - CT-02 [Assembly] The Naming step suggests the name, using the naming rules in the business rules section. (Confirmed; BioA written, 11/2, D-39)
 - CT-03 [Assembly] The cell stays empty until the reviewer uses the suggestion or types a name. (Confirmed; D-39)
 - CT-04 [Validation] 40 characters or fewer. (Confirmed; SOP 7.1.1.1, Data info)
@@ -162,7 +163,6 @@ Values that must not be chosen, even though they are in the lookup value list.
 
 ### Rules
 
-- DS-01 [Extraction] A description of the material if the document gives one, such as the vendor's product name. Copy as written. (Design; build)
 - DS-02 [Validation] 255 characters or fewer. (Confirmed; SOP 7.2.2.2, Data info)
 
 ---
@@ -245,7 +245,6 @@ The vendor counts as BAL if it matches one of these (ignoring case and spaces).
 
 ### Rules
 
-- SC-01 [Extraction] The storage temperature or condition as written, including words such as frozen, refrigerated or cryogenic, e.g. "-20 °C" or "2–8 °C". (Confirmed; 11/2)
 - SC-02 [Normalization] Translate the phrase using the translation table below. (Confirmed; 11/2, BioA written)
 - SC-03 [Normalization] "Frozen" or "freezer" with no temperature: leave blank and raise a warning. The reviewer chooses -20C or -80C. Never sent to Matching. (Confirmed; 11/2, BioA written)
 - SC-04 [Normalization] A phrase not in the table and not a list value goes to Matching. (Confirmed; D-21)
@@ -315,9 +314,6 @@ Used by CR-01 and CR-02. A `source_heading` is the Critical Reagents table when 
 
 ### Rules
 
-- EA-01 [Extraction] The quantity of material expected per container, number only, as written, only when the document states it. (Confirmed; build, 11/2)
-- EA-02 [Extraction] A container phrase such as "1 mL vial" is the Container Type, not the expected amount. (Confirmed; 11/2)
-- EA-03 [Extraction] Do not use the volume prepared per batch as the expected amount. (Confirmed; BioA written)
 - EA-04 [Assembly] Never default. Reason: defaults can cause unit errors when lots are created. (Confirmed; BioA written, 11/2)
 - EA-05 [Validation] The expected amount may differ from the container size (e.g., a 0.65 mL tube holding 0.45 mL). No flag. (Confirmed; 11/2)
 
@@ -338,7 +334,6 @@ Used by CR-01 and CR-02. A `source_heading` is the Critical Reagents table when 
 
 ### Rules
 
-- EU-01 [Extraction] The unit of the expected amount as written. (Confirmed; build)
 - EU-02 [Normalization] µL → uL and µg → ug through the character translation table; case variants match the list (ml → mL). (Confirmed; BioA written, 11/2)
 - EU-03 [Normalization] Never convert to another unit. (Confirmed; 11/2)
 - EU-04 [Matching] Never choose Count, (Containers) or Vial until BioA defines when they are used. (Open; BR-4)
@@ -358,7 +353,6 @@ Used by CR-01 and CR-02. A `source_heading` is the Critical Reagents table when 
 
 ### Rules
 
-- EN-01 [Extraction] The number of containers per lot, only when stated. (Confirmed; build)
 - EN-02 [Assembly] Never default. (Confirmed; BioA written)
 
 ---
@@ -379,7 +373,6 @@ Used by CR-01 and CR-02. A `source_heading` is the Critical Reagents table when 
 
 ### Rules
 
-- TM-01 [Extraction] Only if the document says how containers are tracked. Usually not_found. (Design; build)
 - TM-02 [Normalization] Translate the displayed value to its one-character code using the translation table below. (Confirmed; BioA written, D-43)
 - TM-03 [Assembly] Default `i` (Individual) when not found. (Confirmed; Data info default)
 - TM-04 [Validation] The exported value must be `i` or `t`. The Container Tracking Method lookup list holds these codes. (Confirmed; BioA written)
@@ -408,7 +401,6 @@ Used by CR-01 and CR-02. A `source_heading` is the Critical Reagents table when 
 
 ### Rules
 
-- MI-01 [Extraction] Y or N, only if the document says whether container inventory is managed. Usually not_found. (Design; build)
 - MI-02 [Assembly] Default Y when not found. (Confirmed; Data info default)
 
 ---
@@ -428,8 +420,6 @@ Used by CR-01 and CR-02. A `source_heading` is the Critical Reagents table when 
 
 ### Rules
 
-- CO-01 [Extraction] The whole container phrase as written, including size and unit, e.g. "1 mL vial" or "15 mL conical tube". Never split it into an amount and a unit. (Confirmed; 11/2)
-- CO-02 [Extraction] Words such as tube, bottle, vial, microtube or conical tube mark a container type. (Confirmed; 11/2)
 - CO-03 [Normalization] Match to the Container Type list; a phrase that does not match goes to Matching. (Confirmed; D-21)
 - CO-04 [Matching] [to write and confirm with BioA, e.g. whether a vial may match a tube] (Open; M-3)
 - CO-05 [Validation] Required. (Confirmed; BioA)
@@ -453,8 +443,6 @@ Used by CR-01 and CR-02. A `source_heading` is the Critical Reagents table when 
 
 ### Rules
 
-- MF-01 [Extraction] The company that makes the material, as written. (Confirmed; build, 11/2)
-- MF-02 [Extraction] If only one vendor is named, put it in both Manufacturer and Supplier. (Assumption; BR-5)
 - MF-03 [Normalization] Match the document's wording to the list (GEN-06). Similar entries such as "Thermo Fisher" and "Thermo Fisher Scientific" are distinct values; never merge them. Never sent to Matching. (Confirmed; 11/2, BioA written)
 - MF-04 [Validation] No match: leave blank and raise an issue; the reviewer searches the list or creates the master data. (Confirmed; 11/2)
 
@@ -475,8 +463,6 @@ Used by CR-01 and CR-02. A `source_heading` is the Critical Reagents table when 
 
 ### Rules
 
-- SU-01 [Extraction] The company the material is bought from, as written. Kept separate from Manufacturer. (Design; build)
-- SU-02 [Extraction] If only one vendor is named, put it in both Manufacturer and Supplier. (Assumption; BR-5)
 - SU-03 [Normalization] Same matching as Manufacturer (MF-03). (Confirmed; 11/2)
 - SU-04 [Validation] Same as MF-04. (Confirmed; 11/2)
 
@@ -497,7 +483,6 @@ Used by CR-01 and CR-02. A `source_heading` is the Critical Reagents table when 
 
 ### Rules
 
-- CN-01 [Extraction] Every catalog number for this material, one entry each, as written, including "or equivalent" (e.g., "1234 or equivalent"). (Confirmed; BioA written, 11/2)
 - CN-02 [Assembly] Join several catalog numbers in one cell with ", ". Several numbers are not a conflict. (Design; build)
 - CN-03 [Validation] Always text, to keep leading zeros. A missing catalog number raises no issue. (Design; BioA written: not every item has one)
 
@@ -517,7 +502,6 @@ Used by CR-01 and CR-02. A `source_heading` is the Critical Reagents table when 
 
 ### Rules
 
-- TC-01 [Extraction] The concentration as written, with its unit, e.g. "100 uM" or "1e4 cps/uL". (Confirmed; build)
 - TC-02 [Normalization] A value is a concentration only when a concentration unit follows the number: weight per volume (e.g., ng/mL), weight per weight, or volume per volume. LabVantage accepts numbers only. (Confirmed; BioA written, 11/2)
 - TC-03 [Normalization] Classify the value using the table below. Anything that is not a concentration is left blank with a warning. (Confirmed; BioA written, 11/2)
 - TC-04 [Normalization] A multiplier such as "10x" may be part of the name (e.g., "10x PBS + Tween"); it is never a concentration. (Confirmed; 11/2)
@@ -680,7 +664,6 @@ Extracted once per candidate record, with the same shape as a field (status, val
 
 ### Rules
 
-- SH-01 [Extraction] The heading of the table or section the item is listed under, as written (e.g., "Table 3. Critical Reagents"). (Confirmed; D-07)
 - SH-02 [Validation] An unresolved finding on this attribute appears as an issue on Critical. (Confirmed; D-31)
 
 ## Field: serial_dilution
@@ -696,22 +679,11 @@ Extracted once per candidate record, with the same shape as a field (status, val
 
 ### Rules
 
-- SD-01 [Extraction] The text stating that the item is one level of a serial dilution (e.g., "STD 1–8 prepared by serial dilution of the stock"). (Confirmed; D-07, SOP 7.4.3)
 - SD-02 [Validation] An unresolved finding on this attribute appears as an issue on Approval Type. (Confirmed; D-31)
 
 ---
 
 ## Business rules (across fields)
-
-### Candidate criteria
-
-Inserted into the extraction prompt (D-46).
-
-- CAND-01 [Extraction] A Consumable Type is a kind of material used to run the assay: purchased reagents, kits, water, buffers and solutions, master mixes, primers and probes, reference standards, controls (QCs), and materials provided by the sponsor. (Assumption; prompt v0.4; confirm with BioA SME, E-1)
-- CAND-02 [Extraction] Each distinct material is its own record. Different concentrations, a stock vs a working solution, and each level of a serial dilution are separate records. (Confirmed; SOP 7.4.3)
-- CAND-03 [Extraction] Not Consumable Types: instruments and equipment, software, study samples. (Assumption; prompt v0.4; E-1)
-- CAND-04 [Extraction] Look in reagent and materials tables, preparation sections and supplemental worksheets. Prepared reagents may appear only on a worksheet. (Assumption; prompt v0.4; E-1)
-- CAND-05 [Extraction] The same material may appear in several documents: make one record and cite every place. (Design; build)
 
 ### Approval type table
 
@@ -785,3 +757,4 @@ Inserted into the plausibility prompt. **None are active** until VAL-2 is decide
 | 1.1 | 2026-11-11 | Added data tables so no BioA value has to live in code: excluded lookup values, class table, critical headings, concentration units, worksheet template table, condition groups table, the "frozen" row (SC-T09) and the serial-dilution row of the approval type table. Added `Drives` to the context attributes and BR-9 |
 | 1.2 | 2026-11-11 | Removed the list of fields taken out of the loader; the loader columns are the field sections above, nothing else |
 | 1.3 | 2026-11-16 | Derivation tables written so code can read them: the class table reads the Manufacturer column and refers to the BAL vendor names table; the critical headings table has a row for every other heading; the approval type table's serial dilution column is named `serial_dilution`. No rule changed |
+| 1.4 | 2026-11-16 | Moved every [Extraction] line (general, candidate criteria, fields and context attributes) to `extraction_rules.md`, unchanged. Field sections hold structural facts; column order comes from `export_template.md` |

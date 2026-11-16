@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from app.agents.common import AgentError, call_with_one_retry, make_request, parse_response
 from app.agents.extraction import EXTRACTION_FAILED
 from app.config.business_rules import BusinessRules
+from app.config.extraction_rules import ExtractionRules
 from app.config.prompts import PromptTemplate
 from app.contracts.chunk import Chunk
 from app.contracts.extraction import ExcludedItem
@@ -39,13 +40,14 @@ class VerificationTask:
     records: Sequence[StoredRecord]
     excluded_items: Sequence[ExcludedItem]
     business_rules: BusinessRules
+    extraction_rules: ExtractionRules
     template: PromptTemplate
 
 
 def run_verification(caller: TracedCaller, task: VerificationTask) -> VerificationOutput:
     """Run the verification call; raise AgentError (EXTRACTION_FAILED) if it cannot finish."""
     values = {
-        **build_rule_placeholders(task.business_rules),
+        **build_rule_placeholders(task.business_rules, task.extraction_rules),
         "citation_results": format_citation_results(task.records),
         "records": format_records(task.records),
         "excluded_items": format_excluded_items(task.excluded_items),
