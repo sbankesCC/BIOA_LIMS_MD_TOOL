@@ -18,12 +18,13 @@ v0.13.1 is in progress: see `PLAN.md`.
 | `docs/UI_SPEC.md` | Screens and review behaviors |
 | `docs/ui_mockups/` | UI mockups as static HTML and PNG (reference only; `UI_SPEC.md` wins) |
 | `clients/bioa/source/BAL_Consumable_Type_Definitions.xlsx` | BioA's Data info and List Values sheets (example records removed); differences are listed in the config consistency test |
-| `clients/bioa/business_rules.md` | The only source of field and business rules: the 22 loader fields, context attributes, rule lines by step, translation and derivation tables, naming rules, open questions |
+| `clients/bioa/business_rules.md` | The only source of field and business rules: the 22 loader fields, context attributes, rule lines by step, translation and derivation tables, open questions |
+| `clients/bioa/extraction_rules.md` | Extraction guidance: general rules, candidate criteria and each extracted field's `[Extraction]` lines |
+| `clients/bioa/export_template.md` | The loader layout: sheet settings and the columns in export order, with type and display format |
 | `clients/bioa/issue_catalogue.yaml` | Issue codes, severities, messages (wording is a draft) |
 | `clients/bioa/lookup_lists.xlsx` | Lookup lists copied from the List Values sheet |
-| `clients/bioa/dfd_template.xlsx` | The DFD template: the loader columns of `business_rules.md`, in order |
 | `clients/bioa/reference_data_mapping.yaml` | Column mapping for existing Consumable Types uploads |
-| `clients/bioa/prompts/` | Extraction, extraction verification, matching, naming, plausibility and duplicate judge prompts (drafts for review) |
+| `clients/bioa/prompts/` | Extraction, extraction verification, matching, naming (with BioA's naming rules), plausibility and duplicate judge prompts (drafts for review) |
 | `evals/` | Eval case template and README (no real data yet) |
 | `env.example` | Deployment settings |
 

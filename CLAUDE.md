@@ -81,8 +81,9 @@ Simple, readable code beats clever code. When unsure, choose the more readable o
 
 ### What this is
 A tool that reads BioAgilytix lab documents (methods, study plans, worksheets), extracts
-Consumable Type master data, lets a user review and fix it, and fills out the DFD template
-(an Excel loader). The tool's job ends at the filled template; it never connects to LabVantage.
+Consumable Type master data, lets a user review and fix it, and fills out the DFD loader (an Excel
+file built from `export_template.md`). The tool's job ends at the filled loader; it never connects
+to LabVantage.
 
 How it works: a LangGraph flow processes the documents: Ingest → Extraction (LLM) ⇄ Extraction
 verification (code citation check + LLM) → Normalization (code) → Matching (code + LLM suggestion) →
@@ -96,7 +97,9 @@ then Validation directly. Export and admin are services too.
 - `docs/CONTRACTS.md`: every JSON shape, file format and API endpoint. Build to these exactly
 - `docs/UI_SPEC.md` and `docs/ui_mockups/`: screens and review behaviors
 - `clients/bioa/business_rules.md`: the only source of field and business rules (BioA confidential)
-- `clients/bioa/`: also the issue catalogue, lookup lists, DFD template, prompts, reference mapping
+- `clients/bioa/extraction_rules.md`: extraction guidance, the only rules the extraction prompts read
+- `clients/bioa/export_template.md`: the loader layout and the only source of column order
+- `clients/bioa/`: also the issue catalogue, lookup lists, prompts, reference mapping
 - `clients/bioa/source/`: BioA's original field definitions and lists; differences from
   `business_rules.md` are listed in the config consistency test, each with its rule ID
 

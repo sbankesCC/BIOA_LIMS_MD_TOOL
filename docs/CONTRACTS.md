@@ -129,7 +129,7 @@ Evidence:
 Value rules:
 - Every value is a string, copied whole and as written (units, symbols, notation, capitalization and words such as "or equivalent" kept). Fields with a `Multi-value separator` (Catalog No) are a list of strings.
 - No inference: a value not written in the documents is `not_found`.
-- The field-specific extraction rules are the `[Extraction]` lines of `business_rules.md`, inserted into the prompt.
+- The field-specific extraction rules are the `[Extraction]` lines of `extraction_rules.md`, inserted into the prompt.
 - Two named products, or sources that disagree: `conflicting`.
 - `unclear` (status alone) raises yellow `VALUE_UNCLEAR` with the warning; it does not trigger re-extraction.
 
@@ -231,7 +231,7 @@ Request: every included record: `record_id`, the name as written, each extracted
 }
 ```
 
-- One answer per record. `rule_id` is the `[Naming]` rule followed, or null with a null name.
+- One answer per record. `rule_id` is the naming rule followed (from `prompts/naming.md`), or null with a null name. Code stores it as given.
 - Code checks each name: character translation applied, max length, disallowed characters, unique within the run. A failing name is dropped and the reason kept.
 - A passing name is stored as the `suggestion` on the record name field (source `naming`, with `rule_id`). It never sets the value.
 - Cache per record: its values, business rules version, prompt version, model.
@@ -484,20 +484,34 @@ evals/cases/<case_id>/
 | `business_rules.md` | Markdown, read by code (see below) |
 | `issue_catalogue.yaml` | Codes with `severity` and `message` |
 | `lookup_lists.xlsx` | One sheet per lookup field (sheet name = DFD column name), column A header `Lookup Value`, text cells. `_Instructions` (visible) and `_metadata` (hidden: `version_id`, `based_on_version`, `exported_at`, `exported_by`). Sheets starting with `_` are reserved and ignored |
-| `dfd_template.xlsx` | `Sheet1`, row 1 = the loader columns of `business_rules.md` in file order, nothing else |
+| `extraction_rules.md` | Markdown, read by code (see below) |
+| `export_template.md` | Markdown, read by code (see below) |
 | `reference_data_mapping.yaml` | Column mapping and duplicate-check settings |
 | `prompts/*.md` | First line: `prompt`, `version`, `status`; placeholders in `{braces}` |
 | `env.example` | Deployment settings; secrets only in the environment |
 
 `business_rules.md` grammar (the file's "How to read and edit this file" section is the reference for editors):
 - Version: the `Version` row of the first table.
-- Field sections: `## Field: <name>`, in file order. Each has an attribute table (`Attribute | Value`), `### Rules` lines, and any other `###` table. Required keys: Key, Loader column, Role, Requirement, Type. Optional keys: Max length, Lookup list, Default, Matching allowed, Sent to duplicate judge, Record name, Multi-value separator, Disallowed characters, Drives.
+- Field sections: `## Field: <name>`; their order does not matter (`export_template.md` sets the column order). They hold each field's structural facts. Each has an attribute table (`Attribute | Value`), `### Rules` lines, and any other `###` table. Required keys: Key, Loader column, Role, Requirement, Type. Optional keys: Max length, Lookup list, Default, Matching allowed, Sent to duplicate judge, Record name, Multi-value separator, Disallowed characters, Drives.
 - Roles: `extracted`, `derived`, `generated`, `context`, `system`, `blank_for_now`. Loader column `none` for `context`.
 - Rule line: `- <ID> [<Step>] <text> (<Status>; <source>)`. Steps: Extraction, Normalization, Matching, Naming, Assembly, Validation, Plausibility.
 - Status: the first word of a rule's parentheses or of a Status cell (`Confirmed`, `Assumption`, `Design`, `Open`); anything after it is a note. `Open` rules and rows are inactive.
 - Sections under `## General rules` and `## Business rules` are parsed the same way.
 - Derivation tables: a column named after a loader column reads that field's value; a column named after a context attribute key reads whether it was found (`yes`/`no`). Rows are checked top to bottom; the first match applies. Input cells: `any` (every value), `(empty)` (no value), `in <table>` / `not in <table>` (the value against the first column of that table in the same section, ignoring case and spaces), `(any other heading)` (every heading the rows above did not match). Output cells: `(blank)` leaves the field blank; `(blank, with an issue)` leaves it blank and raises `DERIVED_VALUE_MISSING`. Grammar cells are not checked against lookup lists, and an `in` cell must name a table of its section.
-- Startup check (fails with a plain message): required keys present; role, requirement, type and step tag from the allowed sets; rule IDs and table entry IDs unique; exactly one record name field, sent to the duplicate judge; every lookup list named exists; every translation target, table output and default exists in its lookup list (blank allowed); every `Drives` value and condition group field is a field key; loader columns equal the DFD template headers, in order.
+- Startup check (fails with a plain message): required keys present; role, requirement, type and step tag from the allowed sets; rule IDs and table entry IDs unique; exactly one record name field, sent to the duplicate judge; every lookup list named exists; every translation target, table output and default exists in its lookup list (blank allowed); every `Drives` value and condition group field is a field key; no `[Extraction]` or `[Naming]` line (those live in `extraction_rules.md` and `prompts/naming.md`).
+
+`extraction_rules.md` grammar:
+- Version: the `Version` row of the first table.
+- `## General rules`: general extraction lines under `### Rules`, candidate criteria under `### Candidate criteria`.
+- `## Field: <key>`: one section per extracted or generated field and context attribute, keyed by its `business_rules.md` key, with `### Rules` lines.
+- Same rule-line format and status words as `business_rules.md`. Only `[Extraction]` lines; no tables.
+- Startup check: every extracted field and context attribute has a section with an active line; no section names another key; rule IDs unique across both files.
+
+`export_template.md` grammar:
+- Version: the `Version` row of the first table.
+- `## Sheet`: a `Setting | Value` table with `Sheet name` (an Excel sheet name), `Header bold` and `Freeze header row` (`yes`/`no`).
+- `## Columns`: a `Column | Type | Format` table, one row per loader column, in export order. Type: `text`, `number`, `date`. Format: blank (Excel default), `<n> decimals` for a number, or a pattern of `YYYY`, `MM`, `DD` for a date.
+- Startup check: the columns are exactly the loader columns of `business_rules.md`; types agree (`decimal`/`integer` → `number`; `text`/`boolean` → `text`; a `date` column holds a `text` field). The config bundle orders the loader fields by this table.
 
 ## 13. API endpoints
 
@@ -511,7 +525,7 @@ Request and response bodies use the models above. The OpenAPI schema generated b
 | GET | /runs/{run_id} | Status, current step, verified label, exports, run issues |
 | PATCH | /runs/{run_id} | Rename the run |
 | GET | /runs/{run_id}/records | Flattened review view: one row per record, cells with value, display value, origin, color, messages, sources, alternatives. Each cell also has the field's `suggestion` (or null). Context attributes are not returned. Each issue has `note_required`, `sources` (locations of its `details.sources` chunks of the run) and `duplicate_candidates` (its `details.candidates`, typed; empty for other issues). Counts add progress: `total_issues` (red and yellow issues of included records and the run, any status) and `resolved_issues` (those resolved or accepted) |
-| GET | /runs/{run_id}/fields | Every loader field of the run's config in loader order (context attributes left out): key, column, role, requirement, type, max length, list or boolean, multi-value, `is_record_name`, and allowed values (lookup values from the run's own lookup list version, without values excluded from all steps; Y/N for booleans; none otherwise). For the review dropdowns |
+| GET | /runs/{run_id}/fields | Every loader field of the run's config in export order (`export_template.md`) (context attributes left out): key, column, role, requirement, type, max length, list or boolean, multi-value, `is_record_name`, and allowed values (lookup values from the run's own lookup list version, without values excluded from all steps; Y/N for booleans; none otherwise). For the review dropdowns |
 | GET | /runs/{run_id}/records/{record_id} | One record with all sections, issues and resolved sources |
 | GET | /runs/{run_id}/chunks/{chunk_id} | Source text for "Show source" (with document, section, page) |
 | GET | /runs/{run_id}/chunks/{chunk_id}/image | The scanned page of a `page_image` chunk as `image/png`; a text chunk is 404 `PAGE_IMAGE_NOT_FOUND` |

@@ -7,7 +7,7 @@ Related documents in this folder:
 - `CONTRACTS.md`: every JSON contract and file format, field by field.
 - `UI_SPEC.md`: screens, states and review behaviors.
 - `ui_mockups/`: UI mockups as static HTML and PNG (reference only; `UI_SPEC.md` wins).
-- `../clients/bioa/`: the config files (business rules, issue catalogue, lookup lists, DFD template, prompts, reference data mapping) and `source/`, BioA's field definitions and lists.
+- `../clients/bioa/`: the config files (business rules, extraction rules, export template, issue catalogue, lookup lists, prompts, reference data mapping) and `source/`, BioA's field definitions and lists.
 
 ---
 
@@ -15,7 +15,7 @@ Related documents in this folder:
 
 The tool reads BioAgilytix (BioA) source documents, finds candidate Consumable Types, lets a Lab Ops user review and fix them, and exports an Excel file in the format the LabVantage "BAL Consumable Type" Data File Definition (DFD) imports.
 
-- The tool never writes to LabVantage. Its job ends at the filled Excel loader (DFD template) and audit file.
+- The tool never writes to LabVantage. Its job ends at the filled Excel loader (built from the export template) and audit file.
 - QC review and approval happen in LabVantage, not in the tool (SOP §7.9.1).
 - The tool covers Consumable Types only (no lots, recipes, worksheets, LES).
 - No direct LabVantage connection; reference lists are files.
@@ -37,7 +37,7 @@ The tool reads BioAgilytix (BioA) source documents, finds candidate Consumable T
 | Record | One candidate Consumable Type in a run |
 | Issue | A problem flagged on a record, field or run: red (Fix), yellow (Check), grey (info) |
 | Chunk | A labeled piece of a source document; every value cites chunks |
-| Business rules | `clients/bioa/business_rules.md`: the fields, their rules and the data tables code reads. The only source of field and business rules |
+| Business rules | `clients/bioa/business_rules.md`: the fields (their structural facts), their rules and the data tables code reads. The only source of field and business rules, except extraction guidance (`extraction_rules.md`), the loader layout (`export_template.md`) and the naming rules (`prompts/naming.md`) |
 | Context attribute | A fact extracted once per record for other rules (`source_heading`, `serial_dilution`). Never exported or displayed |
 | Derived field | A loader field Assembly sets from other values using a table in the business rules (Critical, Consumable Class, Approval Type, Worksheet Template) |
 | Suggestion | A value a model step (Matching or Naming) proposes for a field. Stored beside the field; never applied until a person uses it |
@@ -98,7 +98,7 @@ flowchart TB
     subgraph stores["Data and services"]
         runs[("Run store (files)<br/>documents, chunks, page images,<br/>exports, LLM traces")]
         db[("Review database<br/>runs, records, issues,<br/>changes, audit history,<br/>checkpoints")]
-        config[("Config, versioned<br/>business rules, issue catalogue,<br/>lookup lists, prompts,<br/>DFD template")]
+        config[("Config, versioned<br/>business rules, issue catalogue,<br/>lookup lists, prompts,<br/>extraction rules, export template")]
         ref[("Reference data, versioned<br/>existing Consumable Types")]
         llm{{"OpenAI API"}}
     end
@@ -178,7 +178,7 @@ Each component: input, what it does, output. Contracts are in `CONTRACTS.md`.
 - Accepted types: `.docx`, `.pdf`, `.xlsx`. Not `.xls` or `.xlsm`. Handwriting is best-effort and always flagged.
 
 ### 4.5 Extraction (LLM)
-- **Input:** chunks (text chunks as text; `page_image` chunks as images, each labeled with its chunk ID, in the same request); the `[Extraction]` rule lines of `business_rules.md` (general rules, candidate criteria, fields with role `extracted` or `generated`, context attributes), inserted by the prompt builder; extraction prompt. On re-extraction: the problems found, for affected records only.
+- **Input:** chunks (text chunks as text; `page_image` chunks as images, each labeled with its chunk ID, in the same request); the active rule lines of `extraction_rules.md` (general rules, candidate criteria, fields with role `extracted` or `generated`, context attributes), inserted by the prompt builder with each field's key, column and shape from `business_rules.md`; extraction prompt. On re-extraction: the problems found, for affected records only.
 - **Does:** one LLM call per run: finds candidate Consumable Types and copies every extractable field and context attribute whole and as written (including words such as "or equivalent"), with sources. Each gets a status: `found`, `not_found`, `conflicting` or `unclear`.
 - **Output:** Extraction JSON (`CONTRACTS.md` §2). Code then assigns permanent `record_id`s.
 - Response checked against the schema and status rules; a violation is retried, then fails the step.
@@ -212,7 +212,7 @@ Per field, in this order; for a conflicting field, per alternative:
 - **Output:** a `suggestion` on the field (value, reason). The value is not set.
 
 #### 4.7c Naming (LLM + code)
-- One LLM call per run for all included records, following the `[Naming]` rules. Cached per record.
+- One LLM call per run for all included records, following the naming rules in `prompts/naming.md`. Cached per record.
 - Code checks each suggested name: character translation applied, max length, disallowed characters, unique in the run. A failing suggestion is dropped and the reason kept.
 - **Output:** a `suggestion` on the record name field. The name stays empty until a person uses the suggestion or types a name.
 
@@ -256,7 +256,7 @@ Your "validation" step: reads and categorizes warnings, applies the business rul
 - Export is allowed at any time. Unverified exports are drafts.
 - Before writing, re-checks if a change was saved since the last validation. The run keeps the config versions it started with; admin updates do not apply to it.
 - Writes two files:
-  - The DFD loader from `dfd_template.xlsx` (`Sheet1`; the loader columns of `business_rules.md`, in file order; `output.value` only; excluded records left out).
+  - The DFD loader, built from `export_template.md` alone: sheet name, header style, frozen row, and the columns in its order with their type and display format; `output.value` only, written unchanged (a format never rounds a value); excluded records left out.
   - The audit workbook (`CONTRACTS.md` §8).
 - File names: `[run name] – export [n].xlsx` and `[run name] – export [n] – audit.xlsx`; draft exports add "– draft".
 
@@ -276,7 +276,7 @@ Flow: download current workbook → edit offline in Excel → upload → checks 
 
 | Store | Holds | Written by |
 |---|---|---|
-| Config (`clients/bioa/`) | Business rules, issue catalogue, lookup lists, prompts, DFD template, reference mapping | Developers; lookup lists by the admin |
+| Config (`clients/bioa/`) | Business rules, extraction rules, export template, issue catalogue, lookup lists, prompts, reference mapping | Developers; lookup lists by the admin |
 | Reference data | Existing Consumable Types snapshots | Admin |
 | Run store (files) | Documents, chunks, page images, exports, LLM requests and responses | Graph, API, export service |
 | Review database (SQLite in the pilot) | Runs, records, issues, changes, audit history; LangGraph checkpoints | Graph (writes at the end of processing), review service, API |
@@ -304,7 +304,7 @@ Retries for timeouts and rate limits are a node setting, not an edge. Routing li
 
 - Status values: `created → ingesting → extracting → verifying_extraction → normalizing → matching → naming → assembling → validating → in_review`, then `rechecking ↔ in_review` (review service, not the graph); or `failed`.
 - A failed run is kept as is. Retry starts a new run from the same uploaded files, linked by `retry_of`.
-- A run uses the config versions captured at its start for its whole life (business rules, issue catalogue, lookup lists, DFD template, reference mapping, prompts), and the models captured at its start (extraction, verification, matching, naming, plausibility, duplicate judge).
+- A run uses the config versions captured at its start for its whole life (business rules, extraction rules, export template, issue catalogue, lookup lists, reference mapping, prompts), and the models captured at its start (extraction, verification, matching, naming, plausibility, duplicate judge).
 - Verified label: separate from status (yes/no, by, at). Removed by any later change.
 - Exports: numbered list, each draft or verified, each with loader and audit file.
 - Runs are saved and never lost; users can leave and return.
@@ -329,16 +329,17 @@ All BioA-specific content lives in `clients/bioa/` (loaded via `CLIENT_CONFIG_DI
 
 | File | Purpose | Owner |
 |---|---|---|
-| `business_rules.md` | The 22 loader fields and 2 context attributes (role, requirement, type, length, lookup, default, flags); rule lines tagged by step; data tables (translations, derivations, naming rules, condition groups, excluded lookup values) | Developers, from BioA's answers |
+| `business_rules.md` | The 22 loader fields and 2 context attributes (role, requirement, type, length, lookup, default, flags); rule lines tagged by code step, `[Matching]` and `[Plausibility]`; data tables (translations, derivations, condition groups, excluded lookup values) | Developers, from BioA's answers |
+| `extraction_rules.md` | Extraction guidance: general extraction rules, candidate criteria, and the `[Extraction]` lines of each extracted field and context attribute | Developers, from BioA's answers |
+| `export_template.md` | Loader layout: sheet settings, and the 22 columns in export order with type and display format. The only source of column order | Developers |
 | `issue_catalogue.yaml` | Issue codes, severities, messages | Developers |
 | `lookup_lists.xlsx` | One sheet per lookup field | BioA admin (via the app) |
-| `dfd_template.xlsx` | Loader layout: `Sheet1`, 22 headers | Developers |
 | `reference_data_mapping.yaml` | Column mapping for existing-types uploads | Developers |
 | `prompts/*.md` | Prompt templates, versioned | Developers |
 
-The field list is locked but flexible: adding, removing or reordering a field is a config change plus a version bump. Schema, prompts, grid, validation and export all follow `business_rules.md`. What still needs a person when fields change: eval labels, and the code and test behind a rule tagged for a code step.
+The field list is locked but flexible: adding, removing or reordering a field is a config change plus a version bump. Schema, prompts, grid, validation and export all follow `business_rules.md`, in the column order of `export_template.md`; startup checks keep the two files' columns and types in step. What still needs a person when fields change: eval labels, and the code and test behind a rule tagged for a code step.
 
-Prompt files never contain BioA rules. The prompt builder inserts the active rule lines for each model step (`[Extraction]`, `[Matching]`, `[Naming]`, `[Plausibility]`) with their IDs, without status and source.
+Prompt files never contain BioA rules. The prompt builder inserts the active rule lines for each model step (`[Extraction]` from `extraction_rules.md`; `[Matching]` and `[Plausibility]` from `business_rules.md`) with their IDs, without status and source. One exception: style guidance read whole by one prompt and never looked up by rule ID may live in that prompt. Today that is only the naming rules in `prompts/naming.md` (Open ones kept in a developer note).
 
 Config files are validated at startup; the app refuses to start if `business_rules.md` is missing or malformed. Each run records the versions it used.
 

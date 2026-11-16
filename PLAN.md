@@ -509,3 +509,21 @@ Every milestone does the following:
   - New open question: Critical with no `source_heading`.
   - Not changed: the BioA examples in the three prompts (no rule lines; user's call), the processing mockup and `frontend/src/lib/processingSteps.ts` (M9).
 - Tests (M3 review items): from_suggestion is kept by transformation; citation, verdict and unreported-conflict findings are dropped for every person-set origin; `use_suggestion` on a derived field is rejected; undoing a used suggestion keeps a later value. The first three fail if `from_suggestion` leaves `USER_ORIGINS`.
+
+### M3b: Config restructure (done; awaiting review)
+- Step 1, `business_rules.md` 1.3: the Class table reads `Manufacturer` and refers to the BAL vendor names table; Critical headings has the `(any other heading)` → N row; the approval type column is `serial_dilution`. Grammar cells are not lookup-checked, and an `in` cell must name a table of its section.
+- Step 2, `extraction_rules.md` 1.0 and `business_rules.md` 1.4: all 27 `[Extraction]` lines moved unchanged (2 general, 5 candidate criteria, 15 keys). New `config/extraction_rules.py`; the four extraction placeholders read only this file.
+- Step 3, `prompts/naming.md` 0.3 and `business_rules.md` 1.5: NM-01 to NM-08 in the prompt text, NM-09 (Open) in a developer note; `{naming_rules}` removed; CLAUDE.md exception added.
+- Step 4, `export_template.md` 1.0: new `config/export_template.py`; the loader is a new workbook built from it; `dfd_template.xlsx` and `config/dfd_template.py` deleted.
+- Step 5: `ARCHITECTURE.md`, `CONTRACTS.md` (§12 grammar for both new files), `UI_SPEC.md`, `README.md`, `CLAUDE.md`.
+- Tests: 670 passed, 1 skipped; ruff clean. pyright not run (Node.js is not on PATH on this machine). `backend/openapi.json` regenerated twice (the `extraction_rules` version, then `dfd_template` → `export_template`).
+- Decisions the docs did not cover:
+  - **Class table row order:** `(empty)` comes first. Rows match top to bottom, and an empty Manufacturer would otherwise match `not in BAL vendor names` and be Purchased.
+  - **Moved to M4:** the check that a derivation table's input columns name a loader column or context key. Only the M4 derivation functions know which tables are derivation tables.
+  - **Three versions, not two:** step 2 was committed as 1.4, so step 3 is 1.5. The eval cases were relabeled 1.2 → 1.5 along the way; no expected value changed.
+  - **One order everywhere:** after the startup checks, the config bundle sorts the loader fields into the template's column order, so the grid, API, audit sheets, schema and prompts all follow it.
+  - **`[Naming]` lines are now rejected in `business_rules.md`,** like `[Extraction]` lines (`STEPS_KEPT_ELSEWHERE`).
+  - **The export template has no Status column:** every column is exported, so there is nothing to make inactive.
+  - **Formats are blank (Excel's default) for every column,** as in the old template. BioA has not given formats; adding one is a one-cell edit.
+  - **Date columns** turn an ISO date (YYYY-MM-DD) into a date cell so its format applies; anything else stays text. No column is a date today.
+  - **Runs stored before M3b** lack the `extraction_rules` and `export_template` versions and will not load. There are no production runs yet; M6 bumps the review DB schema anyway.

@@ -57,7 +57,7 @@ Records grid (read-only):
 - Cells with issues are tinted (red / yellow); not-found optional values show "— (not found)" in grey.
 - Excluded rows: struck through, reason shown, Restore link.
 - Scrolls through all records; sticky header row; Action needed and Consumable Type columns pinned; other columns scroll sideways.
-- The columns come from the API (`GET /runs/{id}/fields`), in loader order. Context attributes (`source_heading`, `serial_dilution`) are never shown.
+- The columns come from the API (`GET /runs/{id}/fields`), in export order (`export_template.md`). Context attributes (`source_heading`, `serial_dilution`) are never shown.
 - Fields exported blank (`system`, `blank_for_now`) show an empty grey cell (read-only).
 - Derived fields (Critical, Consumable Class, Approval Type, Worksheet Template) show their value like any other; the panel says it was derived.
 - A field with a suggestion and no value shows the suggestion in grey italics with "suggested" (it is not exported until used). The Consumable Type column shows the suggested name this way until a name is set.
