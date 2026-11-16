@@ -9,7 +9,7 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel
 
-from app.transform.notes import TransformNote
+from app.normalization.notes import TransformNote
 
 # Characters a normalized match ignores, besides case
 DEGREE_SIGN = "°"

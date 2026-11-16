@@ -23,9 +23,9 @@ from app.contracts.changes import (
 from app.contracts.issue import IssueHistoryEntry
 from app.contracts.record import Exclusion, FieldOutput
 from app.contracts.run import AuditEvent
+from app.normalization.normalize import normalize_value
 from app.review.state import ReviewState
 from app.storage.review_db import AppliedChange, StoredChangeRow
-from app.transform.transform import transform_value
 from app.validation.service import ValidationConfig
 
 # Audit events written by the review service
@@ -79,16 +79,19 @@ def apply_set_value(state: ReviewState, change: SetValueChange, at: datetime) ->
 def apply_pick_alternative(
     state: ReviewState, change: PickAlternativeChange, config: ValidationConfig, at: datetime
 ) -> ApplyOutcome:
-    """Use one alternative as written, formatted by transformation like any extracted value."""
+    """Use one alternative as written, normalized like any extracted value."""
     stored = state.records[change.record_id].fields[change.field]
     alternatives = stored.extraction.alternatives if stored.extraction is not None else []
     rule = find_rule(config, change.field)
     alternative = alternatives[change.alternative_index]
-    transformed = transform_value(rule, alternative.value, config.lookup_lists)
+    normalized = normalize_value(
+        rule, alternative.value, config.business_rules, config.lookup_lists
+    )
     output = FieldOutput(
-        value=transformed.value,
+        # A value no list value matches is kept as written for the person to see
+        value=normalized.value or normalized.matching_value,
         origin="user_edited",
-        changes=transformed.changes,
+        changes=normalized.notes,
         selected_alternative=change.alternative_index,
     )
     return replace_output(state, change.change_id, change.record_id, change.field, output, at)

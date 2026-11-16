@@ -1,6 +1,6 @@
 """Transform note tests: coded notes round-trip through text; plain clean-up notes are skipped."""
 
-from app.transform.notes import (
+from app.normalization.notes import (
     TRIMMED_WHITESPACE,
     TransformNote,
     find_transform_notes,

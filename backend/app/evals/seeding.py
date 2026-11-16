@@ -13,7 +13,7 @@ from app.config.business_rules import BusinessRules
 from app.contracts.eval_case import SeededError
 from app.contracts.trace import LlmNode
 from app.llm.client import LLMClient, LLMRequest, LLMResponse
-from app.transform.lookup_matching import normalize_for_match
+from app.normalization.lookup_matching import normalize_for_match
 
 EXTRACTION_NODE = "extraction"
 VERIFICATION_NODE = "extraction_verification"

@@ -21,7 +21,7 @@ from app.contracts.record import (
     find_initial_origin,
 )
 from app.contracts.reference import ReferenceData, ReferenceType
-from app.transform.lookup_matching import BOOLEAN_VALUES
+from app.normalization.lookup_matching import BOOLEAN_VALUES
 from app.validation.duplicates import find_name_rule
 from app.validation.judge_cache import InMemoryJudgeCache, JudgeCache, JudgeRequest, JudgeRunner
 from app.validation.service import (

@@ -9,7 +9,7 @@ from decimal import Decimal, InvalidOperation
 
 from pydantic import BaseModel
 
-from app.transform.notes import TransformNote
+from app.normalization.notes import TransformNote
 
 # A plain number: optional sign, digits, optional decimal part (what the loader accepts as is)
 PLAIN_NUMBER = re.compile(r"[-+]?\d+(\.\d+)?")
@@ -57,3 +57,15 @@ def format_plain_number(token: str) -> str | None:
     except InvalidOperation:
         return None
     return format(number, "f")
+
+
+# A number at the start of text (sign and exponent allowed), then whatever follows it
+LEADING_NUMBER = re.compile(rf"\s*([-+]?{UNSIGNED_NUMBER}(?:[eE][-+]?\d+)?)\s*(.*)", re.DOTALL)
+
+
+def split_leading_number(text: str) -> tuple[str, str] | None:
+    """Return (number as written, the rest of the text) if the text starts with a number."""
+    match = LEADING_NUMBER.fullmatch(text)
+    if match is None:
+        return None
+    return match.group(1), match.group(2).strip()

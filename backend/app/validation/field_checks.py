@@ -10,8 +10,8 @@ import unicodedata
 from app.config.business_rules import DisallowedCharacters, FieldDefinition
 from app.config.lookup_lists import LookupLists
 from app.contracts.record import StoredField
-from app.transform.lookup_matching import BOOLEAN_VALUES
-from app.transform.numbers import PLAIN_NUMBER
+from app.normalization.lookup_matching import BOOLEAN_VALUES
+from app.normalization.numbers import PLAIN_NUMBER
 from app.validation import codes
 from app.validation.issues import IssueDraft
 

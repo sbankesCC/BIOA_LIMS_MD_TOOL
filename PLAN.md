@@ -527,3 +527,25 @@ Every milestone does the following:
   - **Formats are blank (Excel's default) for every column,** as in the old template. BioA has not given formats; adding one is a one-cell edit.
   - **Date columns** turn an ISO date (YYYY-MM-DD) into a date cell so its format applies; anything else stays text. No column is a date today.
   - **Runs stored before M3b** lack the `extraction_rules` and `export_template` versions and will not load. There are no production runs yet; M6 bumps the review DB schema anyway.
+
+### Startup and housekeeping fixes before M4 (done)
+- Startup skips a stored run that no longer fits the current format (an older build wrote it) and logs `run_unreadable` with its `run_id`, instead of crashing. The run stays in the database untouched. `data/review.sqlite` (old runs) was renamed `review.old.sqlite` by hand.
+- `clients/bioa/~$lookup_lists.xlsx` (Excel's lock file) is no longer tracked; `~$*` is in `.gitignore`.
+
+### M4: Normalization and Assembly (done; awaiting review)
+- `backend/app/transform/` is replaced by `normalization/` and `assembly/`. `cleaning.py`, `lookup_matching.py`, `numbers.py` and `notes.py` moved (with their tests); `test_transform.py` was replaced by `test_normalization.py` and `test_assembly.py`.
+- Normalization (`normalize.py`): clean, character translation (`characters.py`), the field's translation table (`translation.py`), lookup match against the list minus excluded values (`lookup_values.py`), numbers, concentration (`concentration.py`), then unresolved values of Matching-allowed fields into `matching_value` (`matching_items.py`). A conflict is normalized once per alternative. It writes only `normalization`.
+- Assembly (`assemble.py`): loader values (`loader_values.py`), closed conflicts (`conflicts.py`), the four derivations (`derivations.py`), defaults (`defaults.py`). It writes only `output`, never overwrites `user_edited`, `from_suggestion` or `fixed`, and recomputes derived fields on every call.
+- New startup check: each derivation table exists, reads only loader columns or context keys, and ends in a loader column (the check moved here from M3b).
+- Note codes added: `REVIEWER_CHOICE_NEEDED`, `NOT_A_CONCENTRATION`, `DERIVED_VALUE_MISSING`, `CONFLICT_CLOSED`. Validation still turns only the four older codes into issues (the catalogue has no entry for the new ones until M5).
+- The graph's `transformation_node` now runs `normalize_records` then `assemble_records` (still one node and one `transforming` status; M6 splits it). A picked alternative goes through `normalize_value`.
+- Tests: 705 passed, 1 skipped; ruff clean. pyright not run (Node.js is not on PATH).
+- Decisions the docs did not cover:
+  - **Multi-value fields are joined in Normalization,** not Assembly, because `normalization.value` is one text. ARCHITECTURE §4.7d says so now.
+  - **Assembly copies the normalization notes into `output.changes`,** as CONTRACTS §4 describes, so validation keeps reading one place until M5.
+  - **A Matching-allowed field with an unmatched value has no normalized value** (`matching_value` holds the text), as the CONTRACTS example shows. It still gets a `NOT_IN_LOOKUP` note. Other fields keep the text as written.
+  - **Translation notes are plain text** (`translated '<text>' (<entry>)`), not coded, so a translation never becomes an issue by itself.
+  - **Concentration unit grammar:** a `Unit pattern` cell with `contains "<text>"` accepts any unit with that text (this is how "unit per unit" works); every row also accepts the units in `Examples`. Documented in CONTRACTS §12.
+  - **No row matched in a derivation table leaves the field blank without a note** when an input is itself empty (the input already carries the issue). Only the Class table's `(blank, with an issue)` row and Critical with no heading raise `DERIVED_VALUE_MISSING`, following the open question on Critical.
+  - **`Status` is both a loader column and a table's bookkeeping column;** derivation tables skip it as an input.
+  - **Excluded values with scope "Matching"** are only removed for the Matching step; `find_allowed_values(..., step)` takes the step name, ready for M6.

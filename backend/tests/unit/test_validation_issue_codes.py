@@ -23,7 +23,7 @@ from app.contracts.verification import (
     UnreportedConflict,
     VerificationOutput,
 )
-from app.transform.notes import TransformNote
+from app.normalization.notes import TransformNote
 from app.validation import codes
 from app.validation.duplicates import find_name_rule
 from app.validation.findings_to_issues import (

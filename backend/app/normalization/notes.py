@@ -1,4 +1,4 @@
-"""Transform notes: what transformation changed, stored as text in a field's `output.changes`.
+"""Notes on what Normalization and Assembly changed, stored as text on a field.
 
 Plain clean-up notes are short sentences ("trimmed whitespace"). Notes that validation turns into
 issues start with an issue code: `CODE: {"original": ..., "value": ...}`.
@@ -12,7 +12,14 @@ from pydantic import BaseModel
 
 # Issue codes transformation records as notes (defined in the client's issue catalogue)
 TransformNoteCode = Literal[
-    "FORMAT_CORRECTED", "NOT_IN_LOOKUP", "NUMBER_READ_FROM_TEXT", "DEFAULT_APPLIED"
+    "FORMAT_CORRECTED",
+    "NOT_IN_LOOKUP",
+    "NUMBER_READ_FROM_TEXT",
+    "DEFAULT_APPLIED",
+    "REVIEWER_CHOICE_NEEDED",
+    "NOT_A_CONCENTRATION",
+    "DERIVED_VALUE_MISSING",
+    "CONFLICT_CLOSED",
 ]
 NOTE_CODES: tuple[str, ...] = get_args(TransformNoteCode)
 

@@ -13,9 +13,9 @@ from openpyxl import load_workbook
 
 from app.config.bundle import ConfigBundle
 from app.main import create_app
+from app.normalization.lookup_matching import BOOLEAN_VALUES
 from app.storage.review_db import ReviewDatabase
 from app.storage.run_store import RunStore
-from app.transform.lookup_matching import BOOLEAN_VALUES
 from tests.fixtures.fake_llm import TABLE_CHUNK_ID
 from tests.fixtures.make_documents import SCANNED_PDF_FILE, WORD_FILE
 from tests.integration.api_helpers import (

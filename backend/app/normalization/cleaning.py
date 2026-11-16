@@ -8,7 +8,7 @@ import unicodedata
 
 from pydantic import BaseModel
 
-from app.transform.notes import COLLAPSED_SPACES, REMOVED_CONTROL_CHARACTERS, TRIMMED_WHITESPACE
+from app.normalization.notes import COLLAPSED_SPACES, REMOVED_CONTROL_CHARACTERS, TRIMMED_WHITESPACE
 
 # Any run of whitespace inside a value (tabs, line breaks, non-breaking spaces) becomes one space
 WHITESPACE_RUN = re.compile(r"\s+")

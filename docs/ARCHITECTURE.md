@@ -220,7 +220,7 @@ Matching, Naming and the plausibility review (§4.8) never fail a run. A blank m
 
 #### 4.7d Assembly (code)
 1. Closes conflicts whose alternatives are identical after normalization, with a note.
-2. Writes each extracted field's loader value from its normalized value; joins multi-value fields (Catalog No with ", ").
+2. Writes each extracted field's loader value from its normalized value, with the normalization notes. Multi-value fields (Catalog No, joined with ", ") are joined by Normalization, because `normalization.value` is one text. A value left for Matching or for a reviewer's choice has no output.
 3. Derives, in this order, each from its table: Critical (from `source_heading` and the critical headings table); Consumable Class (from Manufacturer, the BAL vendor names and the class table); Approval Type (approval type table); Worksheet Template (worksheet template table).
 4. Applies defaults to empty fields (e.g. Container Tracking Method `i`, Manage Container Inventory Flag `Y`). Never on conflicting fields.
 5. Leaves `system` fields (Version, Status) and `blank_for_now` fields (Expiry Based On, Expiry Period, Expiry Period Units) blank; they are exported blank.

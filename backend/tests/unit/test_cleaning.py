@@ -1,7 +1,7 @@
 """Cleaning tests: trimming, collapsing whitespace and removing control characters, with notes."""
 
-from app.transform.cleaning import clean_text
-from app.transform.notes import COLLAPSED_SPACES, REMOVED_CONTROL_CHARACTERS, TRIMMED_WHITESPACE
+from app.normalization.cleaning import clean_text
+from app.normalization.notes import COLLAPSED_SPACES, REMOVED_CONTROL_CHARACTERS, TRIMMED_WHITESPACE
 
 
 def test_clean_value_is_unchanged_without_notes() -> None:

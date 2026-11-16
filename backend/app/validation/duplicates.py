@@ -18,7 +18,7 @@ from app.contracts.issue import DuplicateCandidate
 from app.contracts.judge import JudgeOutput
 from app.contracts.record import StoredRecord
 from app.contracts.reference import ReferenceData, ReferenceType
-from app.transform.lookup_matching import BOOLEAN_VALUES, normalize_for_match
+from app.normalization.lookup_matching import BOOLEAN_VALUES, normalize_for_match
 from app.validation import codes
 from app.validation.issues import IssueDraft
 from app.validation.judge_cache import JudgeRequest, JudgeRunner

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from app.assembly.derivations import find_derivation_problems
 from app.config.business_rules import FILE_NAME as BUSINESS_RULES_FILE
 from app.config.business_rules import BusinessRules
 from app.config.business_rules_checks import (
@@ -101,6 +102,7 @@ def load_config_bundle(config_dir: Path) -> ConfigBundle:
         + find_lookup_list_problems(rules, bundle.lookup_lists)
         + find_lookup_value_problems(rules, bundle.lookup_lists)
         + find_issue_code_problems(rules, bundle.issue_catalogue)
+        + find_derivation_problems(rules)
     )
     if problems:
         raise ConfigError(problems)

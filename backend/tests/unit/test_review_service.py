@@ -13,9 +13,9 @@ from app.contracts.changes import SetValueChange
 from app.contracts.extraction import Alternative, Evidence, ExtractedField
 from app.contracts.record import FieldVerification, StoredRecord, Suggestion
 from app.contracts.verification import CitationCheck, MissedCandidate, VerificationOutput
+from app.normalization.notes import TransformNote
 from app.review.errors import ChangeRejectedError, RunNotInReviewError
 from app.review.service import ReviewContext, verify_run
-from app.transform.notes import TransformNote
 from app.validation import codes
 from app.validation.duplicates import find_name_rule
 from app.validation.service import ProcessingFindings, ValidationConfig, make_validation_config

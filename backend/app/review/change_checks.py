@@ -20,9 +20,9 @@ from app.contracts.changes import (
 )
 from app.contracts.issue import Issue
 from app.contracts.record import StoredRecord
+from app.normalization.lookup_matching import BOOLEAN_VALUES
 from app.review.errors import ChangeRejectedError
 from app.review.state import ReviewState, has_open_field_issue
-from app.transform.lookup_matching import BOOLEAN_VALUES
 from app.validation.service import ValidationConfig
 
 

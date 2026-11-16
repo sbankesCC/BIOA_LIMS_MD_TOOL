@@ -9,6 +9,7 @@ from collections.abc import Sequence
 
 from pydantic import JsonValue
 
+from app.assembly.assemble import USER_ORIGINS
 from app.config.business_rules import FieldDefinition
 from app.contracts.extraction import ExcludedItem
 from app.contracts.record import StoredField, StoredRecord
@@ -19,10 +20,12 @@ from app.contracts.verification import (
     VerificationOutput,
 )
 from app.ids import RECORD_PREFIX
-from app.transform.notes import find_transform_notes
-from app.transform.transform import USER_ORIGINS
+from app.normalization.notes import find_transform_notes
 from app.validation import codes
 from app.validation.issues import IssueDraft
+
+# Note codes that are in the issue catalogue so far; the other note codes are not issues yet
+ISSUE_NOTE_CODES = ("FORMAT_CORRECTED", "NOT_IN_LOOKUP", "NUMBER_READ_FROM_TEXT", "DEFAULT_APPLIED")
 
 # Citation check results that need a person's look (CONTRACTS §2)
 CITATION_CODES: dict[CitationCheck, str] = {
@@ -92,7 +95,8 @@ def find_transform_note_issues(
 ) -> list[IssueDraft]:
     """Return one issue per coded transform note (FORMAT_CORRECTED, DEFAULT_APPLIED, ...)."""
     drafts: list[IssueDraft] = []
-    for note in find_transform_notes(stored.output.changes):
+    notes = find_transform_notes(stored.output.changes)
+    for note in [note for note in notes if note.code in ISSUE_NOTE_CODES]:
         # The note's own original and value fill the message; the current value keys the issue
         message_values = {
             name: text

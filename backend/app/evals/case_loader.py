@@ -20,8 +20,8 @@ from app.contracts.eval_case import (
     ExpectedRecord,
     SeededErrors,
 )
+from app.normalization.lookup_matching import normalize_for_match
 from app.settings import PROJECT_ROOT
-from app.transform.lookup_matching import normalize_for_match
 
 # Suites are folders under `evals/` at the repo root (e.g. `cases`), whatever the working folder
 EVALS_DIR = PROJECT_ROOT / "evals"

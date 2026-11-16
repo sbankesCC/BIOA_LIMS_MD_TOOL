@@ -7,8 +7,8 @@ current one (ARCHITECTURE §6); boolean fields offer the values validation accep
 from app.config.business_rules import FieldDefinition
 from app.config.lookup_lists import LookupLists
 from app.contracts.api import RunField, RunFieldList
+from app.normalization.lookup_matching import BOOLEAN_VALUES
 from app.runs.workspace import Workspace
-from app.transform.lookup_matching import BOOLEAN_VALUES
 
 
 def list_run_fields(workspace: Workspace, run_id: str) -> RunFieldList:

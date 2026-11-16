@@ -13,6 +13,7 @@ from typing import Any, cast
 from app.agents.common import AgentError
 from app.agents.extraction import ExtractionTask, run_extraction
 from app.agents.extraction_verification import VerificationTask, run_verification
+from app.assembly.assemble import assemble_records
 from app.contracts.chunk import Chunk
 from app.contracts.extraction import ExcludedItem, ExtractionOutput
 from app.contracts.issue import Issue
@@ -44,8 +45,8 @@ from app.ingest.ingest import ingest_run
 from app.llm.prompt_builder import build_reextraction_section
 from app.llm.tracing import TracedCaller
 from app.logging_setup import DetailValue, log_event
+from app.normalization.normalize import normalize_records
 from app.storage.run_store import RunFolder
-from app.transform.transform import transform_records
 from app.validation.issues import IssueDraft, make_issue
 from app.validation.service import ProcessingFindings, make_validation_config, validate_run
 from app.verification.citation_check import check_record_citations, index_chunks
@@ -221,11 +222,10 @@ def verification_node(state: ProcessingState, context: ProcessingContext) -> Sta
 
 
 def transformation_node(state: ProcessingState, context: ProcessingContext) -> StateUpdate:
-    """Write every field's output section (code only)."""
-    records = transform_records(
-        read_records(state), context.bundle.business_rules, context.lookup_lists
-    )
-    return {"records": dump_records(records)}
+    """Write every field's normalization, then its output (code only)."""
+    business_rules = context.bundle.business_rules
+    normalized = normalize_records(read_records(state), business_rules, context.lookup_lists)
+    return {"records": dump_records(assemble_records(normalized, business_rules))}
 
 
 def validation_node(state: ProcessingState, context: ProcessingContext) -> StateUpdate:
