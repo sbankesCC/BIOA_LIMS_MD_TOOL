@@ -2,15 +2,20 @@
 
 Processing runs in a background thread, so a restart stops it midway. Each such run gets the
 PROCESSING_INTERRUPTED run issue and the `failed` status, so the user can retry it.
+A stored run that no longer fits the current format (an older build wrote it) is logged and
+skipped, so one old run never stops the app from starting.
 """
 
 from datetime import datetime
 
+from pydantic import ValidationError
+
 from app.config.bundle import ConfigBundle
 from app.contracts.issue import IssueHistoryEntry
+from app.contracts.run import RunInfo
 from app.logging_setup import log_event
 from app.runs.queries import PROCESSING_STATUSES
-from app.storage.review_db import ReviewDatabase
+from app.storage.review_db import ReviewDatabase, row_to_run
 from app.validation.issues import IssueDraft, make_issue
 
 # Run issue code in the client's issue catalogue
@@ -19,7 +24,8 @@ PROCESSING_INTERRUPTED = "PROCESSING_INTERRUPTED"
 
 def fail_interrupted_runs(database: ReviewDatabase, bundle: ConfigBundle, at: datetime) -> int:
     """Mark every run still in a processing status as failed; return how many were marked."""
-    run_ids = [run.run_id for run in database.list_runs() if run.status in PROCESSING_STATUSES]
+    runs = read_readable_runs(database)
+    run_ids = [run.run_id for run in runs if run.status in PROCESSING_STATUSES]
     for run_id in run_ids:
         mark_run_interrupted(database, bundle, run_id, at)
     # IDs and counts only
@@ -29,6 +35,19 @@ def fail_interrupted_runs(database: ReviewDatabase, bundle: ConfigBundle, at: da
         details={"run_count": len(run_ids)},
     )
     return len(run_ids)
+
+
+def read_readable_runs(database: ReviewDatabase) -> list[RunInfo]:
+    """Return the stored runs that fit the current format; log and skip any that do not."""
+    rows = database.read_all("SELECT * FROM runs ORDER BY created_at DESC, run_id DESC")
+    runs: list[RunInfo] = []
+    for row in rows:
+        try:
+            runs.append(row_to_run(row))
+        except (ValidationError, ValueError):
+            # Only the ID is logged; the run stays in the database untouched
+            log_event("run_unreadable", level="WARNING", run_id=row["run_id"])
+    return runs
 
 
 def mark_run_interrupted(

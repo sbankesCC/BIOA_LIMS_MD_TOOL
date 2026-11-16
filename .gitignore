@@ -17,3 +17,6 @@ frontend/dist/
 # BioA's redesign package (confidential source copy; the repo copy is clients/bioa/)
 claude_code_package/
 claude_code_package.zip
+
+# Excel lock files
+~$*

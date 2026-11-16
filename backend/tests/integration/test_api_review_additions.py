@@ -173,6 +173,21 @@ def test_startup_fails_an_interrupted_run_and_it_can_be_retried(
         assert api.client.get("/runs/run_0002").json()["status"] == "in_review"
 
 
+def test_startup_skips_a_run_saved_in_an_older_format(
+    tmp_path: Path, bundle: ConfigBundle, synthetic_documents: dict[str, Path]
+) -> None:
+    """A stored run whose config versions are outdated is skipped; the app still starts."""
+    settings = make_settings(tmp_path)
+    with open_api(settings, happy_replies(bundle)) as api:
+        api.start_run([read_file(synthetic_documents, WORD_FILE)])
+    # Give the run config versions from an older build (synthetic names), as if it predates this one
+    database = ReviewDatabase(tmp_path / "review.sqlite")
+    database.update_run("run_0001", config_versions={"synthetic_old_file": "0.1"})
+    database.close()
+    with TestClient(create_app(settings)) as client:
+        assert client.get("/health").status_code == 200
+
+
 def test_app_starts_with_config_but_no_review_db(tmp_path: Path) -> None:
     """With REVIEW_DB blank, the start-up check is skipped and the app still starts."""
     settings = make_settings(tmp_path, review_db=None)
