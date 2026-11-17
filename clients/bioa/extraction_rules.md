@@ -2,8 +2,8 @@
 
 | Attribute | Value |
 |---|---|
-| Version | 1.0 |
-| Last updated | 2026-11-16 |
+| Version | 1.1 |
+| Last updated | 2026-11-17 |
 
 This file holds the extraction guidance: what counts as a Consumable Type, and what the model copies for each field. The extraction and extraction verification prompts read their rules only from this file. The fields themselves (key, loader column, data type, one value or several) are defined in `business_rules.md`.
 
@@ -32,11 +32,14 @@ The structure is strict, because code reads parts of this file. Code checks the 
 
 Inserted into the extraction prompt (D-46).
 
-- CAND-01 [Extraction] A Consumable Type is a kind of material used to run the assay: purchased reagents, kits, water, buffers and solutions, master mixes, primers and probes, reference standards, controls (QCs), and materials provided by the sponsor. (Assumption; prompt v0.4; confirm with BioA SME, E-1)
-- CAND-02 [Extraction] Each distinct material is its own record. Different concentrations, a stock vs a working solution, and each level of a serial dilution are separate records. (Confirmed; SOP 7.4.3)
-- CAND-03 [Extraction] Not Consumable Types: instruments and equipment, software, study samples. (Assumption; prompt v0.4; E-1)
+- CAND-01 [Extraction] A Consumable Type is a kind of material used to run the assay: purchased reagents, kits, water, buffers and solutions, master mixes, primers and probes, reference standards (the stock material, not its dilution steps: see CAND-06), and materials provided by the sponsor. Assay controls are left out for now: see CAND-08. (Assumption; prompt v0.4; confirm with BioA SME, E-1)
+- CAND-02 [Extraction] Each distinct material is its own record. Different concentrations and a stock vs a working solution that is prepared and kept are separate records. A dilution step made fresh during a run is not a record: see CAND-06. (Confirmed for stock vs working solution; SOP 7.4.3. Changed 2026-11-17 for the demo: dilution steps no longer count, CAND-06)
+- CAND-03 [Extraction] Not Consumable Types: instruments and equipment, software, study samples, and the items in CAND-06 to CAND-08. List each item you leave out in excluded_items with the reason, so it is not reported as missed. (Assumption; prompt v0.4; E-1)
 - CAND-04 [Extraction] Look in reagent and materials tables, preparation sections and supplemental worksheets. Prepared reagents may appear only on a worksheet. (Assumption; prompt v0.4; E-1)
 - CAND-05 [Extraction] The same material may appear in several documents: make one record and cite every place. (Design; build)
+- CAND-06 [Extraction] Not a Consumable Type: a serial dilution or calibration curve step prepared fresh for a run from a material that is listed on its own, such as "PD1", "PD2", "STD1" to "STD9" or a "Blank" level. These are one-use dilution math, not materials to track. The material they are made from stays a record. If the document gives a step its own vendor, catalog number or storage and expiry for keeping, treat it as a material. (Assumption; demo scope, 2026-11-17; the earlier rule made each level a record, SOP 7.4.3; confirm with BioA SME, E-1)
+- CAND-07 [Extraction] Not a Consumable Type: a generic disposable with no identity to track, such as a foil seal or a bare mention of a filter, when the documents give no vendor, no catalog number and no other identifying detail. If the documents give any of those, it is a record. (Assumption; demo scope, 2026-11-17; confirm with BioA SME, E-1)
+- CAND-08 [Extraction] Not a Consumable Type for now: assay controls such as HQC, MQC and LQC (QC levels). This is a demo-scope decision, not a confirmed business rule: these controls have their own lot, concentration, expiration and storage table, like Critical Reagents, so they may need to come back. (Assumption; demo scope, 2026-11-17; revisit with BioA, E-1)
 
 ---
 
