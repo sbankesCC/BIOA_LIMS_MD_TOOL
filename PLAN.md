@@ -628,3 +628,6 @@ Every milestone does the following:
 - Verify: `npm ci`, `npm run typecheck`, `npm run build` clean; vitest 171 passed (12 files).
 - Manual run with the fake provider (API only, no browser here): started `uvicorn` with `LLM_PROVIDER=fake` on the synthetic case, uploaded its two documents, and the run went through every node to `in_review`, with models for all six steps, the new statuses, derived fields set, and `NAMING_SKIPPED` because that case's fake replies have no naming answers. The screens themselves have not been looked at in a browser.
 - Gap for M10: the synthetic eval case has no `matching.N.json` or `naming.N.json` fake replies, so Matching and Naming cannot be exercised by that case until they are added.
+
+### M10 deferred
+- M10 (synthetic-case evals and the final `rg` cleanup sweep) is deliberately held until after the demo; it is deferred, not dropped. Bugs found in live testing against real BioA documents are separate fixes, outside M10.
