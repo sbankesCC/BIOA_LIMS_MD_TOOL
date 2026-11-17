@@ -8,14 +8,24 @@ so saving changes and re-checks without judge calls work without the LLM setting
 from collections.abc import Callable
 
 from app.agents.duplicate_judge import DuplicateJudgeAgent
+from app.agents.plausibility import (
+    PlausibilityAgent,
+    PlausibilityResult,
+    find_active_check_ids,
+)
+from app.agents.step_support import CallBudget
+from app.config.business_rules import BusinessRules
 from app.config.lookup_lists import LookupLists
 from app.contracts.judge import JudgeOutput
+from app.contracts.plausibility import PlausibilityRecord
 from app.contracts.reference import ReferenceData
 from app.contracts.run import RunInfo
 from app.export.service import ExportContext
 from app.graph.context import (
     JUDGE_PROMPT,
+    PLAUSIBILITY_PROMPT,
     ProcessingContext,
+    StepCaches,
     make_run_versions,
     read_processing_limits,
 )
@@ -23,7 +33,8 @@ from app.llm.client import LLMClient
 from app.llm.tracing import TracedCaller
 from app.review.service import ReviewContext
 from app.runs.workspace import Workspace
-from app.storage.review_db import DatabaseJudgeCache
+from app.settings import MissingSettingError
+from app.storage.review_db import DatabaseJudgeCache, DatabaseStepCache
 from app.validation.judge_cache import DuplicateJudge, JudgeRequest
 from app.validation.service import make_validation_config
 
@@ -43,6 +54,62 @@ class LazyDuplicateJudge:
         return self.judge_agent.judge(request)
 
 
+class LazyPlausibilityReviewer:
+    """A plausibility reviewer that builds the real one (and its LLM client) when first needed.
+
+    No active check means no model and no client. A missing LLM setting skips the review (the
+    review never fails a re-check): the result says so, and validation adds the run warning.
+    """
+
+    def __init__(
+        self, build_agent: Callable[[], PlausibilityAgent], business_rules: BusinessRules
+    ) -> None:
+        """Remember how to build the agent and the rules that say whether a check is active."""
+        self.build_agent = build_agent
+        self.business_rules = business_rules
+        self.agent: PlausibilityAgent | None = None
+
+    def review(self, records: list[PlausibilityRecord]) -> PlausibilityResult:
+        """Review the records, building the agent on first use."""
+        if not records or not find_active_check_ids(self.business_rules):
+            return PlausibilityResult()
+        try:
+            if self.agent is None:
+                self.agent = self.build_agent()
+        except MissingSettingError:
+            return PlausibilityResult(is_skipped=True)
+        return self.agent.review(records)
+
+
+def make_database_caches(workspace: Workspace) -> StepCaches:
+    """Return the Matching, Naming and plausibility caches kept in the review database."""
+    database = workspace.database
+    return StepCaches(
+        DatabaseStepCache(database, "matching_cache"),
+        DatabaseStepCache(database, "naming_cache"),
+        DatabaseStepCache(database, "plausibility_cache"),
+    )
+
+
+def make_plausibility_agent(workspace: Workspace, run: RunInfo) -> PlausibilityAgent:
+    """Build the plausibility reviewer of a run; LLM_PROVIDER and LLM_RETRIES must be set.
+
+    The model is the one the run captured at its start (blank means the step was off).
+    """
+    retries = workspace.settings.require_integer("LLM_RETRIES")
+    folder = workspace.run_store.open_run(run.run_id)
+    caller = TracedCaller(workspace.make_client(), folder, make_run_versions(run), retries)
+    return PlausibilityAgent(
+        caller,
+        run.run_id,
+        workspace.bundle.business_rules,
+        workspace.bundle.prompts[PLAUSIBILITY_PROMPT],
+        run.models.get("plausibility") or None,
+        DatabaseStepCache(workspace.database, "plausibility_cache"),
+        CallBudget(workspace.settings.max_plausibility_calls),
+    )
+
+
 def make_processing_context(
     workspace: Workspace,
     lookup_lists: LookupLists,
@@ -59,6 +126,7 @@ def make_processing_context(
         database=workspace.database,
         judge_cache=DatabaseJudgeCache(workspace.database),
         limits=read_processing_limits(workspace.settings),
+        step_caches=make_database_caches(workspace),
     )
 
 
@@ -74,6 +142,9 @@ def make_review_context(workspace: Workspace, run: RunInfo) -> ReviewContext:
         judge_prompt_version=template.version,
         judge_call_limit=workspace.settings.max_duplicate_judge_calls,
         reference=reference,
+        plausibility=LazyPlausibilityReviewer(
+            lambda: make_plausibility_agent(workspace, run), workspace.bundle.business_rules
+        ),
     )
 
 

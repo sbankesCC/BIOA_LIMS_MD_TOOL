@@ -309,6 +309,7 @@ Each layer writes only its own section. Earlier sections are read-only.
 | `context` | Extraction and verification only: context attributes have no `normalization`, `suggestion` or `output` |
 | `normalization` | Normalization: normalized value (or normalized alternatives for a conflicting field), notes, `matching_value` (the value sent to Matching, else null) and `choices` (from a "Reviewer chooses" row) |
 | `suggestion` | Matching (lookup fields) or Naming (record name field): `value`, `source` (`matching` or `naming`), `reason`, `rule_id` (Naming only). At most one per field. Never applied by code |
+| `no_suggestion_reason` | Matching or Naming, when the field has no `suggestion`: the model's reason for an empty answer, or why its answer was dropped (a choice off the list; a name that was empty, too long, had disallowed characters or repeated another). Null when there is a suggestion or the step did not run |
 | `output` | Assembly, then user changes |
 | `issue_ids` | Validation |
 
@@ -357,7 +358,7 @@ IDs connect user changes, bulk actions, accepted warnings, the audit trail and t
 - `individual_review` (from the catalogue; true for `CITATION_NOT_VERIFIED`, `UNSUPPORTED_BY_SOURCE`, `UNREPORTED_CONFLICT`, `VALUE_UNCLEAR`, `REVIEWER_CHOICE_NEEDED`, `DERIVED_VALUE_MISMATCH` and `PLAUSIBILITY_CHECK`): open ones also block the verified label. They can only be accepted one at a time, after the source was opened (see §6).
 - `note_required` (from the catalogue): accepting the issue needs a note (§6).
 - `details.candidates` (`EXISTS_IN_LABVANTAGE`, `POSSIBLE_DUPLICATE`): one entry per matching existing type: `candidate_id`, `name`, `match` (`exact`, `normalized`, or the judge's `same` / `unsure`), `reason` (the judge's, else null), and `description`, `consumable_class`, `active_flag` copied from the run's pinned reference data version (null when it has none). Details never key the issue, so they do not change its ID or accepted state.
-- `details.suggestion` (`NOT_IN_LOOKUP`, `NAME_NOT_SET`): the field's suggestion (value, source, reason, rule ID), when there is one.
+- `details.suggestion` (`NOT_IN_LOOKUP`, `NAME_NOT_SET`): the field's suggestion (value, source, reason, rule ID), when there is one. When there is none, `details.no_suggestion_reason`: why (the model's own reason for an empty answer, or why its answer was dropped), when known.
 - `details.choices` (`REVIEWER_CHOICE_NEEDED`): the list values the matched translation row offers.
 - `details.check_id` (`PLAUSIBILITY_CHECK`): the check ID; the reason is in the message.
 - `details.sources`: chunk IDs the finding cites, when it has any (missed candidates: the agent's `sources`; challenged excluded items: the excluded item's `chunk_ids`; unreported conflicts: the agent's `sources`).

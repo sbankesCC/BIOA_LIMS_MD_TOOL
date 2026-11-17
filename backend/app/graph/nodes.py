@@ -268,9 +268,9 @@ def matching_node(state: ProcessingState, context: ProcessingContext) -> StateUp
     result = run_matching(
         make_state_caller(state, context, folder), task, context.step_caches.matching, budget
     )
-    suggestions = find_matching_suggestions(groups, result)
+    suggestions, reasons = find_matching_suggestions(groups, result)
     owned = {rule.key for rule in business_rules.fields if rule.matching_allowed}
-    updated = apply_suggestions(records, suggestions, owned)
+    updated = apply_suggestions(records, suggestions, owned, reasons)
     update: StateUpdate = {"records": dump_records(updated)}
     if result.is_skipped:
         update["issues"] = add_run_issue(state, context, MATCHING_SKIPPED)
@@ -301,8 +301,9 @@ def naming_node(state: ProcessingState, context: ProcessingContext) -> StateUpda
         make_state_caller(state, context, folder), task, context.step_caches.naming, budget
     )
     suggestions = {(rid, name_key): suggestion for rid, suggestion in result.suggestions.items()}
+    reasons = {(rid, name_key): reason for rid, reason in result.no_name_reasons.items()}
     log_dropped_names(state["run_id"], result.dropped)
-    updated = apply_suggestions(records, suggestions, [name_key])
+    updated = apply_suggestions(records, suggestions, [name_key], reasons)
     update: StateUpdate = {"records": dump_records(updated)}
     if result.is_skipped:
         update["issues"] = add_run_issue(state, context, NAMING_SKIPPED)

@@ -1,4 +1,4 @@
-"""Audit workbook (CONTRACTS §8): writes the five audit sheets to an Excel file.
+"""Audit workbook (CONTRACTS §8): writes the seven audit sheets to an Excel file.
 
 Each sheet has a header row, then one row per item. The record name column takes its header
 from the business rules (the field marked `Record name`), so no client column name is written here.
@@ -17,10 +17,14 @@ from app.export.loader import LoaderValue, find_cell, write_cell
 SUMMARY_SHEET = "Summary"
 VALUES_SHEET = "Values"
 EDITS_SHEET = "Edits"
+CONTEXT_SHEET = "Context"
+SUGGESTIONS_USED_SHEET = "Suggestions used"
 EXCLUDED_SHEET = "Excluded"
 RUN_ISSUES_SHEET = "Run issues"
 
 SUMMARY_HEADERS = ["Setting", "Value"]
+CONTEXT_HEADERS = ["Record ID", "Attribute", "Value as written", "Source"]
+SUGGESTIONS_USED_HEADERS = ["Record ID", "Field", "Value as written", "Value chosen"]
 EXCLUDED_HEADERS = ["Record ID", "Name", "Found in", "Excluded by", "At", "Reason"]
 RUN_ISSUE_HEADERS = ["Code", "Message"]
 
@@ -33,6 +37,9 @@ def make_value_headers(name_column: str) -> list[str]:
         "Field",
         "Value as written",
         "Exported value",
+        "How set",
+        "Suggestion",
+        "Suggestion reason",
         "Origin",
         "Source document",
         "Location",
@@ -63,7 +70,7 @@ def make_edit_headers(name_column: str) -> list[str]:
 
 
 def write_audit_workbook(rows: AuditRows, name_column: str, target: Path) -> None:
-    """Write the five audit sheets, in CONTRACTS order, to `target`."""
+    """Write the seven audit sheets, in CONTRACTS order, to `target`."""
     workbook = Workbook()
     # The new workbook's default sheet is removed; every sheet is added by name
     default_sheet = workbook.active
@@ -73,6 +80,8 @@ def write_audit_workbook(rows: AuditRows, name_column: str, target: Path) -> Non
         (SUMMARY_SHEET, SUMMARY_HEADERS, rows.summary),
         (VALUES_SHEET, make_value_headers(name_column), rows.values),
         (EDITS_SHEET, make_edit_headers(name_column), rows.edits),
+        (CONTEXT_SHEET, CONTEXT_HEADERS, rows.context),
+        (SUGGESTIONS_USED_SHEET, SUGGESTIONS_USED_HEADERS, rows.suggestions_used),
         (EXCLUDED_SHEET, EXCLUDED_HEADERS, rows.excluded),
         (RUN_ISSUES_SHEET, RUN_ISSUE_HEADERS, rows.run_issues),
     ]

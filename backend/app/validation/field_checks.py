@@ -11,7 +11,7 @@ from pydantic import JsonValue
 
 from app.config.business_rules import DisallowedCharacters, FieldDefinition
 from app.config.lookup_lists import LookupLists
-from app.contracts.record import StoredField, Suggestion
+from app.contracts.record import StoredField
 from app.normalization.lookup_matching import BOOLEAN_VALUES
 from app.normalization.notes import find_transform_notes
 from app.normalization.numbers import PLAIN_NUMBER
@@ -48,7 +48,7 @@ def check_field(
     value = stored.output.value
     if value is None or value == "":
         return check_empty_field(record_id, rule, stored)
-    return check_filled_value(record_id, rule, value, lookup_lists, stored.suggestion)
+    return check_filled_value(record_id, rule, value, lookup_lists, stored)
 
 
 def check_empty_field(
@@ -89,7 +89,7 @@ def check_filled_value(
     rule: FieldDefinition,
     value: str,
     lookup_lists: LookupLists,
-    suggestion: Suggestion | None = None,
+    stored: StoredField | None = None,
 ) -> list[IssueDraft]:
     """Return every rule a filled value breaks: list, type, length and characters."""
     found_codes: list[str] = []
@@ -115,17 +115,21 @@ def check_filled_value(
             field=rule.key,
             value=value,
             message_values=message_values if code == codes.TOO_LONG else {},
-            details=find_suggestion_details(code, suggestion),
+            details=find_suggestion_details(code, stored),
         )
         for code in found_codes
     ]
 
 
-def find_suggestion_details(code: str, suggestion: Suggestion | None) -> dict[str, JsonValue]:
-    """Return the suggestion NOT_IN_LOOKUP carries (CONTRACTS §6), else no details."""
-    if code != codes.NOT_IN_LOOKUP or suggestion is None:
+def find_suggestion_details(code: str, stored: StoredField | None) -> dict[str, JsonValue]:
+    """Return the suggestion NOT_IN_LOOKUP carries, or why there is none (CONTRACTS §6)."""
+    if code != codes.NOT_IN_LOOKUP or stored is None:
         return {}
-    return {"suggestion": suggestion.model_dump(mode="json")}
+    if stored.suggestion is not None:
+        return {"suggestion": stored.suggestion.model_dump(mode="json")}
+    if stored.no_suggestion_reason is not None:
+        return {"no_suggestion_reason": stored.no_suggestion_reason}
+    return {}
 
 
 def is_right_type(rule: FieldDefinition, value: str) -> bool:

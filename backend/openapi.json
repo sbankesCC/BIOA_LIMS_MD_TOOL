@@ -4927,6 +4927,16 @@
               }
             ]
           },
+          "no_suggestion_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "output": {
             "$ref": "#/components/schemas/FieldOutput"
           },
@@ -4943,7 +4953,7 @@
         "required": [
           "output"
         ],
-        "description": "One field of a stored record; `extraction` and `verification` are null if not extracted."
+        "description": "One field of a stored record; `extraction` and `verification` are null if not extracted.\n\n`no_suggestion_reason` says why Matching or Naming made no suggestion (the model's own\nreason for an empty answer, or why its answer was dropped); it is null when there is one."
       },
       "StoredRecord": {
         "properties": {

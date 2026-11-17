@@ -1,4 +1,6 @@
-"""Audit workbook rows (CONTRACTS §8): Summary, Values, Edits, Excluded and Run issues.
+"""Audit workbook rows (CONTRACTS §8): the seven sheets of the audit file.
+
+Summary, Values, Edits, Context, Suggestions used, Excluded and Run issues.
 
 Built from the review database and the run store; `audit_workbook.py` writes them to Excel.
 Lists inside one cell (several sources or issues) are written one per line.
@@ -21,9 +23,11 @@ from app.contracts.changes import (
 )
 from app.contracts.chunk import Chunk
 from app.contracts.export import (
+    AuditContextRow,
     AuditEditRow,
     AuditExcludedRow,
     AuditRunIssueRow,
+    AuditSuggestionUsedRow,
     AuditSummaryRow,
     AuditValueRow,
     ExportInfo,
@@ -40,6 +44,21 @@ from app.validation.duplicates import find_name_rule, read_name
 
 # Several entries in one cell are written one per line
 LINE_BREAK = "\n"
+
+# "How set" wording, by origin (an extracted value Normalization changed is "normalized")
+EXTRACTED = "extracted"
+NORMALIZED = "normalized"
+NOT_FILLED = "not filled by the tool"
+HOW_SET_BY_ORIGIN = {
+    "extracted": EXTRACTED,
+    "default": "default",
+    "derived": "derived",
+    "from_suggestion": "from suggestion",
+    "fixed": "set by a person",
+    "user_edited": "set by a person",
+    "blank_for_now": NOT_FILLED,
+    "system": NOT_FILLED,
+}
 
 # Summary wording
 DRAFT_LABEL = "Draft"
@@ -68,17 +87,21 @@ class AuditRows(BaseModel):
     summary: list[AuditSummaryRow]
     values: list[AuditValueRow]
     edits: list[AuditEditRow]
+    context: list[AuditContextRow]
+    suggestions_used: list[AuditSuggestionUsedRow]
     excluded: list[AuditExcludedRow]
     run_issues: list[AuditRunIssueRow]
 
 
 def build_audit_rows(source: AuditSource) -> AuditRows:
-    """Build the rows of all five audit sheets."""
+    """Build the rows of all seven audit sheets."""
     locator = SourceLocator(source.chunks, source.documents)
     return AuditRows(
         summary=build_summary_rows(source),
         values=build_value_rows(source, locator),
         edits=build_edit_rows(source),
+        context=build_context_rows(source, locator),
+        suggestions_used=build_suggestion_rows(source),
         excluded=build_excluded_rows(source, locator),
         run_issues=build_run_issue_rows(source.issues),
     )
@@ -180,6 +203,9 @@ def build_value_row(
         field=rule.column,
         written_value=find_written_text(rule, stored),
         exported_value=find_export_text(rule, record),
+        how_set=find_how_set(rule, stored, find_export_text(rule, record)),
+        suggestion=stored.suggestion.value if stored and stored.suggestion else None,
+        suggestion_reason=find_suggestion_reason(stored),
         origin=stored.output.origin if stored is not None else rule.role,
         source_document=join_lines(unique(loc.file_name for loc in locations if loc.file_name)),
         location=join_lines(format_location(location) for location in locations),
@@ -190,6 +216,27 @@ def build_value_row(
         issue_codes=join_lines(issue.code for issue in issues),
         issue_outcome=join_lines(describe_outcome(issue) for issue in issues),
     )
+
+
+def find_how_set(rule: FieldDefinition, stored: StoredField | None, exported: str | None) -> str:
+    """Return how the value was set: extracted, normalized, derived, default, suggestion, person."""
+    if stored is None:
+        return HOW_SET_BY_ORIGIN.get(rule.role, NOT_FILLED)
+    origin = stored.output.origin
+    if origin != "extracted":
+        return HOW_SET_BY_ORIGIN[origin]
+    # An extracted value that Normalization changed is "normalized"
+    written = find_written_text(rule, stored)
+    return NORMALIZED if exported is not None and written != exported else EXTRACTED
+
+
+def find_suggestion_reason(stored: StoredField | None) -> str | None:
+    """Return the suggestion's reason, or why there is none (when either is known)."""
+    if stored is None:
+        return None
+    if stored.suggestion is not None:
+        return stored.suggestion.reason
+    return stored.no_suggestion_reason
 
 
 def find_written_text(rule: FieldDefinition, stored: StoredField | None) -> str | None:
@@ -311,6 +358,54 @@ def describe_change(
     if isinstance(change, RestoreRecordChange):
         return change.record_id, None, None
     return None, None, None
+
+
+# ----- Context and suggestions used -----
+
+
+def build_context_rows(source: AuditSource, locator: SourceLocator) -> list[AuditContextRow]:
+    """Return one row per included record and context attribute that has an extraction."""
+    rows: list[AuditContextRow] = []
+    for record in source.records:
+        if record.exclusion is not None:
+            continue
+        for key, attribute in record.context.items():
+            extraction = attribute.extraction
+            if extraction is None:
+                continue
+            locations = [locator.locate(pair.chunk_id) for pair in extraction.evidence]
+            value = extraction.value
+            written = ", ".join(value) if isinstance(value, list) else value
+            rows.append(
+                AuditContextRow(
+                    record_id=record.record_id,
+                    attribute=key,
+                    written_value=written,
+                    source=join_lines(format_location(location) for location in locations),
+                )
+            )
+    return rows
+
+
+def build_suggestion_rows(source: AuditSource) -> list[AuditSuggestionUsedRow]:
+    """Return one row per field of an included record that a person set from a suggestion."""
+    rows: list[AuditSuggestionUsedRow] = []
+    for record in source.records:
+        if record.exclusion is not None:
+            continue
+        for rule in source.business_rules.fields:
+            stored = record.fields.get(rule.key)
+            if stored is None or stored.output.origin != "from_suggestion":
+                continue
+            rows.append(
+                AuditSuggestionUsedRow(
+                    record_id=record.record_id,
+                    field=rule.column,
+                    written_value=find_written_text(rule, stored),
+                    value_chosen=stored.output.value,
+                )
+            )
+    return rows
 
 
 # ----- Excluded and run issues -----

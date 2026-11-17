@@ -172,8 +172,17 @@ def find_note_details(code: str, stored: StoredField) -> dict[str, JsonValue]:
     if code == codes.REVIEWER_CHOICE_NEEDED and stored.normalization is not None:
         choices: list[JsonValue] = list(stored.normalization.choices)
         return {"choices": choices}
-    if code == codes.NOT_IN_LOOKUP and stored.suggestion is not None:
+    if code == codes.NOT_IN_LOOKUP:
+        return find_suggestion_details(stored)
+    return {}
+
+
+def find_suggestion_details(stored: StoredField) -> dict[str, JsonValue]:
+    """Return the field's suggestion, or why it has none (CONTRACTS §6), for an issue's details."""
+    if stored.suggestion is not None:
         return {"suggestion": stored.suggestion.model_dump(mode="json")}
+    if stored.no_suggestion_reason is not None:
+        return {"no_suggestion_reason": stored.no_suggestion_reason}
     return {}
 
 

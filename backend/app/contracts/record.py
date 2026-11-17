@@ -101,12 +101,17 @@ class FieldOutput(ContractModel):
 
 
 class StoredField(ContractModel):
-    """One field of a stored record; `extraction` and `verification` are null if not extracted."""
+    """One field of a stored record; `extraction` and `verification` are null if not extracted.
+
+    `no_suggestion_reason` says why Matching or Naming made no suggestion (the model's own
+    reason for an empty answer, or why its answer was dropped); it is null when there is one.
+    """
 
     extraction: ExtractedField | None = None
     verification: FieldVerification | None = None
     normalization: FieldNormalization | None = None
     suggestion: Suggestion | None = None
+    no_suggestion_reason: str | None = None
     output: FieldOutput
     issue_ids: list[str] = []
 

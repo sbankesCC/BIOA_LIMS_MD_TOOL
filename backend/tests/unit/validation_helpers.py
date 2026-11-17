@@ -5,6 +5,7 @@ Field keys and lookup values are read from the client config, never written here
 
 from collections.abc import Callable, Sequence
 
+from app.assembly.assemble import assemble_record
 from app.config.bundle import ConfigBundle
 from app.config.business_rules import BusinessRules, FieldDefinition
 from app.config.lookup_lists import LookupLists
@@ -12,10 +13,12 @@ from app.contracts.extraction import ExtractedField
 from app.contracts.issue import Issue
 from app.contracts.judge import JudgeOutput, JudgeVerdict, Judgment
 from app.contracts.record import (
+    FieldNormalization,
     FieldOutput,
     FieldVerification,
     Origin,
     RecordExtraction,
+    StoredContextAttribute,
     StoredField,
     StoredRecord,
     find_initial_origin,
@@ -89,14 +92,29 @@ def make_record(
         fields[rule.key] = StoredField(
             extraction=ExtractedField(status="found", value=value),
             verification=FieldVerification(citation_check="verified"),
+            normalization=FieldNormalization(value=value),
             output=FieldOutput(value=value, origin="extracted"),
         )
-    return StoredRecord(
+    record = StoredRecord(
         record_id=record_id,
         found_in=["doc01-c001"],
         extraction=RecordExtraction(record_ref="R1", record_summary="synthetic record"),
+        context=make_context(bundle),
         fields=fields,
     )
+    # Derived fields get their values from Assembly, as in a processed record
+    return assemble_record(record, bundle.business_rules)
+
+
+def make_context(bundle: ConfigBundle) -> dict[str, StoredContextAttribute]:
+    """Return every context attribute found with a synthetic value, so derivations can run."""
+    found = ExtractedField(status="found", value=SYNTHETIC_TEXT)
+    return {
+        attribute.key: StoredContextAttribute(
+            extraction=found, verification=FieldVerification(citation_check="verified")
+        )
+        for attribute in bundle.business_rules.context_fields()
+    }
 
 
 def make_red_record(
@@ -120,9 +138,17 @@ def set_output(
     origin: Origin = "extracted",
     changes: Sequence[str] = (),
 ) -> StoredRecord:
-    """Return the record with one field's output replaced."""
+    """Return the record with one field's output replaced.
+
+    An extracted field's normalization follows its output, so Assembly (which rebuilds the
+    output from it) gives the same value.
+    """
     output = FieldOutput(value=value, origin=origin, changes=list(changes))
-    return update_field(record, key, record.fields[key].model_copy(update={"output": output}))
+    stored = record.fields[key]
+    update: dict[str, object] = {"output": output}
+    if stored.normalization is not None and origin == "extracted":
+        update["normalization"] = FieldNormalization(value=value)
+    return update_field(record, key, stored.model_copy(update=update))
 
 
 def update_field(record: StoredRecord, key: str, stored: StoredField) -> StoredRecord:

@@ -32,6 +32,14 @@ TOO_LONG = "too_long"
 INVALID_CHARACTERS = "invalid_characters"
 DUPLICATE_NAME = "duplicate"
 
+# What a reviewer reads for each drop reason (no name, so no value is shown)
+DROP_MESSAGES = {
+    EMPTY_NAME: "The suggested name was empty.",
+    TOO_LONG: "The suggested name was longer than the limit.",
+    INVALID_CHARACTERS: "The suggested name had characters that are not allowed.",
+    DUPLICATE_NAME: "The suggested name was already used by another record in this run.",
+}
+
 
 class NamingTask(BaseModel):
     """What one Naming call needs; `model` is None when its setting is blank."""
@@ -50,6 +58,8 @@ class NamingResult(BaseModel):
 
     suggestions: dict[str, Suggestion] = {}
     dropped: dict[str, str] = {}
+    # Why a record has no suggestion: the model's reason for no name, or why its name was dropped
+    no_name_reasons: dict[str, str] = {}
     is_skipped: bool = False
 
 
@@ -176,12 +186,16 @@ def check_names(task: NamingTask, answers: Mapping[str, NameAnswer]) -> NamingRe
     result = NamingResult()
     for record in task.records:
         answer = answers.get(record.record_id)
-        if answer is None or answer.name is None:
+        if answer is None:
+            continue
+        if answer.name is None:
+            result.no_name_reasons[record.record_id] = answer.reason
             continue
         name = translate_characters(answer.name, character_map).value.strip()
         reason = find_drop_reason(name, name_rule, seen)
         if reason is not None:
             result.dropped[record.record_id] = reason
+            result.no_name_reasons[record.record_id] = DROP_MESSAGES[reason]
             continue
         seen.add(name.casefold())
         result.suggestions[record.record_id] = Suggestion(

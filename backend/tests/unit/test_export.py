@@ -79,7 +79,9 @@ def number_rule(bundle: ConfigBundle, field_type: str) -> FieldDefinition:
 
 def unfilled_rules(bundle: ConfigBundle) -> list[FieldDefinition]:
     """Return the fields the tool does not fill (blank_for_now and system)."""
-    return [rule for rule in bundle.business_rules.fields if not rule.is_extracted]
+    return [
+        rule for rule in bundle.business_rules.fields if rule.role in ("system", "blank_for_now")
+    ]
 
 
 def make_records(bundle: ConfigBundle) -> list[StoredRecord]:
@@ -171,7 +173,7 @@ def test_loader_round_trips_with_headers_and_rows(
     for rule in bundle.business_rules.fields:
         value = rows[2][headers.index(rule.column)]
         expected = records["rec_0003"].fields[rule.key].output.value
-        if not rule.is_extracted:
+        if rule in unfilled_rules(bundle):
             assert value is None
         elif rule.type in ("decimal", "integer"):
             assert value == int(expected or "") and isinstance(value, int)
@@ -333,18 +335,28 @@ def test_audit_workbook_has_five_sheets_with_columns(
     database = start_export_run(tmp_path, bundle, context)
     path = run_folder.resolve_ref(export(database, bundle, context, run_folder).audit_file)
     workbook = load_workbook(path)
-    assert workbook.sheetnames == ["Summary", "Values", "Edits", "Excluded", "Run issues"]
+    assert workbook.sheetnames == [
+        "Summary",
+        "Values",
+        "Edits",
+        "Context",
+        "Suggestions used",
+        "Excluded",
+        "Run issues",
+    ]
     name_column = find_name_rule(bundle.business_rules).column
     expected_headers = {
         "Summary": audit_workbook.SUMMARY_HEADERS,
         "Values": audit_workbook.make_value_headers(name_column),
         "Edits": audit_workbook.make_edit_headers(name_column),
+        "Context": audit_workbook.CONTEXT_HEADERS,
+        "Suggestions used": audit_workbook.SUGGESTIONS_USED_HEADERS,
         "Excluded": audit_workbook.EXCLUDED_HEADERS,
         "Run issues": audit_workbook.RUN_ISSUE_HEADERS,
     }
     for title, headers in expected_headers.items():
         assert list(read_rows(open_sheet(path, title))[0]) == headers
-    assert len(audit_workbook.make_value_headers(name_column)) == 14
+    assert len(audit_workbook.make_value_headers(name_column)) == 17
     assert len(audit_workbook.make_edit_headers(name_column)) == 11
 
 
@@ -361,7 +373,8 @@ def test_audit_values_cover_every_field_of_included_records(
     cited = next(row for row in rows if row[0] == "rec_0001" and row[2] == text_rule(bundle).column)
     # Value as written sits just before the exported value
     assert (cited[3], cited[4]) == ("synthetic", "synthetic")
-    assert (cited[6], cited[7], cited[8]) == (
+    assert cited[5] == "extracted"
+    assert (cited[9], cited[10], cited[11]) == (
         DOCUMENT_NAME,
         f"{DOCUMENT_NAME}, Synthetic section",
         QUOTE,

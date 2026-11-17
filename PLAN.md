@@ -580,3 +580,21 @@ Every milestone does the following:
   - **A plausibility issue's key includes the check ID,** so two checks on one value stay two issues.
   - **Re-checks do not run the plausibility review yet:** the review service calls `validate_run` without a reviewer, so existing `PLAUSIBILITY_CHECK` and `PLAUSIBILITY_SKIPPED` issues are kept as they are (not resolved). M7 must pass a reviewer (and the cache) there.
   - **The front end still lists the old `transforming` status** (`StatusBadge`, `processingSteps`, the generated schema). It is regenerated and updated in M9, as UI_SPEC §4.2 says.
+
+### M5/M6 follow-ups: shortlist rules (done)
+- `MATCHING_SHORTLIST_SIZE` stays blank by default; `env.example`, ARCHITECTURE §4.7b and CONTRACTS §3b say the shortlist is a cost control for very large lists, never a relevance filter.
+- Startup check: a Matching-allowed list over 150 values that the setting does not cut logs a `matching_list_large` warning (field key in `node`, `list_size` and `threshold` in details). It does not block. Today's largest Matching list is 79 values, so nothing triggers it. It runs at app start only, not when an admin uploads a new lookup version.
+- Tests: a list at or under the size is never cut; blank passes the whole list; the warning fires only for large lists left whole.
+
+### M7: Review and export (done; awaiting review)
+- `recheck_run` now runs Assembly on the current values before Validation, so derived fields follow a changed Manufacturer, Critical heading and so on. A value a person set (typed, picked or from a suggestion) is never recomputed, and `DERIVED_VALUE_MISMATCH` flags a person-set derived value that differs.
+- `ReviewContext.plausibility` carries the reviewer: a re-check calls it (cache first), so the review re-runs after an edit and its findings clear or stay as the values dictate. With no reviewer the existing plausibility issues are kept. The live contexts (`runs/contexts.py`) build it lazily and skip with `PLAUSIBILITY_SKIPPED` when the LLM settings are missing. It uses the model the run captured; a blank captured model means the step was off.
+- **Fix to M6:** the live processing context used in-memory caches, so Matching, Naming and plausibility results were not kept between runs. `make_database_caches` now backs them with the review database tables.
+- Contract: `StoredField.no_suggestion_reason` (CONTRACTS §4). Matching and Naming set it (the model's reason for an empty answer, or why its answer was dropped); `NAME_NOT_SET` and `NOT_IN_LOOKUP` carry it in `details.no_suggestion_reason` when there is no suggestion; the audit Values sheet shows it in "Suggestion reason". `backend/openapi.json` regenerated.
+- Export: the loader now writes derived fields (role `derived`) as well as extracted and generated ones; `system` and `blank_for_now` stay blank. The audit workbook has seven sheets: Values gained "How set", "Suggestion" and "Suggestion reason"; new "Context" and "Suggestions used" sheets.
+- Tests: 775 passed, 1 skipped; ruff clean. pyright not run (Node.js is not on PATH).
+- Decisions the docs did not cover:
+  - **The synthetic test records now carry a normalization and context values and are assembled,** because a re-check rebuilds output from normalization (a record with an output but no normalization would be blanked). Real processed records always have both.
+  - **"How set" is `normalized` when an extracted value differs from the value as written,** else `extracted`; a field the tool does not fill is `not filled by the tool`.
+  - **A drop reason is the stored sentence, not a code:** reviewers read it as is. The `suggestions_dropped` log still counts codes.
+  - **The review view and API do not show `suggestion` or `no_suggestion_reason` yet;** the API batch (M8) exposes them.

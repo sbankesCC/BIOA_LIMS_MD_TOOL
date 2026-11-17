@@ -121,7 +121,7 @@ def check_draft_export(api: ApiHarness, bundle: ConfigBundle) -> None:
     assert len(rows) == 2
     audit = api.client.get(f"/runs/{RUN_ID}/exports/{export['export_id']}/audit")
     assert audit.status_code == 200
-    assert len(load_workbook(BytesIO(audit.content)).sheetnames) == 5
+    assert len(load_workbook(BytesIO(audit.content)).sheetnames) == 7
 
 
 @pytest.mark.usefixtures("blank_environment")

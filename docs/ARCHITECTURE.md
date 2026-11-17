@@ -248,7 +248,7 @@ Your "validation" step: reads and categorizes warnings, applies the business rul
 ### 4.9 Review service (code, outside the graph)
 - Holds the review lifecycle in the review database: records, user changes, issues, audit history. A run can stay in review for as long as needed.
 - Saves the user's changes (edits, picked alternatives, used suggestions, accepted warnings, exclusions, bulk changes, undo) into the `output` sections and the edit log, as pending until re-check.
-- Re-check: runs Assembly (§4.7d) on the current values, then the Validation service, and stores the new issues. Derived fields are recomputed unless a person set them. Re-check never calls Extraction, Verification, Matching or Naming.
+- Re-check: runs Assembly (§4.7d) on the current values, then the Validation service (including the plausibility review, whose results are cached per record, so only changed records call the model), and stores the new issues. Derived fields are recomputed unless a person set them. Re-check never calls Extraction, Verification, Matching or Naming.
 - Verify: re-checks, then sets the **verified** label (who, when) if no red issues and no open individual-review warnings remain. Otherwise the run stays unverified and the UI shows the blockers.
 - Any later change removes the verified label.
 

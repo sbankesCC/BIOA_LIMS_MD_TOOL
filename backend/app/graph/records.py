@@ -153,31 +153,37 @@ def write_verdict[Stored: StoredField | StoredContextAttribute](
 
 def find_matching_suggestions(
     groups: Sequence[MatchingGroup], result: MatchingResult
-) -> dict[tuple[str, str], Suggestion]:
-    """Return a Matching suggestion for every record field whose item got a usable choice."""
+) -> tuple[dict[tuple[str, str], Suggestion], dict[tuple[str, str], str]]:
+    """Return the Matching suggestions by (record, field), and why the others have none."""
     suggestions: dict[tuple[str, str], Suggestion] = {}
+    reasons: dict[tuple[str, str], str] = {}
     for group in groups:
         answer = result.answers.get(group.item.item_id)
-        if answer is None or answer.choice is None:
+        if answer is None:
             continue
-        suggestion = Suggestion(
-            value=answer.choice, source="matching", reason=answer.reason, rule_id=None
-        )
         for target in group.targets:
-            suggestions[(target.record_id, target.field)] = suggestion
-    return suggestions
+            key = (target.record_id, target.field)
+            if answer.choice is None:
+                reasons[key] = answer.reason
+            else:
+                suggestions[key] = Suggestion(
+                    value=answer.choice, source="matching", reason=answer.reason, rule_id=None
+                )
+    return suggestions, reasons
 
 
 def apply_suggestions(
     records: Sequence[StoredRecord],
     suggestions: Mapping[tuple[str, str], Suggestion],
     field_keys: Collection[str],
+    reasons: Mapping[tuple[str, str], str] | None = None,
 ) -> list[StoredRecord]:
     """Return the records with each suggestion set on its field (the only section written).
 
     Only the fields a step owns (`field_keys`) change; one with no new suggestion loses an old
-    one, so a rerun never keeps a stale suggestion.
+    one, so a rerun never keeps a stale suggestion. `reasons` say why a field has none.
     """
+    reasons = reasons or {}
     updated: list[StoredRecord] = []
     for record in records:
         fields = dict(record.fields)
@@ -185,6 +191,9 @@ def apply_suggestions(
             stored = record.fields.get(key)
             if stored is not None:
                 suggestion = suggestions.get((record.record_id, key))
-                fields[key] = stored.model_copy(update={"suggestion": suggestion})
+                reason = None if suggestion else reasons.get((record.record_id, key))
+                fields[key] = stored.model_copy(
+                    update={"suggestion": suggestion, "no_suggestion_reason": reason}
+                )
         updated.append(record.model_copy(update={"fields": fields}))
     return updated

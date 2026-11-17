@@ -20,6 +20,8 @@ def check_name(record: StoredRecord, name_rule: FieldDefinition) -> list[IssueDr
     details: dict[str, JsonValue] = {}
     if stored is not None and stored.suggestion is not None:
         details["suggestion"] = stored.suggestion.model_dump(mode="json")
+    elif stored is not None and stored.no_suggestion_reason is not None:
+        details["no_suggestion_reason"] = stored.no_suggestion_reason
     return [
         IssueDraft(
             code=codes.NAME_NOT_SET,

@@ -27,6 +27,9 @@ from app.normalization.lookup_matching import find_similar_values, normalize_for
 from app.normalization.lookup_values import MATCHING_STEP, find_allowed_values
 
 NODE = "matching"
+
+# Stored when the model's choice was not one of the allowed values
+OFF_SHORTLIST_REASON = "The model chose a value that is not one of the allowed values."
 ITEM_PREFIX = "m_"
 
 
@@ -158,10 +161,10 @@ def request_matching(
 
 
 def reject_off_shortlist(answer: MatchingAnswer, item: MatchingItem) -> MatchingAnswer:
-    """Return the answer, or the same answer with no choice when the choice is not shortlisted."""
+    """Return the answer, or an answer with no choice when the choice is not on the shortlist."""
     if answer.choice is None or answer.choice in item.shortlist:
         return answer
-    return MatchingAnswer(item_id=answer.item_id, choice=None, reason=answer.reason)
+    return MatchingAnswer(item_id=answer.item_id, choice=None, reason=OFF_SHORTLIST_REASON)
 
 
 def make_matching_check(item_ids: list[str]) -> ResponseCheck:

@@ -5,7 +5,8 @@ The sheet, the header row and the columns (order, type, display format) come onl
 unchanged: a format sets how Excel shows a value and never rounds it. A number column holding
 a plain number gets a number, and a date column holding an ISO date (YYYY-MM-DD) gets a date;
 anything else stays text (validation flagged it as WRONG_TYPE).
-Fields the tool does not fill (`blank_for_now`, `system`) are exported blank.
+Extracted, generated and derived fields are written; the fields the tool does not fill
+(`blank_for_now`, `system`) are exported blank.
 """
 
 from collections.abc import Sequence
@@ -28,6 +29,9 @@ FIRST_DATA_ROW = 2
 FROZEN_HEADER_CELL = "A2"
 NUMBER_TYPE = "number"
 DATE_TYPE = "date"
+
+# Roles whose output.value is exported; `system` and `blank_for_now` fields are exported blank
+EXPORTED_ROLES = ("extracted", "generated", "derived")
 
 # openpyxl reads text starting with "=" as a formula; such values are forced to plain text
 FORMULA_START = "="
@@ -75,7 +79,7 @@ def write_header(sheet: Worksheet, template: ExportTemplate) -> None:
 def find_export_text(rule: FieldDefinition, record: StoredRecord) -> str | None:
     """Return the text a field exports: its output value, or None for blank and unfilled fields."""
     stored = record.fields.get(rule.key)
-    if not rule.is_extracted or stored is None or not stored.output.value:
+    if rule.role not in EXPORTED_ROLES or stored is None or not stored.output.value:
         return None
     return stored.output.value
 
