@@ -2,8 +2,8 @@
 
 | Attribute | Value |
 |---|---|
-| Version | 1.5 |
-| Last updated | 2026-11-16 |
+| Version | 1.6 |
+| Last updated | 2026-11-17 |
 
 This file is the source of truth for BioAgilytix's Consumable Type rules. Code reads it, together with the **lookup value list** (the allowed LabVantage values for each list field).
 
@@ -687,7 +687,7 @@ Extracted once per candidate record, with the same shape as a field (status, val
 
 ### Approval type table
 
-Used by AT-01. Rows are checked top to bottom; the first match applies. The `serial_dilution` column is yes when that context attribute was found.
+Used by AT-01. Rows are checked top to bottom; the first match applies. The `serial_dilution` column is yes when that context attribute was found. Since CAND-06 (demo scope) dilution steps made fresh in a run are normally not records, so the first row applies only to a dilution level that is kept as a record or slips through.
 
 | Consumable Class | Critical | serial_dilution | Approval Type | Status |
 |---|---|---|---|---|
@@ -714,7 +714,7 @@ Inserted into the plausibility prompt. **None are active** until VAL-2 is decide
 - PL-01 [Plausibility] Storage condition vs item type (e.g., a room-temperature buffer stored at -80C). (Open; VAL-2)
 - PL-02 [Plausibility] Amount magnitude (e.g., 50 L expected for an antibody). (Open; VAL-2)
 - PL-03 [Plausibility] Class vs description. (Open; VAL-2)
-- PL-04 [Plausibility] Consistency across a serial dilution (e.g., two levels with the same concentration). (Open; VAL-2)
+- PL-04 [Plausibility] Consistency across a serial dilution (e.g., two levels with the same concentration). Applies only to dilution levels kept as records, since CAND-06 normally leaves dilution steps out. (Open; VAL-2)
 
 ---
 
@@ -745,3 +745,4 @@ Inserted into the plausibility prompt. **None are active** until VAL-2 is decide
 | 1.3 | 2026-11-16 | Derivation tables written so code can read them: the class table reads the Manufacturer column and refers to the BAL vendor names table; the critical headings table has a row for every other heading; the approval type table's serial dilution column is named `serial_dilution`. No rule changed |
 | 1.4 | 2026-11-16 | Moved every [Extraction] line (general, candidate criteria, fields and context attributes) to `extraction_rules.md`, unchanged. Field sections hold structural facts; column order comes from `export_template.md` |
 | 1.5 | 2026-11-16 | Moved the naming rules (NM-01 to NM-09) into `prompts/naming.md`, unchanged; NM-09 (Open) is kept there as a note. CT-02 points to the prompt |
+| 1.6 | 2026-11-17 | Notes only, no rule changed: the approval type table and PL-04 say that dilution steps are normally not records now (CAND-06, demo scope). Companion to extraction rules 1.1 and 1.2 |

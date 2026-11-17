@@ -1,4 +1,4 @@
-<!-- prompt: extraction_verification | version: 0.5 | status: draft for review -->
+<!-- prompt: extraction_verification | version: 0.6 | status: draft for review -->
 
 <!-- Developer note: Stricter than extraction on purpose: the goal is to find problems, not to agree. -->
 <!-- Developer note: Output shape is also enforced by the API (structured outputs, schema generated from code). -->
@@ -41,7 +41,7 @@ The citation check below shows, for each value, whether each quote was found wor
 - VER-04 Each unclear field: if the value is in fact readable and clearly belongs to this material, "present_missed". If it is truly unclear, report nothing.
 - VER-05 Context attributes: check them the same way as fields, and set "section" to "context".
 - VER-06 Conflicts: does another document give a different value as written that was not reported? Report it in "unreported_conflicts". Two different wordings are a conflict as written, even if they may mean the same thing.
-- VER-07 Each record: is it really a Consumable Type ("not_a_consumable_type")? Is it the same material as another record in this run ("duplicate_within_run")? Does it cover several materials, such as dilution levels ("should_be_split")?
+- VER-07 Each record: is it really a Consumable Type ("not_a_consumable_type")? Is it the same material as another record in this run ("duplicate_within_run")? Does it cover several materials that are each kept, such as two stock concentrations ("should_be_split")? A record that is only a dilution or calibration step, a generic disposable with no identity, or an assay control is not a Consumable Type here ("not_a_consumable_type"): see the candidate rules.
 - VER-08 Missed materials: is any Consumable Type in the documents missing from the records and from excluded_items? Report it in "missed_candidates".
 - VER-09 Excluded items: was any item wrongly left out? Report it in "excluded_item_challenges".
 
@@ -68,7 +68,7 @@ Return JSON only, in this shape. Use empty lists when there is nothing to report
       "sources": ["doc02-p05-c002"], "note": "The item is listed under \"Table 4. Other Consumables\"" }
   ],
   "record_findings": [
-    { "record_id": "rec_0012", "verdict": "should_be_split", "note": "Covers three serial dilution levels" }
+    { "record_id": "rec_0012", "verdict": "should_be_split", "note": "Covers two stock concentrations" }
   ],
   "missed_candidates": [
     { "name_as_written": "Wash Buffer", "sources": ["doc01-p07-c004"], "reason": "Prepared in Section 8 but not extracted" }

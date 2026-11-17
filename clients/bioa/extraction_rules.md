@@ -2,7 +2,7 @@
 
 | Attribute | Value |
 |---|---|
-| Version | 1.1 |
+| Version | 1.2 |
 | Last updated | 2026-11-17 |
 
 This file holds the extraction guidance: what counts as a Consumable Type, and what the model copies for each field. The extraction and extraction verification prompts read their rules only from this file. The fields themselves (key, loader column, data type, one value or several) are defined in `business_rules.md`.
@@ -164,4 +164,4 @@ Inserted into the extraction prompt (D-46).
 
 ### Rules
 
-- SD-01 [Extraction] The text stating that the item is one level of a serial dilution (e.g., "STD 1–8 prepared by serial dilution of the stock"). (Confirmed; D-07, SOP 7.4.3)
+- SD-01 [Extraction] The text stating that the item is one level of a serial dilution (e.g., "STD 1–8 prepared by serial dilution of the stock"). (Confirmed; D-07, SOP 7.4.3; with CAND-06 a dilution step made fresh in a run is normally left out, so this applies only to a level kept as a record)

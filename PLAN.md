@@ -424,6 +424,9 @@ Every milestone does the following:
 - **Config versions per run:** `business_rules.md` and the prompts are recorded but read from the current files, as in v0.13.1. Keep this, or snapshot them per run?
 - **Critical with no `source_heading`:** the brief raises `DERIVED_VALUE_MISSING`, but CR-02 says N for every item not in the Critical Reagents table. Which applies when no heading was found? Until decided, M4 follows the brief (raise the issue, leave Critical blank).
 - **Carried over:** the record side of the duplicate comparison (expose the judge flag on `/fields`?).
+- **CAND-02 dilution levels (needs BioA's answer):** tonight's demo change (extraction rules 1.1, 2026-11-17) stops serial dilution and calibration steps (PD1, PD2, STD1 to STD9, Blank) being records. This deliberately overrides CAND-02 as it stood: Confirmed, citing SOP 7.4.3, which made each dilution level a record. For the demo only. BioA must say what SOP 7.4.3 actually requires; until then the exclusion is a demo-scope assumption (CAND-06) and the old rule may need to come back. Related lines that still describe dilution levels as records and were annotated, not removed: SD-01 and the `serial_dilution` context attribute, the first row of the approval type table (blank approval type), PL-04 (Open), and the verifier's should-be-split example (VER-07).
+- **CAND-08 assay controls (HQC, MQC, LQC) are excluded for the demo only.** It is marked `Assumption; demo scope` and is not a confirmed business rule: these controls have their own lot, concentration, expiration and storage table, like Critical Reagents, so BioA may want them back as records. Do not let it become Confirmed without BioA.
+- **CAND-07 generic disposables:** excluded when no vendor, catalog number or other identifying detail is given (demo scope, also an assumption; confirm with BioA).
 
 ## Progress log
 
@@ -631,3 +634,8 @@ Every milestone does the following:
 
 ### M10 deferred
 - M10 (synthetic-case evals and the final `rg` cleanup sweep) is deliberately held until after the demo; it is deferred, not dropped. Bugs found in live testing against real BioA documents are separate fixes, outside M10.
+
+### Demo candidate tightening (2026-11-17; committed, awaiting the user's live check)
+- Extraction rules 1.1: CAND-06 (serial dilution and calibration steps), CAND-07 (generic disposables) and CAND-08 (assay controls) leave those items out of the records; CAND-01 and CAND-02 no longer list controls or dilution levels; CAND-03 sends excluded items to `excluded_items` so the verifier does not report them as missed.
+- Extraction rules 1.2, business rules 1.6 and the verification prompt 0.6 tidy the lines that still described dilution levels as records (SD-01, the approval type table note, PL-04 note, VER-07 and its example). No rule or table row changed, only notes; the verifier now sends a dilution step, a generic disposable or an assay control to `not_a_consumable_type` instead of `should_be_split`. The eval case labels moved to business rules 1.6; no expected output changed.
+- The tests use fake model replies, so they show the config still loads and nothing in the code broke; they do not show how the model reads the new wording. That check is the user's own run on real documents.
