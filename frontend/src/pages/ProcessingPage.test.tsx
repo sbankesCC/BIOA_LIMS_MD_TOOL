@@ -8,7 +8,7 @@ import type { RunDetail, RunStatus } from "../api/types";
 import { makeFetchMock, makeRunDetail, renderApp, type MockHandler } from "../test/helpers";
 import { ProcessingPage } from "./ProcessingPage";
 
-/** Return the state (done, current, waiting) of each of the six steps, in order. */
+/** Return the state (done, current, waiting) of each of the eight steps, in order. */
 function readStepStates(): string[] {
   const list = screen.getByRole("list", { name: "Processing steps" });
   return within(list)
@@ -22,14 +22,17 @@ function answerWith(run: RunDetail): MockHandler {
 }
 
 describe("Processing screen step mapping", () => {
-  // Expected states of the six steps for each processing status
+  // Expected states of the eight steps (one per status) for each processing status
   const cases: [RunStatus, string[]][] = [
-    ["ingesting", ["current", "waiting", "waiting", "waiting", "waiting", "waiting"]],
-    ["extracting", ["done", "current", "waiting", "waiting", "waiting", "waiting"]],
-    ["verifying_extraction", ["done", "done", "current", "current", "waiting", "waiting"]],
-    ["transforming", ["done", "done", "done", "done", "current", "waiting"]],
-    ["validating", ["done", "done", "done", "done", "done", "current"]],
-    ["in_review", ["done", "done", "done", "done", "done", "done"]],
+    ["ingesting", ["current", ...Array<string>(7).fill("waiting")]],
+    ["extracting", ["done", "current", ...Array<string>(6).fill("waiting")]],
+    ["verifying_extraction", ["done", "done", "current", ...Array<string>(5).fill("waiting")]],
+    ["normalizing", [...Array<string>(3).fill("done"), "current", ...Array<string>(4).fill("waiting")]],
+    ["matching", [...Array<string>(4).fill("done"), "current", ...Array<string>(3).fill("waiting")]],
+    ["naming", [...Array<string>(5).fill("done"), "current", "waiting", "waiting"]],
+    ["assembling", [...Array<string>(6).fill("done"), "current", "waiting"]],
+    ["validating", [...Array<string>(7).fill("done"), "current"]],
+    ["in_review", Array<string>(8).fill("done")],
   ];
 
   it.each(cases)("status %s gives steps %j", async (status, expected) => {

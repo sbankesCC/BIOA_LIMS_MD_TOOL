@@ -145,7 +145,7 @@ function ValueCell({ cell, field, rowIndex, column, isSelected, isClickable, onO
         className="records-grid__value"
         data-grid-row={rowIndex}
         data-grid-col={column}
-        aria-label={describeCellForReaders(cell.column, display.text, display.writtenText, cell.color)}
+        aria-label={describeCellForReaders(cell.column, display.text, display.writtenText, cell.color, display.look === "suggestion")}
         onClick={onOpen}
       >
         {content}
@@ -167,13 +167,15 @@ function CellContent({ display, color }: { display: ReturnType<typeof describeCe
         </>
       )}
       <span>{display.text}</span>
+      {display.look === "suggestion" && <span className="records-grid__suggested"> suggested</span>}
     </span>
   );
 }
 
 /** Return the label a screen reader hears for a value cell. */
-function describeCellForReaders(column: string, text: string, written: string | null, color: ReviewCell["color"]): string {
+function describeCellForReaders(column: string, text: string, written: string | null, color: ReviewCell["color"], isSuggestion: boolean): string {
   const parts = [`${column}: ${text}`];
+  if (isSuggestion) parts.push("suggested, not yet used");
   if (written !== null) parts.push(`written as ${written}`);
   if (color === "red") parts.push("needs a fix");
   if (color === "yellow") parts.push("check");

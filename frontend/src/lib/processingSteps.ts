@@ -1,5 +1,4 @@
-// The six processing steps of UI_SPEC §4.2 and how a run's status maps onto them.
-// One status can light up more than one step (the verification node does two of them).
+// The processing steps of UI_SPEC §4.2, one per run status, and how a status maps onto them.
 import type { RunStatus } from "../api/types";
 
 export type StepState = "done" | "current" | "waiting";
@@ -17,7 +16,10 @@ const PROCESSING_ORDER: RunStatus[] = [
   "ingesting",
   "extracting",
   "verifying_extraction",
-  "transforming",
+  "normalizing",
+  "matching",
+  "naming",
+  "assembling",
   "validating",
 ];
 
@@ -36,22 +38,32 @@ export const PROCESSING_STEPS: ProcessingStep[] = [
     statuses: ["extracting"],
   },
   {
-    label: "Checking citations",
-    detail: "Checking each value against the text it cites",
+    label: "Checking against the documents",
+    detail: "Checking each value against the text it cites, then a second review",
     statuses: ["verifying_extraction"],
   },
   {
-    label: "Validating against the documents",
-    detail: "A second review of the extraction against the documents",
-    statuses: ["verifying_extraction"],
+    label: "Formatting values",
+    detail: "Cleaning values and matching them to the lookup lists",
+    statuses: ["normalizing"],
   },
   {
-    label: "Formatting and final checks",
-    detail: "Formatting values and matching them to the lookup lists",
-    statuses: ["transforming"],
+    label: "Matching list values",
+    detail: "Suggesting list values for text that matches none exactly",
+    statuses: ["matching"],
   },
   {
-    label: "Preparing your preview",
+    label: "Suggesting names",
+    detail: "Suggesting a Consumable Type name for each record",
+    statuses: ["naming"],
+  },
+  {
+    label: "Filling derived fields",
+    detail: "Working out Critical, Consumable Class and the other derived fields",
+    statuses: ["assembling"],
+  },
+  {
+    label: "Final checks",
     detail: "Running the checks and preparing the records for review",
     statuses: ["validating"],
   },

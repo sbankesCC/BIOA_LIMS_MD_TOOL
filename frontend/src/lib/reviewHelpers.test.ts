@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { makeCell, makeIssue, makeLocation, makeRow, makeView, SYNTHETIC_FIELDS } from "../test/reviewFixtures";
 import { describeCell } from "./cellDisplay";
 import { findQuoteRange, splitIntoSegments } from "./highlight";
-import { buildChoice, makeEmptyActionState, type ChoiceContext } from "./issueActions";
+import { buildChoice, findActionRule, findShortLabel, makeEmptyActionState, type ChoiceContext } from "./issueActions";
 import { rankOptions } from "./optionRanking";
 import { findNameField, findNeighbourIssue, listOpenIssues } from "./reviewIssues";
 import { checkValue } from "./valueCheck";
@@ -111,7 +111,7 @@ describe("issue navigation", () => {
 
 describe("buildChoice", () => {
   const storage = SYNTHETIC_FIELDS[1];
-  const base: ChoiceContext = { issue: makeIssue(), kind: "enter_value", recordId: "rec_0001", field: storage, isSourceViewed: false };
+  const base: ChoiceContext = { issue: makeIssue(), kind: "enter_value", recordId: "rec_0001", field: storage, isSourceViewed: false, suggestion: null };
 
   it("an entered value becomes set_value without a reason", () => {
     const state = { ...makeEmptyActionState(), value: "Fridge door" };
@@ -168,8 +168,89 @@ describe("buildChoice", () => {
     expect(picked.choice).toEqual({ kind: "change", change: { type: "pick_alternative", record_id: "rec_0001", field: "storage", alternative_index: 1 } });
   });
 
+  it("using the suggestion becomes use_suggestion, and needs a suggestion", () => {
+    const suggestion = { value: "Fridge door", source: "matching" as const, reason: "Same place", rule_id: null };
+    const state = { ...makeEmptyActionState(), option: "use_suggestion" as const };
+    expect(buildChoice({ ...base, suggestion }, state).choice).toEqual({
+      kind: "change",
+      change: { type: "use_suggestion", record_id: "rec_0001", field: "storage" },
+    });
+    expect(buildChoice(base, state).choice).toBeNull();
+    expect(buildChoice(base, state).hint).toBe("There is no suggestion to use.");
+  });
+
+  it("a typed value still wins when the suggestion was not picked", () => {
+    const suggestion = { value: "Fridge door", source: "matching" as const, reason: "Same place", rule_id: null };
+    const state = { ...makeEmptyActionState(), value: "Room shelf" };
+    expect(buildChoice({ ...base, suggestion }, state).choice).toMatchObject({ change: { type: "set_value", value: "Room shelf" } });
+  });
+
+  it("a reviewer choice becomes set_value of the chosen list value", () => {
+    const context = { ...base, kind: "choose_value" as const, issue: makeIssue({ severity: "warning", choices: ["Fridge 2-8", "Room shelf"] }) };
+    expect(buildChoice(context, makeEmptyActionState()).hint).toBe("Choose one of the values.");
+    const chosen = { ...makeEmptyActionState(), option: "choice" as const, value: "Room shelf" };
+    expect(buildChoice(context, chosen).choice).toMatchObject({ change: { type: "set_value", field: "storage", value: "Room shelf", reason: null } });
+  });
+
   it("grey issues with nothing to do just move on", () => {
     expect(buildChoice({ ...base, issue: makeIssue({ severity: "info" }), kind: "nothing_to_do" }, makeEmptyActionState()).choice).toEqual({ kind: "move_on" });
+  });
+});
+
+describe("describeCell suggestions", () => {
+  const suggestion = { value: "Fridge door", source: "naming" as const, reason: "Rule", rule_id: "R-1" };
+
+  it("a cell with no value and a suggestion shows it as suggested", () => {
+    const display = describeCell(makeCell({ suggestion }), SYNTHETIC_FIELDS[1]);
+    expect(display).toMatchObject({ text: "Fridge door", look: "suggestion" });
+  });
+
+  it("a cell with a value never shows the suggestion", () => {
+    const display = describeCell(makeCell({ value: "Room shelf", display_value: "Room shelf", suggestion }), SYNTHETIC_FIELDS[1]);
+    expect(display).toMatchObject({ text: "Room shelf", look: "value" });
+  });
+
+  it("a blank-for-now cell stays an empty placeholder", () => {
+    const display = describeCell(makeCell({ is_placeholder: true, suggestion }), SYNTHETIC_FIELDS[3]);
+    expect(display).toMatchObject({ text: "", look: "placeholder" });
+  });
+});
+
+describe("issue codes of the redesign", () => {
+  const NEW_CODES = [
+    "VALUE_UNCLEAR",
+    "NAME_NOT_SET",
+    "REVIEWER_CHOICE_NEEDED",
+    "NOT_A_CONCENTRATION",
+    "DERIVED_VALUE_MISSING",
+    "DERIVED_VALUE_MISMATCH",
+    "CONFLICT_CLOSED",
+    "PLAUSIBILITY_CHECK",
+    "VALUE_INCOMPLETE",
+    "MATCHING_SKIPPED",
+    "NAMING_SKIPPED",
+    "PLAUSIBILITY_SKIPPED",
+  ];
+
+  it.each(NEW_CODES)("%s has its own label", (code) => {
+    expect(findShortLabel(code)).not.toBeNull();
+  });
+
+  it("OR_EQUIVALENT is gone: it falls back by severity like any unknown code", () => {
+    expect(findShortLabel("OR_EQUIVALENT")).toBeNull();
+    expect(findActionRule(makeIssue({ code: "OR_EQUIVALENT", severity: "warning" }), true).shortLabel).toBe("Check");
+  });
+
+  it("only NOT_IN_LOOKUP and NAME_NOT_SET offer the suggestion", () => {
+    const offering = NEW_CODES.concat(["NOT_IN_LOOKUP", "REQUIRED_MISSING"]).filter(
+      (code) => findActionRule(makeIssue({ code }), true).canUseSuggestion === true,
+    );
+    expect(offering.sort()).toEqual(["NAME_NOT_SET", "NOT_IN_LOOKUP"]);
+  });
+
+  it("the reviewer-choice issue has its own action and the mismatch needs the confirm view", () => {
+    expect(findActionRule(makeIssue({ code: "REVIEWER_CHOICE_NEEDED" }), true).kind).toBe("choose_value");
+    expect(findActionRule(makeIssue({ code: "DERIVED_VALUE_MISMATCH" }), true).kind).toBe("confirm_with_note");
   });
 });
 

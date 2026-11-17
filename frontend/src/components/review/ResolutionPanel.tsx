@@ -177,7 +177,10 @@ function ExpandedIssue(props: ExpandedIssueProps) {
   if (ref === null && (fieldKey === null || cell === null)) {
     return <p className="muted panel__empty">Choose an issue above, or click a value in the grid.</p>;
   }
-  const result = buildChoice({ issue: ref?.issue ?? null, kind: rule?.kind ?? null, recordId: selection.recordId, field, isSourceViewed }, state);
+  const result = buildChoice(
+    { issue: ref?.issue ?? null, kind: rule?.kind ?? null, recordId: selection.recordId, field, isSourceViewed, suggestion: cell?.suggestion ?? null },
+    state,
+  );
   const nameOf = (recordId: string) => findRow(view, recordId)?.name ?? recordId;
   const detailIssue = detailIssues.find((issue) => issue.issue_id === issueId);
   const detailLines = describeIssueDetails(detailIssue, nameOf);
@@ -196,6 +199,7 @@ function ExpandedIssue(props: ExpandedIssueProps) {
       {detailLines.map((line) => (
         <p key={line} className="panel__detail">{line}</p>
       ))}
+      {cell !== null && describeOrigin(cell) !== null && <p className="panel__detail">{describeOrigin(cell)}</p>}
       {/* Possible duplicates: this record next to the existing types the issue names */}
       <DuplicateComparison row={row} fields={fields} candidates={candidates} referenceVersion={props.run.reference_data_version} />
       <IssueAction
@@ -208,6 +212,7 @@ function ExpandedIssue(props: ExpandedIssueProps) {
         isSourceViewed={isSourceViewed}
         hasSources={hasSources}
         isRunIssue={selection.recordId === null}
+        canUseSuggestion={rule?.canUseSuggestion === true}
         onState={(patch) => setState((current) => ({ ...current, ...patch }))}
         onViewSource={() => onOpenSource(title, sources, issueLocations, row, issueId)}
         onShowAlternativeSource={(alternative: CellAlternative) => onOpenSource(`${title}: ${alternative.value}`, alternative.sources, [], null, issueId)}
@@ -225,6 +230,17 @@ function ExpandedIssue(props: ExpandedIssueProps) {
       {session.saveError !== null && <ErrorMessage message={session.saveError} />}
     </section>
   );
+}
+
+/** Return a line saying how a derived or suggested value was set, or null for other values. */
+function describeOrigin(cell: ReviewCell): string | null {
+  if (cell.origin === "derived") {
+    return "Derived: this value was worked out by a rule from other values in the record. If you change it, a check asks you to confirm and say why.";
+  }
+  if (cell.origin === "from_suggestion") {
+    return "This value was set from a suggestion.";
+  }
+  return null;
 }
 
 /** Return every evidence pair of a cell: its own sources, then each alternative's. */

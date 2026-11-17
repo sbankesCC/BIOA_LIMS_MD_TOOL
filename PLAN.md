@@ -614,3 +614,17 @@ Every milestone does the following:
 - The user approved the schema diff since the v0.13.1 lock (`cac95f4`); `backend/openapi.json` is committed as the new lock.
 - Before M9 starts: get Node.js on PATH, so `pyright` and the front end commands (`npm ci`, `npm run typecheck`, `npm run build`) run again. Pyright has not run since M3b.
 - M9 front end clean-up found while checking `allows_equivalent`: `frontend/src/api/generated/schema.ts` still has the old types (regenerate from the lock), and `frontend/src/lib/issueActions.ts` still maps the removed `OR_EQUIVALENT` code. The status names (`transforming`) are the other known stale spot.
+
+### M9: Front end (done; awaiting review)
+- `npm run generate:api` regenerated `schema.ts` from the locked schema. Typechecking then listed every stale name; all are fixed (`transforming`, `field_rules`, `dfd_template`, and the new required `choices`, `suggestion` and `no_suggestion_reason`).
+- Processing screen: eight steps, one per status (UI_SPEC §4.2): Reading documents, Extracting consumables, Checking against the documents, Formatting values, Matching list values, Suggesting names, Filling derived fields, Final checks. The status badge knows the four new statuses.
+- Review grid: a cell with no value and a suggestion shows it in grey italics with "suggested" (the Consumable Type column too, until a name is set); the screen-reader label says it is not yet used.
+- Resolution panel:
+  - `NOT_IN_LOOKUP` and `NAME_NOT_SET` offer "Use the suggestion" with the suggestion's reason, which sends `use_suggestion`; when there is none they show "No suggestion: <reason>".
+  - `REVIEWER_CHOICE_NEEDED` lists its choices and sends the chosen one as `set_value`.
+  - A derived or suggested value says so in the panel.
+  - Labels for every new code; `OR_EQUIVALENT` is removed; the old "TEST VALUE" wording is gone from the grid styles.
+  - Generated and derived fields are editable in the tool (the back end allows it since M5); before, only `extracted` ones were.
+- Verify: `npm ci`, `npm run typecheck`, `npm run build` clean; vitest 171 passed (12 files).
+- Manual run with the fake provider (API only, no browser here): started `uvicorn` with `LLM_PROVIDER=fake` on the synthetic case, uploaded its two documents, and the run went through every node to `in_review`, with models for all six steps, the new statuses, derived fields set, and `NAMING_SKIPPED` because that case's fake replies have no naming answers. The screens themselves have not been looked at in a browser.
+- Gap for M10: the synthetic eval case has no `matching.N.json` or `naming.N.json` fake replies, so Matching and Naming cannot be exercised by that case until they are added.

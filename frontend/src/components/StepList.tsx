@@ -17,7 +17,7 @@ interface StepListProps {
   status: RunStatus;
 }
 
-/** Show the six processing steps with their state for a run status. */
+/** Show the processing steps with their state for a run status. */
 export function StepList({ status }: StepListProps) {
   return (
     <ol className="step-list" aria-label="Processing steps">

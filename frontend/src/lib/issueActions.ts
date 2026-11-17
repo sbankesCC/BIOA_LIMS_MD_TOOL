@@ -1,7 +1,7 @@
 // The actions each issue type offers in the resolution panel (UI_SPEC §4.3 "Issue actions"),
 // and how the user's choice becomes a change for POST /runs/{run_id}/changes.
 // Issue codes are the tool's catalogue contract (backend validation/codes.py), not client data.
-import type { Change, IssueSummary, RunField } from "../api/types";
+import type { Change, IssueSummary, RunField, Suggestion } from "../api/types";
 
 /** The kinds of action component, one per row of the UI_SPEC issue table. */
 export type ActionKind =
@@ -13,6 +13,7 @@ export type ActionKind =
   | "possible_duplicate"
   | "not_a_consumable"
   | "confirm_with_note"
+  | "choose_value"
   | "nothing_to_do";
 
 /** How an issue type is shown: its action kind, a short label for the issue list, its Accept label. */
@@ -20,12 +21,17 @@ export interface IssueActionRule {
   kind: ActionKind;
   shortLabel: string;
   acceptLabel?: string;
+  // The panel offers the field's suggestion (and why there is none) beside the value input
+  canUseSuggestion?: boolean;
 }
 
 // One rule per catalogue code the UI_SPEC table names; other codes fall back by severity
 const RULES_BY_CODE: Record<string, IssueActionRule> = {
   REQUIRED_MISSING: { kind: "enter_value", shortLabel: "Missing" },
-  NOT_IN_LOOKUP: { kind: "enter_value", shortLabel: "Not in lookup list" },
+  NOT_IN_LOOKUP: { kind: "enter_value", shortLabel: "Not in lookup list", canUseSuggestion: true },
+  NAME_NOT_SET: { kind: "enter_value", shortLabel: "Name not set", canUseSuggestion: true },
+  VALUE_INCOMPLETE: { kind: "enter_value", shortLabel: "May be cut short" },
+  DERIVED_VALUE_MISSING: { kind: "enter_value", shortLabel: "Derived value missing" },
   TOO_LONG: { kind: "enter_value", shortLabel: "Too long" },
   WRONG_TYPE: { kind: "enter_value", shortLabel: "Not a number" },
   INVALID_CHARACTERS: { kind: "enter_value", shortLabel: "Characters not allowed" },
@@ -40,7 +46,15 @@ const RULES_BY_CODE: Record<string, IssueActionRule> = {
   VALUE_PRESENT_MISSED: { kind: "review_source", shortLabel: "May be in the documents" },
   OPTIONAL_NOT_FOUND: { kind: "optional_not_found", shortLabel: "Not found, optional" },
   DEFAULT_APPLIED: { kind: "accept_or_change", shortLabel: "Default applied" },
-  OR_EQUIVALENT: { kind: "accept_or_change", shortLabel: "Or equivalent", acceptLabel: "Accept the named product" },
+  REVIEWER_CHOICE_NEEDED: { kind: "choose_value", shortLabel: "Choose a value" },
+  VALUE_UNCLEAR: { kind: "review_source", shortLabel: "Unclear in the documents" },
+  PLAUSIBILITY_CHECK: { kind: "review_source", shortLabel: "Values may not fit together" },
+  NOT_A_CONCENTRATION: { kind: "accept_or_change", shortLabel: "Not a concentration", acceptLabel: "Leave blank" },
+  DERIVED_VALUE_MISMATCH: { kind: "confirm_with_note", shortLabel: "Differs from the rule" },
+  CONFLICT_CLOSED: { kind: "nothing_to_do", shortLabel: "Conflict closed" },
+  MATCHING_SKIPPED: { kind: "nothing_to_do", shortLabel: "Matching skipped" },
+  NAMING_SKIPPED: { kind: "nothing_to_do", shortLabel: "Name suggestions skipped" },
+  PLAUSIBILITY_SKIPPED: { kind: "nothing_to_do", shortLabel: "Plausibility review skipped" },
   POSSIBLE_DUPLICATE: { kind: "possible_duplicate", shortLabel: "Possible duplicate" },
   POSSIBLE_DUPLICATE_IN_RUN: { kind: "possible_duplicate", shortLabel: "May repeat another record" },
   NOT_A_CONSUMABLE_TYPE: { kind: "not_a_consumable", shortLabel: "May not be a consumable" },
@@ -86,7 +100,15 @@ export function describeAcceptLabel(rule: IssueActionRule): string {
 }
 
 /** The option the user picked in an action component. */
-export type ActionOption = "accept" | "change" | "not_found" | "leave_blank" | "alternative" | "other_value";
+export type ActionOption =
+  | "accept"
+  | "change"
+  | "not_found"
+  | "leave_blank"
+  | "alternative"
+  | "other_value"
+  | "use_suggestion"
+  | "choice";
 
 /** Everything the user has entered for the selected issue (or the selected field). */
 export interface ActionState {
@@ -134,11 +156,30 @@ export interface ChoiceContext {
   recordId: string | null;
   field: RunField | null;
   isSourceViewed: boolean;
+  // The field's suggestion, which "Use suggestion" turns into a use_suggestion change
+  suggestion: Suggestion | null;
 }
 
 /** Return a choice that is not ready yet, with the reason. */
 function waitFor(hint: string): ChoiceResult {
   return { choice: null, hint };
+}
+
+/** Return a use_suggestion change for the field, or why it cannot be built. */
+function buildUseSuggestion(context: ChoiceContext): ChoiceResult {
+  if (context.recordId === null || context.field === null || context.suggestion === null) {
+    return waitFor("There is no suggestion to use.");
+  }
+  const change: NewChange = { type: "use_suggestion", record_id: context.recordId, field: context.field.key };
+  return { choice: { kind: "change", change }, hint: null };
+}
+
+/** Return a set_value change for the chosen list value of a "Reviewer chooses" issue. */
+function buildChoiceValue(context: ChoiceContext, state: ActionState): ChoiceResult {
+  if (state.option !== "choice" || state.value.length === 0) {
+    return waitFor("Choose one of the values.");
+  }
+  return buildSetValue(context, { ...state, valueProblem: null }, state.value, null);
 }
 
 /** Return a set_value change for the field, or why it cannot be built yet. */
@@ -219,9 +260,13 @@ export function buildChoice(context: ChoiceContext, state: ActionState): ChoiceR
   if (context.kind === "nothing_to_do") {
     return { choice: { kind: "move_on" }, hint: null };
   }
-  // Entering a value is the only action of these issues
+  // Entering a value (or using the suggestion) is the only action of these issues
   if (context.kind === "enter_value") {
+    if (state.option === "use_suggestion") return buildUseSuggestion(context);
     return buildSetValue(context, state, state.value.trim(), null);
+  }
+  if (context.kind === "choose_value") {
+    return buildChoiceValue(context, state);
   }
   return buildOptionChoice(context, state);
 }

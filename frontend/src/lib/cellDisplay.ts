@@ -4,7 +4,7 @@
 import type { ReviewCell, RunField } from "../api/types";
 
 /** How a cell's main text looks. */
-export type CellLook = "value" | "placeholder" | "conflict" | "missing" | "not_found";
+export type CellLook = "value" | "placeholder" | "conflict" | "missing" | "not_found" | "suggestion";
 
 /** A cell's text, how it looks, and the value as written when it differs from the exported one. */
 export interface CellDisplay {
@@ -35,6 +35,10 @@ export function describeCell(cell: ReviewCell, field: RunField | null): CellDisp
   // An unresolved conflict: how many values the documents give
   if (cell.alternatives.length > 1 && isBlank(cell.value)) {
     return { text: `${cell.alternatives.length} values`, look: "conflict", writtenText: null };
+  }
+  // No value yet, but Matching or Naming suggests one: shown grey and italic, "suggested"
+  if (isBlank(cell.value) && cell.suggestion !== null) {
+    return { text: cell.suggestion.value, look: "suggestion", writtenText: cell.written_value };
   }
   // A value as written that differs from the exported value: "as written → exported"
   if (cell.written_value !== null) {
