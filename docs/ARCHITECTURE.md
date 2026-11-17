@@ -207,7 +207,7 @@ Per field, in this order; for a conflicting field, per alternative:
 
 #### 4.7b Matching (code + LLM)
 - De-duplicates the unresolved items by (field, normalized value).
-- Code builds each shortlist: the `MATCHING_SHORTLIST_SIZE` most similar list values (difflib), or the whole list when it is that size or smaller; excluded values removed.
+- Code builds each item's list of choices: the whole list (excluded values removed), or, when `MATCHING_SHORTLIST_SIZE` is set below the list's size, the most similar values (difflib). The cut is a cost control for very large lists only, never a relevance filter: similarity is by text, so a synonym with different letters can drop out. Leave the setting blank. The app logs a `matching_list_large` warning at start when a Matching-allowed list has over 150 values and the setting does not cut it, so a person decides on purpose (raise the setting, restrict the field, or add a semantic ranker).
 - One LLM call per run for the items not in the cache. A choice not on the item's shortlist is rejected.
 - **Output:** a `suggestion` on the field (value, reason). The value is not set.
 

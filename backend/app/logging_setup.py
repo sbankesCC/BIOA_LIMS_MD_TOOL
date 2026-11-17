@@ -28,6 +28,7 @@ LogEvent = Literal[
     "runs_interrupted",
     "run_unreadable",
     "suggestions_dropped",
+    "matching_list_large",
 ]
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR"]

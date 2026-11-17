@@ -24,13 +24,10 @@ from app.llm.prompt_builder import build_matching_rules, build_prompt_parts, for
 from app.llm.tracing import ResponseCheck, TracedCaller
 from app.llm_schema import build_matching_schema
 from app.normalization.lookup_matching import find_similar_values, normalize_for_match
-from app.normalization.lookup_values import find_allowed_values
+from app.normalization.lookup_values import MATCHING_STEP, find_allowed_values
 
 NODE = "matching"
 ITEM_PREFIX = "m_"
-
-# The step name an exclusion row can name
-MATCHING_STEP = "Matching"
 
 
 class MatchingTarget(BaseModel):

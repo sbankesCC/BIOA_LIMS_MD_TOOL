@@ -199,7 +199,7 @@ Request items are built by code from the lookup values Normalization could not r
   "quote": "Store in liquid nitrogen vapor phase.", "shortlist": ["Cryo", "-80C", "-20C", "Dry Ice"] }
 ```
 
-- `shortlist`: the `MATCHING_SHORTLIST_SIZE` most similar list values (difflib), or the whole list when it is that size or smaller (blank setting: the whole list). Excluded lookup values are removed.
+- `shortlist`: the whole list (blank `MATCHING_SHORTLIST_SIZE`, the recommended setting, or a list no longer than the setting). Only for a very large list may the setting cut it to the most similar values (difflib): that is a cost control, not a relevance filter, since a synonym with different letters can drop out. The app logs `matching_list_large` (node = the field key, details `list_size`, `threshold`) at start for a Matching-allowed list over 150 values that the setting does not cut. Excluded lookup values are removed.
 
 Response:
 
@@ -474,7 +474,7 @@ evals/cases/<case_id>/
   "details": { "records_found": 18, "excluded_items": 2 } }
 ```
 
-- Events: `run_started`, `node_started`, `node_finished`, `node_failed`, `retry_scheduled`, `route_decided` (with reason), `llm_call_finished`, `changes_saved`, `run_rechecked`, `run_verified`, `export_created`, `lookup_version_applied`, `reference_data_applied`, `suggestions_dropped` (Naming; counts of dropped name suggestions by reason: `empty`, `too_long`, `invalid_characters`, `duplicate`), `runs_interrupted` (at startup, with `run_count`), `run_unreadable` (at startup, with the `run_id` of a stored run saved in an older format; it is skipped, not failed).
+- Events: `run_started`, `node_started`, `node_finished`, `node_failed`, `retry_scheduled`, `route_decided` (with reason), `llm_call_finished`, `changes_saved`, `run_rechecked`, `run_verified`, `export_created`, `lookup_version_applied`, `reference_data_applied`, `matching_list_large` (at startup; `node` is the field key; details `list_size`, `threshold`), `suggestions_dropped` (Naming; counts of dropped name suggestions by reason: `empty`, `too_long`, `invalid_characters`, `duplicate`), `runs_interrupted` (at startup, with `run_count`), `run_unreadable` (at startup, with the `run_id` of a stored run saved in an older format; it is skipped, not failed).
 - Only IDs, counts and durations. No document text, no field values.
 
 ## 12. Config file formats

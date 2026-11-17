@@ -15,6 +15,7 @@ from fastapi import Depends, Request
 from app.config.bundle import ConfigBundle, load_config_bundle
 from app.llm.client import LLMClient
 from app.llm.provider import make_llm_client
+from app.normalization.lookup_values import log_large_matching_lists
 from app.runs.background import TaskRunner, ThreadTaskRunner
 from app.runs.interrupted import fail_interrupted_runs
 from app.runs.workspace import LLMClientFactory, Workspace
@@ -41,6 +42,12 @@ class AppResources:
         """
         if self.settings.client_config_dir is not None:
             self.config = load_config_bundle(self.settings.require_path("CLIENT_CONFIG_DIR"))
+            # A large Matching list is allowed, but a person should have chosen it (a warning only)
+            log_large_matching_lists(
+                self.config.business_rules,
+                self.config.lookup_lists,
+                self.settings.matching_shortlist_size,
+            )
         # Runs a restart stopped midway can only be retried; needs the config and REVIEW_DB
         if self.config is not None and self.settings.review_db is not None:
             fail_interrupted_runs(self.open_database(), self.config, current_time())
