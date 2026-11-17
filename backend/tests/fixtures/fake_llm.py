@@ -5,7 +5,7 @@ document does not give are not_found. Field keys come from the client config, ne
 """
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from app.config.business_rules import BusinessRules
 from app.contracts.extraction import (
@@ -44,7 +44,10 @@ def found_field(value: str | list[str], quote: str) -> ExtractedField:
 
 
 def make_extracted_record(
-    business_rules: BusinessRules, ref: str, row_number: int
+    business_rules: BusinessRules,
+    ref: str,
+    row_number: int,
+    found_values: Mapping[str, str] | None = None,
 ) -> ExtractedRecord:
     """Return a record for one table row: its name and catalog number found, the rest not_found."""
     row = REAGENT_TABLE[row_number]
@@ -56,6 +59,8 @@ def make_extracted_record(
             fields[rule.key] = found_field(row[NAME_COLUMN], quote)
         elif rule.multi_value:
             fields[rule.key] = found_field([row[CATALOG_COLUMN]], quote)
+        elif found_values and rule.key in found_values:
+            fields[rule.key] = found_field(found_values[rule.key], quote)
         else:
             fields[rule.key] = ExtractedField(status="not_found")
     # The synthetic table gives no context attribute, so each one is not_found
@@ -72,9 +77,16 @@ def make_extracted_record(
     )
 
 
-def extraction_reply(business_rules: BusinessRules, rows: Sequence[tuple[str, int]]) -> str:
-    """Return an extraction reply with one record per (record_ref, table row number)."""
-    records = [make_extracted_record(business_rules, ref, row) for ref, row in rows]
+def extraction_reply(
+    business_rules: BusinessRules,
+    rows: Sequence[tuple[str, int]],
+    found_values: Mapping[str, str] | None = None,
+) -> str:
+    """Return an extraction reply with one record per (record_ref, table row number).
+
+    `found_values` adds fields found with these values (quoting the row) on every record.
+    """
+    records = [make_extracted_record(business_rules, ref, row, found_values) for ref, row in rows]
     return ExtractionOutput(records=records, excluded_items=[]).model_dump_json()
 
 
@@ -115,3 +127,35 @@ def unsupported_name(business_rules: BusinessRules, record_id: str) -> FieldFind
 def empty_extraction_reply() -> str:
     """Return an extraction reply with no records and no excluded items."""
     return json.dumps({"records": [], "excluded_items": []})
+
+
+def naming_reply(answers: Sequence[tuple[str, str | None]]) -> str:
+    """Return a Naming reply: one (record_id, name) per record; a None name gives no rule."""
+    names = [
+        {
+            "record_id": record_id,
+            "name": name,
+            "rule_id": None if name is None else "SYN-NM",
+            "reason": "synthetic reason",
+        }
+        for record_id, name in answers
+    ]
+    return json.dumps({"names": names})
+
+
+def matching_reply(answers: Sequence[tuple[str, str | None]]) -> str:
+    """Return a Matching reply: one (item_id, choice) per item."""
+    items = [
+        {"item_id": item_id, "choice": choice, "reason": "synthetic reason"}
+        for item_id, choice in answers
+    ]
+    return json.dumps({"answers": items})
+
+
+def plausibility_reply(findings: Sequence[tuple[str, str, list[str]]]) -> str:
+    """Return a plausibility reply: one (record_id, check_id, fields) per finding."""
+    items = [
+        {"record_id": record_id, "check_id": check_id, "fields": fields, "reason": "synthetic"}
+        for record_id, check_id, fields in findings
+    ]
+    return json.dumps({"findings": items})

@@ -33,7 +33,17 @@ from app.storage.run_store import DocumentInfo, RunFolder
 
 # Statuses while the graph works; the run detail shows them as the current step
 PROCESSING_STATUSES: frozenset[RunStatus] = frozenset(
-    {"created", "ingesting", "extracting", "verifying_extraction", "transforming", "validating"}
+    {
+        "created",
+        "ingesting",
+        "extracting",
+        "verifying_extraction",
+        "normalizing",
+        "matching",
+        "naming",
+        "assembling",
+        "validating",
+    }
 )
 
 ExportFileKind = Literal["loader", "audit"]

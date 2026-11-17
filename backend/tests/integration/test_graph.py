@@ -13,11 +13,17 @@ from pathlib import Path
 import pytest
 
 from app.config.bundle import ConfigBundle
+from app.config.business_rules import BusinessRules
 from app.contracts.issue import Issue
 from app.contracts.log_line import LogLine
 from app.contracts.reference import ReferenceData, ReferenceType
 from app.graph.build import make_run_info, open_checkpointer, run_processing
-from app.graph.context import ProcessingContext, ProcessingLimits
+from app.graph.context import (
+    ProcessingContext,
+    ProcessingLimits,
+    StepCaches,
+    make_memory_caches,
+)
 from app.llm.client import ImagePart, TextPart
 from app.llm.fake_client import FakeLLMClient, FakeReply
 from app.llm.tracing import read_traces
@@ -30,6 +36,7 @@ from tests.fixtures.fake_llm import (
     empty_extraction_reply,
     extraction_reply,
     missed_row,
+    naming_reply,
     unsupported_name,
     verification_reply,
 )
@@ -46,6 +53,9 @@ NOW = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
 
 # Replies for two records (table rows 1 and 2) and a verification with nothing to report
 TWO_ROWS = (("R1", 1), ("R2", 2))
+
+# Synthetic names the fake Naming call suggests for those two records
+NAMES = [("rec_0001", "Syn Name One"), ("rec_0002", "Syn Name Two")]
 
 
 @dataclass
@@ -75,11 +85,21 @@ def process_run(
     max_reextract: int = 1,
     max_input_tokens: int | None = None,
     reference: ReferenceData | None = None,
+    client: FakeLLMClient | None = None,
+    step_caches: StepCaches | None = None,
+    limits: ProcessingLimits | None = None,
+    business_rules: BusinessRules | None = None,
 ) -> GraphRun:
-    """Store a run with the given synthetic files and process it with the fake LLM."""
+    """Store a run with the given synthetic files and process it with the fake LLM.
+
+    A test may give its own client (for example one with a blank model), shared caches, limits,
+    or business rules (for example with a plausibility check made active).
+    """
     database = ReviewDatabase(tmp_path / "review.sqlite")
     run_store = RunStore(tmp_path / "storage")
-    client = FakeLLMClient(replies)
+    client = client or FakeLLMClient(replies)
+    if business_rules is not None:
+        bundle = bundle.model_copy(update={"business_rules": business_rules})
     run = make_run_info(
         RUN_ID, "synthetic run", USER, NOW, bundle, bundle.lookup_lists, reference, client
     )
@@ -95,9 +115,11 @@ def process_run(
         run_store=run_store,
         database=database,
         judge_cache=InMemoryJudgeCache(),
-        limits=ProcessingLimits(
+        limits=limits
+        or ProcessingLimits(
             llm_retries=1, max_reextract=max_reextract, max_input_tokens=max_input_tokens
         ),
+        step_caches=step_caches or make_memory_caches(),
     )
     checkpoint_path = tmp_path / "checkpoints.sqlite"
     run_processing(context, RUN_ID, checkpoint_path)
@@ -109,6 +131,7 @@ def happy_replies(bundle: ConfigBundle) -> dict[str, list[FakeReply]]:
     return {
         "extraction": [extraction_reply(bundle.business_rules, TWO_ROWS)],
         "extraction_verification": [verification_reply()],
+        "naming": [naming_reply(NAMES)],
     }
 
 
@@ -128,6 +151,9 @@ def test_happy_path_ends_in_review(
     assert stored.models == {
         "extraction": "fake-model",
         "extraction_verification": "fake-model",
+        "matching": "fake-model",
+        "naming": "fake-model",
+        "plausibility": "fake-model",
         "duplicate_judge": "fake-model",
     }
     records = run.database.read_records(RUN_ID)
@@ -138,6 +164,11 @@ def test_happy_path_ends_in_review(
     verification = records[0].fields[name_key].verification
     assert verification is not None
     assert verification.citation_check == "verified"
+    # Naming suggests a name; the value stays what extraction found
+    suggestion = records[0].fields[name_key].suggestion
+    assert suggestion is not None
+    assert (suggestion.value, suggestion.source) == ("Syn Name One", "naming")
+    assert records[0].fields[name_key].output.value == REAGENT_TABLE[1][0]
     # Ingest and validation run issues reach the review database
     assert "SCANNED_PAGES" in run.issue_codes()
     assert "REFERENCE_DATA_MISSING" in run.issue_codes()
@@ -161,6 +192,7 @@ def test_happy_path_sends_page_images_and_traces_every_call(
     assert [(trace.node, trace.status) for trace in traces] == [
         ("extraction", "ok"),
         ("extraction_verification", "ok"),
+        ("naming", "ok"),
     ]
 
 

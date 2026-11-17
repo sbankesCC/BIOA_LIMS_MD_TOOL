@@ -23,6 +23,8 @@ DEFAULT_APPLIED = "DEFAULT_APPLIED"
 
 # Name and derived-value checks
 NAME_NOT_SET = "NAME_NOT_SET"
+PLAUSIBILITY_CHECK = "PLAUSIBILITY_CHECK"
+PLAUSIBILITY_SKIPPED = "PLAUSIBILITY_SKIPPED"
 DERIVED_VALUE_MISMATCH = "DERIVED_VALUE_MISMATCH"
 
 # Citation check and extraction verification findings
@@ -48,6 +50,9 @@ POSSIBLE_DUPLICATE = "POSSIBLE_DUPLICATE"
 DUPLICATE_CHECK_SKIPPED = "DUPLICATE_CHECK_SKIPPED"
 REFERENCE_DATA_MISSING = "REFERENCE_DATA_MISSING"
 
+# The two codes of the plausibility review, owned only in a pass that runs it
+PLAUSIBILITY_CODES = (PLAUSIBILITY_CHECK, PLAUSIBILITY_SKIPPED)
+
 # Every code validation owns: earlier issues with other codes (ingest, graph) are left alone
 VALIDATION_CODES = frozenset(
     {
@@ -64,6 +69,8 @@ VALIDATION_CODES = frozenset(
         DERIVED_VALUE_MISSING,
         CONFLICT_CLOSED,
         NAME_NOT_SET,
+        PLAUSIBILITY_CHECK,
+        PLAUSIBILITY_SKIPPED,
         DERIVED_VALUE_MISMATCH,
         VALUE_UNCLEAR,
         NUMBER_READ_FROM_TEXT,

@@ -564,3 +564,19 @@ Every milestone does the following:
   - **The catalog-number shortlist is built but dormant:** the mapping needs the export's catalog column name (unknown) and `rules.catalog_number_field`. Both are commented in `reference_data_mapping.yaml`. A startup check requires the field key to exist.
   - **`name_as_written` is the name field's extracted value,** put in the judge's `values` (so it is part of the cache key) only when it differs from the name checked.
   - **`PLAUSIBILITY_CHECK` and the three `_SKIPPED` codes** are in the catalogue but raised in M6; the code-coverage test lists them as raised elsewhere until then.
+
+### M6: Model steps and graph (done; awaiting review)
+- New agents: `agents/matching.py` (items de-duplicated by field and normalized value, difflib shortlist via `find_similar_values`, one call, off-shortlist choices rejected), `agents/naming.py` (one call, then code checks: characters translated, max length, disallowed characters, unique in the run), `agents/plausibility.py` (no call without an active `[Plausibility]` line; unknown check IDs and findings with no field dropped). Shared `agents/step_support.py`: result caches, `CallBudget`, cache key hash, and `call_model_step`.
+- Review database `SCHEMA_VERSION = 3` with `matching_cache`, `naming_cache` and `plausibility_cache` (a version 2 file is refused). Settings and `env.example`: `MATCHING_MODEL`, `NAMING_MODEL`, `PLAUSIBILITY_MODEL`, `MAX_MATCHING_CALLS`, `MAX_NAMING_CALLS`, `MAX_PLAUSIBILITY_CALLS`, `MATCHING_SHORTLIST_SIZE`.
+- Graph: ingest → extraction ⇄ verification → normalization → matching → naming → assembly → validation → finish. Run statuses `normalizing`, `matching`, `naming`, `assembling` replace `transforming`. The step limit rose from 20 to 24. The plausibility review runs inside the validation node (`validate_run(..., plausibility=...)`).
+- Re-extraction: a `not_verified` citation on a context attribute now triggers it too (field and context verdicts, including `incomplete`, already did); `unclear` alone does not.
+- `backend/openapi.json` regenerated (run status values).
+- Tests: 755 passed, 1 skipped; ruff clean. pyright not run (Node.js is not on PATH).
+- Decisions the docs did not cover:
+  - **A blank model for Matching, Naming or plausibility is captured as blank** (`""` in `run.models`) and the step is skipped with its run warning. The app and the run start; extraction, verification and the judge still need their models.
+  - **The dropped-name reason is logged, not stored.** `Suggestion` has no room for a dropped name, so a failed name leaves the field with no suggestion, and the reason (`empty`, `too_long`, `invalid_characters`, `duplicate`) is logged as counts in the `suggestions_dropped` event. If you want it shown to reviewers, it needs a contract field.
+  - **Naming applies the character translation to the suggested name** before the length and character checks (rather than rejecting a name that needs it).
+  - **The Naming and plausibility caches hold the model's raw answer per record;** the code checks (uniqueness depends on the whole run) always run again.
+  - **A plausibility issue's key includes the check ID,** so two checks on one value stay two issues.
+  - **Re-checks do not run the plausibility review yet:** the review service calls `validate_run` without a reviewer, so existing `PLAUSIBILITY_CHECK` and `PLAUSIBILITY_SKIPPED` issues are kept as they are (not resolved). M7 must pass a reviewer (and the cache) there.
+  - **The front end still lists the old `transforming` status** (`StatusBadge`, `processingSteps`, the generated schema). It is regenerated and updated in M9, as UI_SPEC §4.2 says.

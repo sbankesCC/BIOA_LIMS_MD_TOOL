@@ -16,7 +16,10 @@ from app.logging_setup import log_event
 INGEST = "ingest"
 EXTRACTION = "extraction"
 VERIFICATION = "extraction_verification"
-TRANSFORMATION = "transformation"
+NORMALIZATION = "normalization"
+MATCHING = "matching"
+NAMING = "naming"
+ASSEMBLY = "assembly"
 VALIDATION = "validation"
 FINISH = "finish"
 FAILED = "failed"
@@ -24,7 +27,10 @@ FAILED = "failed"
 # Edges that are always taken
 FIXED_EDGES: list[tuple[str, str]] = [
     (START, INGEST),
-    (TRANSFORMATION, VALIDATION),
+    (NORMALIZATION, MATCHING),
+    (MATCHING, NAMING),
+    (NAMING, ASSEMBLY),
+    (ASSEMBLY, VALIDATION),
     (VALIDATION, FINISH),
     (FINISH, END),
     (FAILED, END),
@@ -46,14 +52,14 @@ def route_after_extraction(state: ProcessingState) -> str:
 
 
 def route_after_verification(state: ProcessingState) -> str:
-    """Problems found and attempts left: re-extract. Failed call: failed. Else transformation."""
+    """Problems found and attempts left: re-extract. Failed call: failed. Else normalization."""
     if state["failure_code"]:
         log_route(state, VERIFICATION, FAILED, {})
         return FAILED
     problems = find_reextraction_problems(read_records(state), read_findings(state))
     has_attempts_left = state["reextract_count"] < state["max_reextract"]
     # Unresolved problems are carried on as findings and become issues in validation
-    destination = EXTRACTION if problems and has_attempts_left else TRANSFORMATION
+    destination = EXTRACTION if problems and has_attempts_left else NORMALIZATION
     details = {"problems": len(problems), "reextract_count": state["reextract_count"]}
     log_route(state, VERIFICATION, destination, details)
     return destination
@@ -63,7 +69,7 @@ def route_after_verification(state: ProcessingState) -> str:
 CONDITIONAL_EDGES: list[tuple[str, Callable[[ProcessingState], str], list[str]]] = [
     (INGEST, route_after_ingest, [EXTRACTION, FAILED]),
     (EXTRACTION, route_after_extraction, [VERIFICATION, FAILED]),
-    (VERIFICATION, route_after_verification, [EXTRACTION, TRANSFORMATION, FAILED]),
+    (VERIFICATION, route_after_verification, [EXTRACTION, NORMALIZATION, FAILED]),
 ]
 
 

@@ -37,6 +37,7 @@ from app.validation.issues import IssueDraft, make_issue
 from app.validation.judge_cache import JudgeRunner
 from app.validation.lifecycle import merge_issues
 from app.validation.names import check_name
+from app.validation.plausibility_check import PlausibilityReviewer, find_plausibility_drafts
 
 
 class ValidationConfig(BaseModel):
@@ -88,16 +89,25 @@ def validate_run(
     reference: ReferenceData | None,
     findings: ProcessingFindings | None = None,
     previous_issues: Sequence[Issue] = (),
+    plausibility: PlausibilityReviewer | None = None,
 ) -> ValidationResult:
-    """Validate every record of a run and merge the issues with the earlier ones."""
+    """Validate every record of a run and merge the issues with the earlier ones.
+
+    Without a `plausibility` reviewer the review is not run, and the plausibility issues
+    already found are left as they were (the caller cannot call the model).
+    """
     findings = findings or ProcessingFindings()
     active = [record for record in records if record.exclusion is None]
     skipped_ids = {record.record_id for record in records if record.exclusion is not None}
     # Find this pass's problems, then give them their catalogue form and stable IDs
     drafts = find_record_drafts(active, config, findings)
     drafts += find_run_drafts(active, config, runner, reference, findings)
+    if plausibility is not None:
+        drafts += find_plausibility_drafts(
+            active, config.business_rules, config.lookup_lists, plausibility
+        )
     found = make_unique_issues(drafts, config)
-    owned_codes = find_owned_codes(config.business_rules)
+    owned_codes = find_owned_codes(config.business_rules, plausibility is not None)
     issues = merge_issues(previous_issues, found, owned_codes, skipped_ids)
     # Only the validation section of each record changes
     updated = [attach_issues(record, issues) for record in records]
@@ -194,10 +204,16 @@ def make_unique_issues(drafts: Sequence[IssueDraft], config: ValidationConfig) -
     return list(issues.values())
 
 
-def find_owned_codes(business_rules: BusinessRules) -> set[str]:
-    """Return every code validation raises, including the condition groups' own codes."""
+def find_owned_codes(business_rules: BusinessRules, has_plausibility: bool = True) -> set[str]:
+    """Return every code validation raises, including the condition groups' own codes.
+
+    The plausibility codes are owned only when the review runs in this pass.
+    """
     group_codes = {group.issue_code for group in business_rules.condition_groups.values()}
-    return set(codes.VALIDATION_CODES) | group_codes
+    owned = set(codes.VALIDATION_CODES) | group_codes
+    if not has_plausibility:
+        owned -= set(codes.PLAUSIBILITY_CODES)
+    return owned
 
 
 def attach_issues(record: StoredRecord, issues: Sequence[Issue]) -> StoredRecord:

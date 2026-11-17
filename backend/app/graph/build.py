@@ -33,14 +33,17 @@ NODES: list[tuple[str, RunStatus | None, nodes.NodeFunction]] = [
     (routing.INGEST, "ingesting", nodes.ingest_node),
     (routing.EXTRACTION, "extracting", nodes.extraction_node),
     (routing.VERIFICATION, "verifying_extraction", nodes.verification_node),
-    (routing.TRANSFORMATION, "transforming", nodes.transformation_node),
+    (routing.NORMALIZATION, "normalizing", nodes.normalization_node),
+    (routing.MATCHING, "matching", nodes.matching_node),
+    (routing.NAMING, "naming", nodes.naming_node),
+    (routing.ASSEMBLY, "assembling", nodes.assembly_node),
     (routing.VALIDATION, "validating", nodes.validation_node),
     (routing.FINISH, None, nodes.finish_node),
     (routing.FAILED, None, nodes.failed_node),
 ]
 
 # Steps LangGraph may take: the straight path plus two per allowed re-extraction
-BASE_STEP_LIMIT = 20
+BASE_STEP_LIMIT = 24
 STEPS_PER_REEXTRACTION = 2
 
 

@@ -5,10 +5,11 @@ affected records' extraction sections and keeps their IDs; a record it does not 
 unchanged and listed as dropped; new items get new IDs.
 """
 
-from collections.abc import Sequence
+from collections.abc import Collection, Mapping, Sequence
 
 from pydantic import BaseModel
 
+from app.agents.matching import MatchingGroup, MatchingResult
 from app.config.business_rules import BusinessRules
 from app.contracts.extraction import ExtractedRecord, ExtractionOutput
 from app.contracts.record import (
@@ -19,6 +20,7 @@ from app.contracts.record import (
     StoredContextAttribute,
     StoredField,
     StoredRecord,
+    Suggestion,
     find_initial_origin,
 )
 from app.contracts.verification import FieldVerdict, VerificationOutput
@@ -147,3 +149,42 @@ def write_verdict[Stored: StoredField | StoredContextAttribute](
     current = stored.verification or FieldVerification()
     verification = current.model_copy(update={"verdict": verdict, "note": note})
     entries[key] = stored.model_copy(update={"verification": verification})
+
+
+def find_matching_suggestions(
+    groups: Sequence[MatchingGroup], result: MatchingResult
+) -> dict[tuple[str, str], Suggestion]:
+    """Return a Matching suggestion for every record field whose item got a usable choice."""
+    suggestions: dict[tuple[str, str], Suggestion] = {}
+    for group in groups:
+        answer = result.answers.get(group.item.item_id)
+        if answer is None or answer.choice is None:
+            continue
+        suggestion = Suggestion(
+            value=answer.choice, source="matching", reason=answer.reason, rule_id=None
+        )
+        for target in group.targets:
+            suggestions[(target.record_id, target.field)] = suggestion
+    return suggestions
+
+
+def apply_suggestions(
+    records: Sequence[StoredRecord],
+    suggestions: Mapping[tuple[str, str], Suggestion],
+    field_keys: Collection[str],
+) -> list[StoredRecord]:
+    """Return the records with each suggestion set on its field (the only section written).
+
+    Only the fields a step owns (`field_keys`) change; one with no new suggestion loses an old
+    one, so a rerun never keeps a stale suggestion.
+    """
+    updated: list[StoredRecord] = []
+    for record in records:
+        fields = dict(record.fields)
+        for key in field_keys:
+            stored = record.fields.get(key)
+            if stored is not None:
+                suggestion = suggestions.get((record.record_id, key))
+                fields[key] = stored.model_copy(update={"suggestion": suggestion})
+        updated.append(record.model_copy(update={"fields": fields}))
+    return updated

@@ -53,11 +53,9 @@ CODES_RAISED_ELSEWHERE = {
     "NO_READABLE_DOCUMENTS",
     "EXTRACTION_FAILED",
     "PROCESSING_INTERRUPTED",
-    # Model steps: raised by Matching, Naming and the plausibility review (M6)
+    # Matching and Naming are graph steps that raise their own run warnings
     "MATCHING_SKIPPED",
     "NAMING_SKIPPED",
-    "PLAUSIBILITY_SKIPPED",
-    "PLAUSIBILITY_CHECK",
 }
 
 EVIDENCE = Evidence(chunk_id="doc01-c001", quote="synthetic quote")

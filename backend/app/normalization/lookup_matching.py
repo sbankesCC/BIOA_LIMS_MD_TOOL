@@ -6,6 +6,7 @@ match keeps the value as written and gives NOT_IN_LOOKUP.
 """
 
 from collections.abc import Sequence
+from difflib import SequenceMatcher
 
 from pydantic import BaseModel
 
@@ -62,3 +63,20 @@ def match_boolean_value(value: str) -> MatchResult:
     """Read a boolean as Y or N, ignoring case; anything else is kept as written."""
     # Y and N act as a two-value list; words such as "Yes" are not guessed
     return match_lookup_value(value, BOOLEAN_VALUES)
+
+
+def find_similar_values(text: str, values: Sequence[str], size: int | None) -> list[str]:
+    """Return the `size` values most like the text (the whole list if it is that small).
+
+    Uses the same similarity as the duplicate check: difflib on the normalized text. Ties are
+    broken by the value, so the shortlist is the same on every run. `size` None gives them all.
+    """
+    if size is None or len(values) <= size:
+        return list(values)
+    normalized = normalize_for_match(text)
+    scored = [
+        (SequenceMatcher(None, normalized, normalize_for_match(value)).ratio(), value)
+        for value in values
+    ]
+    scored.sort(key=lambda pair: (-pair[0], pair[1]))
+    return [value for _, value in scored[:size]]

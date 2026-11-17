@@ -216,7 +216,7 @@ Per field, in this order; for a conflicting field, per alternative:
 - Code checks each suggested name: character translation applied, max length, disallowed characters, unique in the run. A failing suggestion is dropped and the reason kept.
 - **Output:** a `suggestion` on the record name field. The name stays empty until a person uses the suggestion or types a name.
 
-Matching, Naming and the plausibility review (§4.8) never fail a run. A blank model setting, a reached call limit (`MAX_MATCHING_CALLS`, `MAX_NAMING_CALLS`, `MAX_PLAUSIBILITY_CALLS`) or a call that fails after its retry adds a run-level `_SKIPPED` warning, and the run continues.
+Matching, Naming and the plausibility review (§4.8) never fail a run. Their results are cached in the review database (`matching_cache`, `naming_cache`, `plausibility_cache`; keyed by the values, business rules version, prompt version and model). Settings: `MATCHING_MODEL`, `NAMING_MODEL`, `PLAUSIBILITY_MODEL`, `MAX_MATCHING_CALLS`, `MAX_NAMING_CALLS`, `MAX_PLAUSIBILITY_CALLS`, `MATCHING_SHORTLIST_SIZE`; all may be blank. A run captures a blank model as blank. A blank model setting, a reached call limit (`MAX_MATCHING_CALLS`, `MAX_NAMING_CALLS`, `MAX_PLAUSIBILITY_CALLS`) or a call that fails after its retry adds a run-level `_SKIPPED` warning, and the run continues.
 
 #### 4.7d Assembly (code)
 1. Closes conflicts whose alternatives are identical after normalization, with a note.

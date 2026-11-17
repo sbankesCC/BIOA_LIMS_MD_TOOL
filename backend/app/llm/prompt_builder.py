@@ -16,6 +16,9 @@ from app.config.extraction_rules import ExtractionRules
 from app.config.prompts import HTML_COMMENT_PATTERN, PLACEHOLDER_PATTERN, PromptTemplate
 from app.contracts.chunk import Chunk
 from app.contracts.extraction import ExcludedItem
+from app.contracts.matching import MatchingItem
+from app.contracts.naming import NamingRecord
+from app.contracts.plausibility import PlausibilityRecord
 from app.contracts.record import StoredRecord
 from app.contracts.reference import ReferenceType
 from app.llm.client import ImagePart, PromptPart, TextPart
@@ -244,4 +247,31 @@ def format_candidates(candidates: Sequence[ReferenceType]) -> str:
         json.dumps(candidate.model_dump(mode="json", exclude_none=True), ensure_ascii=False)
         for candidate in candidates
     ]
+    return "\n".join(lines) or NOTHING_TEXT
+
+
+def format_matching_items(items: Sequence[MatchingItem]) -> str:
+    """Return each Matching item as one JSON line: ID, field column, value, quote, shortlist."""
+    lines = [json.dumps(item.model_dump(mode="json"), ensure_ascii=False) for item in items]
+    return "\n".join(lines) or NOTHING_TEXT
+
+
+def format_naming_records(records: Sequence[NamingRecord], business_rules: BusinessRules) -> str:
+    """Return each record to name as one JSON line, with column names for its values."""
+    columns = {field.key: field.column for field in business_rules.fields}
+    lines: list[str] = []
+    for record in records:
+        data = {
+            "record_id": record.record_id,
+            "name_as_written": record.name_as_written,
+            "values": {columns.get(key, key): value for key, value in record.values.items()},
+            "context": record.context,
+        }
+        lines.append(json.dumps(data, ensure_ascii=False))
+    return "\n".join(lines) or NOTHING_TEXT
+
+
+def format_plausibility_records(records: Sequence[PlausibilityRecord]) -> str:
+    """Return each record to review as one JSON line; values and fields are named by key."""
+    lines = [json.dumps(record.model_dump(mode="json"), ensure_ascii=False) for record in records]
     return "\n".join(lines) or NOTHING_TEXT

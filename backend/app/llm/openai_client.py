@@ -1,9 +1,11 @@
 """OpenAI client: sends a request through the Responses API with a strict structured-output schema.
 
 Needs OPENAI_API_KEY and the model setting of each node (EXTRACTION_MODEL, VERIFICATION_MODEL,
-DUPLICATE_JUDGE_MODEL); a blank one raises MissingSettingError naming it. OPENAI_BASE_URL points
-the client at another endpoint, such as an Azure OpenAI v1 endpoint, where the model settings
-hold deployment names. The SDK's own retries are off: `tracing.TracedCaller` retries (LLM_RETRIES).
+MATCHING_MODEL, NAMING_MODEL, PLAUSIBILITY_MODEL, DUPLICATE_JUDGE_MODEL); a blank one raises
+MissingSettingError naming it (Matching, Naming and plausibility turn that into a skipped step).
+OPENAI_BASE_URL points the client at another endpoint, such as an Azure OpenAI v1 endpoint, where
+the model settings hold deployment names. The SDK's own retries are off: `tracing.TracedCaller`
+retries (LLM_RETRIES).
 """
 
 import base64
@@ -27,6 +29,9 @@ OPENAI_PROVIDER = "openai"
 MODEL_SETTINGS: dict[LlmNode, str] = {
     "extraction": "EXTRACTION_MODEL",
     "extraction_verification": "VERIFICATION_MODEL",
+    "matching": "MATCHING_MODEL",
+    "naming": "NAMING_MODEL",
+    "plausibility": "PLAUSIBILITY_MODEL",
     "duplicate_judge": "DUPLICATE_JUDGE_MODEL",
 }
 
