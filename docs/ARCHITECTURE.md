@@ -268,6 +268,7 @@ Flow: download current workbook → edit offline in Excel → upload → checks 
 - Admin cannot remove or rename a sheet a field uses (upload rejected with the field name).
 - Upload checks: expected sheets present, header `Lookup Value`, no blank rows, no leading/trailing spaces or control characters, no case-only duplicates, max length per field, `_metadata.version_id` equals the current version (stale uploads rejected).
 - Every upload, apply and restore is logged (who, when, what changed).
+- A Matching-allowed list over 150 values that `MATCHING_SHORTLIST_SIZE` does not cut is a warning on the upload report (`MATCHING_LIST_LARGE`, it does not block) and a `matching_list_large` log line when that version is applied or restored, as at app start (§4.7b).
 
 ### 4.12 Reference data admin (on request)
 - Admin uploads an export of existing Consumable Types (`.xlsx` or `.csv`). Columns mapped by `reference_data_mapping.yaml` (defaults from the column layout of a LabVantage export). Stored as a versioned snapshot. The UI shows the date in use.

@@ -52,6 +52,7 @@ If a task seems to need one of these, explain why and let me run it.
 - Make the smallest change that solves the problem. No unrelated refactors.
 - Run the relevant tests and linters after changes. Report results honestly, including failures.
 - If a requirement is ambiguous and the choice matters, ask one focused question.
+- Live wiring: a dependency of a context object the app builds (caches, reviewers, limits, settings) has no default that a test would also use; callers state it, and a test that wants a fake passes it explicitly. Every live context factory (`make_*_context`) has a wiring test that builds it the way the app does and checks the real types, because tests that hand-build a context with fakes cannot see a live factory that forgot a real part.
 
 ### Code style (required)
 Simple, readable code beats clever code. When unsure, choose the more readable option.

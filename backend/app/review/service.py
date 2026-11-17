@@ -56,7 +56,7 @@ class ReviewContext:
     judge_prompt_version: str
     judge_call_limit: int | None
     reference: ReferenceData | None
-    plausibility: PlausibilityReviewer | None = None
+    plausibility: PlausibilityReviewer | None
 
 
 class SaveResult(BaseModel):

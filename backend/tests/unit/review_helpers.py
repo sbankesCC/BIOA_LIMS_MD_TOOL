@@ -44,6 +44,7 @@ def make_context(config: ValidationConfig, judge: FakeJudge | None = None) -> Re
         judge_prompt_version=JUDGE_PROMPT_VERSION,
         judge_call_limit=None,
         reference=EMPTY_REFERENCE,
+        plausibility=None,
     )
 
 

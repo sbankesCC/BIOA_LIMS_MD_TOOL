@@ -598,3 +598,8 @@ Every milestone does the following:
   - **"How set" is `normalized` when an extracted value differs from the value as written,** else `extracted`; a field the tool does not fill is `not filled by the tool`.
   - **A drop reason is the stored sentence, not a code:** reviewers read it as is. The `suggestions_dropped` log still counts codes.
   - **The review view and API do not show `suggestion` or `no_suggestion_reason` yet;** the API batch (M8) exposes them.
+
+### Before M8: large-list warning on upload, and live wiring (done)
+- The `matching_list_large` warning now also fires when an admin uploads a lookup workbook (a `MATCHING_LIST_LARGE` warning on the upload report; it does not block) and when a version is applied or restored (log line). `LookupListAdmin` takes the `MATCHING_SHORTLIST_SIZE` setting as a required argument.
+- Live wiring practice (CLAUDE.md §3): `ProcessingContext.step_caches` and `ReviewContext.plausibility` have no defaults any more, and `test_live_wiring.py` builds each live context through its real factory and checks the real types (database caches, the lazy plausibility reviewer, the shortlist setting).
+- Plausibility confirmed as part of Validation only: `PlausibilityAgent.review` is called from `find_plausibility_drafts`, which `validate_run` calls. It has no graph node, route or run status; it has its own model setting, trace name, cache table and call budget.

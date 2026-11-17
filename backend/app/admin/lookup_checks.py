@@ -20,6 +20,7 @@ from app.config.lookup_lists import (
     LookupMetadata,
     read_metadata,
 )
+from app.normalization.lookup_values import LARGE_LIST_SIZE, find_large_matching_lists
 from app.validation.field_checks import is_control_character
 
 # Finding codes (shown to the admin with the message; the API passes them through)
@@ -35,6 +36,7 @@ EXTRA_SPACES = "EXTRA_SPACES"
 DUPLICATE_VALUE = "DUPLICATE_VALUE"
 CASE_ONLY_DUPLICATE = "CASE_ONLY_DUPLICATE"
 TOO_LONG = "TOO_LONG"
+MATCHING_LIST_LARGE = "MATCHING_LIST_LARGE"
 
 # Which problem codes each passed check stands for (a check passes when none of them is found)
 PASSED_CHECKS: dict[str, tuple[str, ...]] = {
@@ -94,9 +96,17 @@ class LookupCheckResult(BaseModel):
 
 
 def check_lookup_upload(
-    file_name: str, content: bytes, business_rules: BusinessRules, current: LookupLists
+    file_name: str,
+    content: bytes,
+    business_rules: BusinessRules,
+    current: LookupLists,
+    shortlist_size: int | None,
 ) -> LookupCheckResult:
-    """Check an uploaded lookup workbook against the business rules and the current version."""
+    """Check an uploaded lookup workbook against the business rules and the current version.
+
+    `shortlist_size` is the MATCHING_SHORTLIST_SIZE setting: a large Matching list it does not
+    cut is reported as a warning (it does not block the upload).
+    """
     workbook = open_workbook(content)
     if workbook is None:
         problem = make_problem(
@@ -115,6 +125,9 @@ def check_lookup_upload(
     for sheet in sheets:
         findings += check_sheet(sheet, limits.get(sheet.name))
     uploaded = {sheet.name: read_sheet_values(sheet) for sheet in sheets}
+    if metadata is not None:
+        uploaded_lists = LookupLists(metadata=metadata, sheets=uploaded)
+        findings += find_large_list_warnings(business_rules, uploaded_lists, shortlist_size)
     report = build_report(
         file_name, current, metadata, findings, diff_sheets(current.sheets, uploaded)
     )
@@ -123,6 +136,22 @@ def check_lookup_upload(
     if metadata is not None and not report.has_problems():
         lookup_lists = LookupLists(metadata=metadata, sheets=uploaded)
     return LookupCheckResult(report=report, lookup_lists=lookup_lists)
+
+
+def find_large_list_warnings(
+    business_rules: BusinessRules, lookup_lists: LookupLists, shortlist_size: int | None
+) -> list[UploadFinding]:
+    """Return a warning for each Matching-allowed list over the size threshold left whole."""
+    columns = {rule.key: rule.column for rule in business_rules.fields}
+    return [
+        make_warning(
+            MATCHING_LIST_LARGE,
+            f"The {columns[large.key]} list has {large.size} values (over {LARGE_LIST_SIZE}). "
+            "Matching sends the whole list with every item, so its cost grows with the list. "
+            "Set MATCHING_SHORTLIST_SIZE on purpose, or keep this field out of Matching.",
+        )
+        for large in find_large_matching_lists(business_rules, lookup_lists, shortlist_size)
+    ]
 
 
 def open_workbook(content: bytes) -> Workbook | None:

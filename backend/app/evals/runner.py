@@ -21,7 +21,12 @@ from app.evals.case_loader import EvalCase
 from app.evals.scoring import ActualRecord, ActualSource, collect_field_findings
 from app.evals.seeding import EvalLLMClient
 from app.graph.build import make_run_info, run_processing
-from app.graph.context import ProcessingContext, ProcessingLimits, read_processing_limits
+from app.graph.context import (
+    ProcessingContext,
+    ProcessingLimits,
+    make_memory_caches,
+    read_processing_limits,
+)
 from app.ids import IdCounter
 from app.llm.client import LLMClient
 from app.llm.fake_client import FakeLLMClient, load_fake_replies
@@ -150,6 +155,7 @@ def run_once(
         database=workspace.database,
         judge_cache=InMemoryJudgeCache(),
         limits=limits,
+        step_caches=make_memory_caches(),
     )
     error: str | None = None
     # A failing run is reported with its error; the other runs and cases go on

@@ -5,7 +5,7 @@ uses the same versions for its whole life (ARCHITECTURE §6). Limits come from t
 """
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from PIL import Image
 from pydantic import BaseModel
@@ -100,7 +100,7 @@ class ProcessingContext:
     database: ReviewDatabase
     judge_cache: JudgeCache
     limits: ProcessingLimits
-    step_caches: StepCaches = field(default_factory=make_memory_caches)
+    step_caches: StepCaches
 
 
 def capture_models(client: LLMClient) -> dict[str, str]:

@@ -5,6 +5,7 @@ seed values are read from the client config, never written here.
 """
 
 import hashlib
+import logging
 from collections.abc import Callable
 from io import BytesIO
 from pathlib import Path
@@ -20,6 +21,8 @@ from app.admin.lookup_lists import LookupListAdmin, LookupUploadResult
 from app.config.bundle import ConfigBundle
 from app.config.business_rules import FieldDefinition
 from app.config.lookup_lists import HEADER, METADATA_SHEET
+from app.logging_setup import LOGGER_NAME
+from app.normalization.lookup_values import LARGE_LIST_SIZE
 from app.storage.review_db import ReviewDatabase
 from tests.unit.review_helpers import NOW
 
@@ -34,7 +37,7 @@ WorkbookEdit = Callable[[Workbook], None]
 def admin(tmp_path: Path, bundle: ConfigBundle) -> LookupListAdmin:
     """Return a lookup admin with a new review database and storage folder."""
     database = ReviewDatabase(tmp_path / "review.sqlite")
-    return LookupListAdmin(database, tmp_path / "storage", bundle)
+    return LookupListAdmin(database, tmp_path / "storage", bundle, shortlist_size=None)
 
 
 def roomy_rule(bundle: ConfigBundle) -> FieldDefinition:
@@ -443,3 +446,65 @@ def test_download_of_a_version_names_that_version(
         "v1",
         bundle.lookup_lists.version,
     )
+
+
+# ----- Large Matching lists -----
+
+
+def matching_sheet(workbook: Workbook, bundle: ConfigBundle) -> tuple[Worksheet, str]:
+    """Return the worksheet of a Matching-allowed field, and that field's column name."""
+    rule = next(r for r in bundle.business_rules.fields if r.matching_allowed and r.lookup_sheet)
+    assert rule.lookup_sheet is not None
+    sheet = workbook[rule.lookup_sheet]
+    assert isinstance(sheet, Worksheet)
+    return sheet, rule.column
+
+
+def grow_matching_list(bundle: ConfigBundle, total: int) -> WorkbookEdit:
+    """Return an edit that makes a Matching-allowed list `total` values long (synthetic values)."""
+
+    def edit(workbook: Workbook) -> None:
+        sheet, _ = matching_sheet(workbook, bundle)
+        current = len([cell for cell in sheet["A"] if cell.value is not None]) - 1
+        append_values(sheet, *[f"Synthetic bulk {number}" for number in range(total - current)])
+
+    return edit
+
+
+def test_upload_of_a_large_matching_list_warns_without_blocking(
+    admin: LookupListAdmin, bundle: ConfigBundle
+) -> None:
+    """A Matching-allowed list over the threshold, left whole, is a warning on the upload report."""
+    result = upload_edited(admin, grow_matching_list(bundle, LARGE_LIST_SIZE + 10))
+    assert result.version is not None
+    [warning] = [w for w in result.report.warnings if w.code == "MATCHING_LIST_LARGE"]
+    column = next(r.column for r in bundle.business_rules.fields if r.matching_allowed)
+    assert str(LARGE_LIST_SIZE + 10) in warning.message
+    assert column in warning.message or "list has" in warning.message
+
+
+def test_upload_with_a_deliberate_cut_does_not_warn(tmp_path: Path, bundle: ConfigBundle) -> None:
+    """A shortlist size below the list's size is a choice, so there is no warning."""
+    database = ReviewDatabase(tmp_path / "review.sqlite")
+    admin = LookupListAdmin(database, tmp_path / "storage", bundle, shortlist_size=50)
+    result = upload_edited(admin, grow_matching_list(bundle, LARGE_LIST_SIZE + 10))
+    assert [w for w in result.report.warnings if w.code == "MATCHING_LIST_LARGE"] == []
+
+
+def test_upload_of_a_small_list_has_no_large_list_warning(
+    admin: LookupListAdmin, bundle: ConfigBundle
+) -> None:
+    """An ordinary upload (one added value) raises no large-list warning."""
+    result = upload_edited(admin, add_synthetic_value(bundle))
+    assert [w for w in result.report.warnings if w.code == "MATCHING_LIST_LARGE"] == []
+
+
+def test_applying_a_large_matching_list_logs_the_warning(
+    admin: LookupListAdmin, bundle: ConfigBundle, caplog: pytest.LogCaptureFixture
+) -> None:
+    """When the version goes live, the large list is logged with its field and size."""
+    with caplog.at_level(logging.WARNING, logger=LOGGER_NAME):
+        apply_new_version(admin, grow_matching_list(bundle, LARGE_LIST_SIZE + 10))
+    lines = [r.getMessage() for r in caplog.records if '"matching_list_large"' in r.getMessage()]
+    assert len(lines) == 1
+    assert f'"list_size": {LARGE_LIST_SIZE + 10}' in lines[0]
