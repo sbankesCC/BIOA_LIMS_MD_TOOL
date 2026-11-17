@@ -21,6 +21,16 @@ export function listRowIssues(row: ReviewRow): IssueRef[] {
   return [...recordLevel, ...fieldLevel];
 }
 
+/**
+ * Count the included records with at least one open issue of this severity (a record with
+ * both an error and a warning counts in both).
+ */
+export function countRecordsWithOpenIssue(rows: ReviewRow[], severity: "error" | "warning"): number {
+  return rows.filter(
+    (row) => row.exclusion === null && listRowIssues(row).some((ref) => ref.issue.status === "open" && ref.issue.severity === severity),
+  ).length;
+}
+
 /** Return the run-level issues as issue references. */
 export function listRunIssues(view: ReviewView): IssueRef[] {
   return view.run_issues.map((issue) => ({ issue, recordId: null, field: null }));

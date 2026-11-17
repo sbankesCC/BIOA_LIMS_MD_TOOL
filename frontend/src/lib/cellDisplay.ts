@@ -32,6 +32,10 @@ export function describeCell(cell: ReviewCell, field: RunField | null): CellDisp
   if (cell.is_placeholder) {
     return { text: cell.display_value ?? "", look: "placeholder", writtenText: null };
   }
+  // System-set values (Version, Status) are exported blank, so a blank one is not "missing"
+  if (cell.origin === "system" && isBlank(cell.value)) {
+    return { text: "", look: "placeholder", writtenText: null };
+  }
   // An unresolved conflict: how many values the documents give
   if (cell.alternatives.length > 1 && isBlank(cell.value)) {
     return { text: `${cell.alternatives.length} values`, look: "conflict", writtenText: null };

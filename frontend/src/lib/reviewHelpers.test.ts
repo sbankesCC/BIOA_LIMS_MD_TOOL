@@ -7,7 +7,7 @@ import { describeCell } from "./cellDisplay";
 import { findQuoteRange, splitIntoSegments } from "./highlight";
 import { buildChoice, findActionRule, findShortLabel, makeEmptyActionState, type ChoiceContext } from "./issueActions";
 import { rankOptions } from "./optionRanking";
-import { findNameField, findNeighbourIssue, listOpenIssues } from "./reviewIssues";
+import { countRecordsWithOpenIssue, findNameField, findNeighbourIssue, listOpenIssues } from "./reviewIssues";
 import { checkValue } from "./valueCheck";
 
 // Synthetic list values
@@ -251,6 +251,30 @@ describe("issue codes of the redesign", () => {
   it("the reviewer-choice issue has its own action and the mismatch needs the confirm view", () => {
     expect(findActionRule(makeIssue({ code: "REVIEWER_CHOICE_NEEDED" }), true).kind).toBe("choose_value");
     expect(findActionRule(makeIssue({ code: "DERIVED_VALUE_MISMATCH" }), true).kind).toBe("confirm_with_note");
+  });
+});
+
+describe("system-set cells", () => {
+  it("a blank system value shows nothing, not '(not found)'", () => {
+    const cell = makeCell({ origin: "system", extraction_status: null });
+    expect(describeCell(cell, SYNTHETIC_FIELDS[0])).toMatchObject({ text: "", look: "placeholder" });
+  });
+});
+
+describe("countRecordsWithOpenIssue", () => {
+  const error = makeIssue({ issue_id: "iss_e", severity: "error" });
+  const warning = makeIssue({ issue_id: "iss_w", severity: "warning" });
+  const rows = [
+    makeRow("rec_0001", "A", { storage: { issues: [error, makeIssue({ issue_id: "iss_e2", severity: "error" })] } }),
+    makeRow("rec_0002", "B", { storage: { issues: [warning] }, amount: { issues: [{ ...warning, issue_id: "iss_w2" }] } }),
+    makeRow("rec_0003", "C", { storage: { issues: [error, warning] } }),
+    makeRow("rec_0004", "D", { storage: { issues: [{ ...error, status: "resolved" }] } }),
+    makeRow("rec_0005", "E", { storage: { issues: [error] } }, { exclusion: { reason: "synthetic", by: "u", at: "2026-01-01T00:00:00Z" } as never }),
+  ];
+
+  it("counts each record once, however many issues it has", () => {
+    expect(countRecordsWithOpenIssue(rows, "error")).toBe(2);
+    expect(countRecordsWithOpenIssue(rows, "warning")).toBe(2);
   });
 });
 

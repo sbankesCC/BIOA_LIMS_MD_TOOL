@@ -125,7 +125,7 @@ function ReviewScreen({ run, view, fieldList, data, extensions }: ReviewScreenPr
     <main className="page review">
       <ReviewHeader run={run} lookupListsVersion={fieldList.lookup_lists_version} onRenamed={data.replaceRun} />
       <RunBanner runId={run.run_id} issues={view.run_issues} onReviewIssue={openRunIssue} />
-      <SummaryStrip counts={view.counts} filter={filter} onFilter={setFilter} />
+      <SummaryStrip counts={view.counts} rows={view.rows} filter={filter} onFilter={setFilter} />
       <PendingNote session={session} />
       {data.errorMessage !== null && <ErrorMessage message={data.errorMessage} />}
       <div className={selection !== null ? "review__body review__body--with-panel" : "review__body"}>

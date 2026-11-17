@@ -196,6 +196,8 @@ describe("Resolution panel", () => {
     expect(body.changes[0]).toMatchObject({ type: "set_value", record_id: "rec_0001", field: "storage", value: "Fridge 2-8", reason: null });
     expect(String(body.changes[0].change_id)).toMatch(/^chg_[0-9a-f]{32}$/);
     expect(Number.isNaN(Date.parse(body.timestamp))).toBe(false);
+    // The save re-checks at once, so the row shows the new value without leaving the record
+    await waitFor(() => expect(findPosts(calls, "/runs/run_0001/recheck")).toHaveLength(1));
   });
 
   it("moving to another record re-checks the run and reloads the view", async () => {

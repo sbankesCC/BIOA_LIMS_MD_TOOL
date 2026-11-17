@@ -1,19 +1,20 @@
-// The summary strip (UI_SPEC §4.3): records, issues to fix, warnings and excluded records,
+// The summary strip (UI_SPEC §4.3): records, records to fix, records with warnings and excluded records,
 // and the grid filters All / Needs action / Excluded.
-import type { ReviewCounts } from "../../api/types";
-import type { RowFilter } from "../../lib/reviewIssues";
+import type { ReviewCounts, ReviewRow } from "../../api/types";
+import { countRecordsWithOpenIssue, type RowFilter } from "../../lib/reviewIssues";
 import { Icon } from "../Icon";
 import "./SummaryStrip.css";
 
 /** Props of the strip: the counts, the current filter and what picking a filter does. */
 interface SummaryStripProps {
   counts: ReviewCounts;
+  rows: ReviewRow[];
   filter: RowFilter;
   onFilter: (filter: RowFilter) => void;
 }
 
 /** Show the counts and the filter buttons. */
-export function SummaryStrip({ counts, filter, onFilter }: SummaryStripProps) {
+export function SummaryStrip({ counts, rows, filter, onFilter }: SummaryStripProps) {
   // Each filter button: its value, its word and how many records it shows
   const filters: [RowFilter, string, number][] = [
     ["all", "All", counts.records],
@@ -24,8 +25,8 @@ export function SummaryStrip({ counts, filter, onFilter }: SummaryStripProps) {
     <section className="summary-strip card" aria-label="Summary">
       <dl className="summary-strip__counts">
         <Count label="Records" value={counts.records} />
-        <Count label="To fix" value={counts.open_errors} tone="red" />
-        <Count label="Warnings" value={counts.open_warnings} tone="amber" />
+        <Count label="Records to fix" value={countRecordsWithOpenIssue(rows, "error")} tone="red" />
+        <Count label="Records with warnings" value={countRecordsWithOpenIssue(rows, "warning")} tone="amber" />
         <Count label="Excluded" value={counts.excluded} />
       </dl>
       <div className="summary-strip__filters" role="group" aria-label="Show records">

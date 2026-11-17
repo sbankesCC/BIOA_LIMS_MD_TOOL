@@ -138,6 +138,9 @@ def test_review_view_returns_the_suggestion_and_use_suggestion_sets_the_value(
         assert api.client.post(f"/runs/{RUN_ID}/recheck").status_code == 200
         after = cell_of(api.client.get(f"/runs/{RUN_ID}/records").json(), "rec_0001", field.key)
     assert (after["value"], after["origin"]) == (choice, "from_suggestion")
+    # The row is no longer red: the cell has no open issue
+    assert after["color"] != "red"
+    assert [i for i in after["issues"] if i["status"] == "open"] == []
 
 
 def test_review_view_says_why_there_is_no_suggestion(
@@ -165,6 +168,25 @@ def test_issue_summary_returns_the_choices_of_a_reviewer_choice_issue(
     [issue] = [i for i in cell["issues"] if i["code"] == "REVIEWER_CHOICE_NEEDED"]
     assert issue["choices"] == choices
     assert issue["individual_review"] is True
+
+
+def test_choosing_a_value_shows_it_and_clears_the_issue_after_recheck(
+    tmp_path: Path, bundle: ConfigBundle, synthetic_documents: dict[str, Path]
+) -> None:
+    """Picking one of the offered values and re-checking sets the value and closes the issue."""
+    field, wording, choices = reviewer_choice_row(bundle)
+    fake = replies(bundle, {field.key: wording}, None)
+    with open_api(make_settings(tmp_path), fake) as api:
+        api.start_run([read_file(synthetic_documents, WORD_FILE)])
+        change = {"type": "set_value", "change_id": "chg_0001", "record_id": "rec_0001"}
+        pick = change | {"field": field.key, "value": choices[0], "reason": None}
+        assert api.post_changes(RUN_ID, [pick]).status_code == 200
+        assert api.client.post(f"/runs/{RUN_ID}/recheck").status_code == 200
+        view = api.client.get(f"/runs/{RUN_ID}/records").json()
+    cell = cell_of(view, "rec_0001", field.key)
+    assert cell["value"] == choices[0]
+    assert [i for i in cell["issues"] if i["status"] == "open"] == []
+    assert cell["color"] != "red"
 
 
 # ----- The run -----
