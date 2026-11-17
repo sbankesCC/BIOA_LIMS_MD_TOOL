@@ -14,6 +14,7 @@ from openpyxl import load_workbook
 from app.config.bundle import ConfigBundle
 from app.main import create_app
 from app.normalization.lookup_matching import BOOLEAN_VALUES
+from app.normalization.lookup_values import ALL_STEPS, find_allowed_values
 from app.storage.review_db import ReviewDatabase
 from app.storage.run_store import RunStore
 from tests.fixtures.fake_llm import TABLE_CHUNK_ID
@@ -122,9 +123,13 @@ def test_run_fields_follow_the_business_rules_and_the_run_lookup_version(
     old_field = next(field for field in old_run["fields"] if field["key"] == list_rule.key)
     new_field = next(field for field in new_run["fields"] if field["key"] == list_rule.key)
     assert old_run["lookup_lists_version"] == bundle.lookup_lists.version
-    assert old_field["allowed_values"] == bundle.lookup_lists.sheets[sheet]
+    # Values excluded from every step are not offered (see the M8 tests for that rule)
+    expected_old = find_allowed_values(
+        list_rule, bundle.business_rules, bundle.lookup_lists, ALL_STEPS
+    )
+    assert old_field["allowed_values"] == expected_old
     assert new_run["lookup_lists_version"] == "v1"
-    assert new_field["allowed_values"] == [*bundle.lookup_lists.sheets[sheet], ADDED_LOOKUP_VALUE]
+    assert new_field["allowed_values"] == [*expected_old, ADDED_LOOKUP_VALUE]
 
 
 def test_run_fields_give_boolean_values_and_none_for_free_fields(

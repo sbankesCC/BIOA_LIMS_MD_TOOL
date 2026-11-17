@@ -20,6 +20,7 @@ from app.contracts.record import (
     Origin,
     StoredField,
     StoredRecord,
+    Suggestion,
     find_initial_origin,
 )
 from app.storage.run_store import DocumentInfo
@@ -75,6 +76,7 @@ class IssueSummary(BaseModel):
     `note_required`: accepting it needs a note (catalogue). `sources`: the chunks the issue's
     finding cites (e.g. missed candidates, challenged excluded items), only chunks of the run.
     `duplicate_candidates`: the existing types a duplicate issue names (`details.candidates`).
+    `choices`: the list values a "Reviewer chooses" issue offers (`details.choices`).
     """
 
     issue_id: str
@@ -86,10 +88,15 @@ class IssueSummary(BaseModel):
     note_required: bool
     sources: list[SourceLocation]
     duplicate_candidates: list[DuplicateCandidate]
+    choices: list[str]
 
 
 class ReviewCell(BaseModel):
-    """One field of one record in the grid."""
+    """One field of one record in the grid.
+
+    `suggestion` is what Matching or Naming proposes (never applied until a person uses it);
+    without one, `no_suggestion_reason` says why, when known.
+    """
 
     field: str
     column: str
@@ -103,6 +110,8 @@ class ReviewCell(BaseModel):
     issues: list[IssueSummary]
     sources: list[CellSource]
     alternatives: list[CellAlternative]
+    suggestion: Suggestion | None
+    no_suggestion_reason: str | None
 
 
 class ReviewRow(BaseModel):
@@ -241,6 +250,8 @@ def build_cell(
         issues=[summarize_issue(issue, locator) for issue in field_issues],
         sources=locator.locate_evidence(extraction.evidence) if extraction is not None else [],
         alternatives=build_alternatives(rule, stored, locator),
+        suggestion=stored.suggestion if stored is not None else None,
+        no_suggestion_reason=stored.no_suggestion_reason if stored is not None else None,
     )
 
 
@@ -294,7 +305,16 @@ def summarize_issue(issue: Issue, locator: SourceLocator) -> IssueSummary:
         note_required=issue.note_required,
         sources=locator.locate_known(read_source_ids(issue)),
         duplicate_candidates=read_duplicate_candidates(issue),
+        choices=read_choices(issue),
     )
+
+
+def read_choices(issue: Issue) -> list[str]:
+    """Return the list values in an issue's `details.choices`, or none."""
+    choices = issue.details.get("choices")
+    if not isinstance(choices, list):
+        return []
+    return [choice for choice in choices if isinstance(choice, str)]
 
 
 def read_source_ids(issue: Issue) -> list[str]:

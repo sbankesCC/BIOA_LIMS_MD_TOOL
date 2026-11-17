@@ -21,6 +21,7 @@ from app.contracts.changes import (
 from app.contracts.issue import Issue
 from app.contracts.record import StoredRecord
 from app.normalization.lookup_matching import BOOLEAN_VALUES
+from app.normalization.lookup_values import ALL_STEPS, find_allowed_values
 from app.review.errors import ChangeRejectedError
 from app.review.state import ReviewState, has_open_field_issue
 from app.validation.service import ValidationConfig
@@ -98,7 +99,8 @@ def check_list_value(rule: FieldDefinition, value: str, config: ValidationConfig
     """Reject a list or Y/N field value that is not one of the allowed values."""
     allowed: Sequence[str] | None = None
     if rule.lookup_sheet is not None:
-        allowed = config.lookup_lists.sheets.get(rule.lookup_sheet, [])
+        # Values excluded from every step (for example DNU_ ones) are never allowed
+        allowed = find_allowed_values(rule, config.business_rules, config.lookup_lists, ALL_STEPS)
     elif rule.type == "boolean":
         allowed = BOOLEAN_VALUES
     if allowed is not None and value not in allowed:
