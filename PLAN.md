@@ -549,3 +549,18 @@ Every milestone does the following:
   - **No row matched in a derivation table leaves the field blank without a note** when an input is itself empty (the input already carries the issue). Only the Class table's `(blank, with an issue)` row and Critical with no heading raise `DERIVED_VALUE_MISSING`, following the open question on Critical.
   - **`Status` is both a loader column and a table's bookkeeping column;** derivation tables skip it as an input.
   - **Excluded values with scope "Matching"** are only removed for the Matching step; `find_allowed_values(..., step)` takes the step name, ready for M6.
+
+### M5: Validation (done; awaiting review)
+- `issue_catalogue.yaml` 0.8: added `VALUE_UNCLEAR`, `NAME_NOT_SET`, `REVIEWER_CHOICE_NEEDED`, `NOT_A_CONCENTRATION`, `DERIVED_VALUE_MISSING`, `DERIVED_VALUE_MISMATCH`, `CONFLICT_CLOSED`, `PLAUSIBILITY_CHECK` (field level) and `MATCHING_SKIPPED`, `NAMING_SKIPPED`, `PLAUSIBILITY_SKIPPED` (run level); removed `OR_EQUIVALENT`; `CONFLICT_UNRESOLVED` stays an error. The placeholder list gained `warning`, `choices`, `derived`, `check_id`, `reason`.
+- `findings_to_issues.py`: every Normalization and Assembly note becomes an issue (`REVIEWER_CHOICE_NEEDED` carries `details.choices`); `unclear` gives `VALUE_UNCLEAR`; context findings are raised on the `Drives` field; `NOT_IN_LOOKUP` carries the suggestion (from a note or the field check).
+- New `validation/names.py` (`NAME_NOT_SET` with the suggestion; it replaces `REQUIRED_MISSING` on the name) and `validation/derived_check.py` (8.5). In-run duplicates still use set names only.
+- `duplicates.py`: the reference check uses the suggested name while the name is not set; the judge also gets `name_as_written`; the shortlist adds existing types with the same catalog number (`ReferenceType.catalog_no`).
+- Tests: 726 passed, 1 skipped; ruff clean. pyright not run (Node.js is not on PATH).
+- Decisions the docs did not cover:
+  - **Derived fields are now editable in review** (`find_editable_rule`). CC-06 says the reviewer sets the class when no vendor is given, and `DERIVED_VALUE_MISMATCH` only makes sense if a person can set a derived field. This was not in the M7 plan; the review service is otherwise untouched.
+  - **A blank that a note explains** (`NOT_IN_LOOKUP`, `REVIEWER_CHOICE_NEEDED`, `NOT_A_CONCENTRATION`, `DERIVED_VALUE_MISSING`) no longer also raises `OPTIONAL_NOT_FOUND` or `REQUIRED_MISSING`, because the value was found, not missing.
+  - **Derived fields get only their note issues** (a derivation that could not run); the field checks still skip them. Only Class and Critical raise `DERIVED_VALUE_MISSING` on a blank run; Approval Type and Worksheet Template stay silent on purpose, since their input already has the issue.
+  - **The reference-check issues are keyed by the name as set** (None while unset), so they keep their ID when a new suggestion arrives.
+  - **The catalog-number shortlist is built but dormant:** the mapping needs the export's catalog column name (unknown) and `rules.catalog_number_field`. Both are commented in `reference_data_mapping.yaml`. A startup check requires the field key to exist.
+  - **`name_as_written` is the name field's extracted value,** put in the judge's `values` (so it is part of the cache key) only when it differs from the name checked.
+  - **`PLAUSIBILITY_CHECK` and the three `_SKIPPED` codes** are in the catalogue but raised in M6; the code-coverage test lists them as raised elsewhere until then.

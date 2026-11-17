@@ -238,7 +238,7 @@ Your "validation" step: reads and categorizes warnings, applies the business rul
   - Exact name match: red (`EXISTS_IN_LABVANTAGE`).
   - Normalized match (case, spacing, unit spelling): yellow (`POSSIBLE_DUPLICATE`).
   - Code shortlists up to 10 similar existing types, plus any with the same catalog number. While the name is not set, the suggested name and the name as written are used; the LLM judge decides same / different / unsure: yellow when same or unsure. At most `MAX_DUPLICATE_JUDGE_CALLS` per run; beyond that, run-level yellow `DUPLICATE_CHECK_SKIPPED`.
-- Derived-value check: a derived field set by a person that differs from its derivation gives yellow `DERIVED_VALUE_MISMATCH`.
+- Derived-value check: a derived field set by a person that differs from its derivation gives yellow `DERIVED_VALUE_MISMATCH`. A person may set a derived field (CC-06: no vendor means the reviewer sets the class), so derived fields are editable in review.
 - Plausibility review (LLM): only when `business_rules.md` has an active `[Plausibility]` check; only on values that passed the field checks; a finding under an unknown check ID is dropped. Findings are yellow `PLAUSIBILITY_CHECK`. Cached per record.
 - Computes each record's Action needed (Fix / Check / None / Excluded).
 - **Output:** issues and record status. Never changes values.

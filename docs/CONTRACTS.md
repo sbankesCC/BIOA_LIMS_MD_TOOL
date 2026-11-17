@@ -176,7 +176,7 @@ Citation check result (code, per field and context attribute): `verified`, `not_
 
 ## 3a. Duplicate judge output (LLM)
 
-Called once per new record with a shortlist of existing Consumable Types: up to 10 with similar names (`shortlist_size`), plus any with the same catalog number (code builds the shortlist; exact name matches are handled by code as `EXISTS_IN_LABVANTAGE`). The record holds the fields flagged "Sent to duplicate judge" in `business_rules.md`. While the name is not set, the record's name is the Naming suggestion, and the name as written is also given.
+Called once per new record with a shortlist of existing Consumable Types: up to 10 with similar names (`shortlist_size`), plus any with the same catalog number (code builds the shortlist; exact name matches are handled by code as `EXISTS_IN_LABVANTAGE`). The record holds the fields flagged "Sent to duplicate judge" in `business_rules.md`. While the name is not set, the record's name is the Naming suggestion, and the name as written (the name field's extracted value) is also given under `name_as_written` when it differs.
 
 ```json
 {
@@ -486,7 +486,7 @@ evals/cases/<case_id>/
 | `lookup_lists.xlsx` | One sheet per lookup field (sheet name = DFD column name), column A header `Lookup Value`, text cells. `_Instructions` (visible) and `_metadata` (hidden: `version_id`, `based_on_version`, `exported_at`, `exported_by`). Sheets starting with `_` are reserved and ignored |
 | `extraction_rules.md` | Markdown, read by code (see below) |
 | `export_template.md` | Markdown, read by code (see below) |
-| `reference_data_mapping.yaml` | Column mapping and duplicate-check settings |
+| `reference_data_mapping.yaml` | Column mapping and duplicate-check settings. The optional `catalog_no` column and `rules.catalog_number_field` (a field key) switch on the catalog-number shortlist; both are needed, and the startup check requires the key to be a field |
 | `prompts/*.md` | First line: `prompt`, `version`, `status`; placeholders in `{braces}` |
 | `env.example` | Deployment settings; secrets only in the environment |
 

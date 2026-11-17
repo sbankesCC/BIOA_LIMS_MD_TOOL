@@ -16,7 +16,7 @@
 #   changes or marks it not found, one at a time. Open ones block the verified label.
 # note_required: true means accepting it needs a short note saying how it was handled.
 
-version: "0.7"
+version: "0.8"
 
 record_issues:
 
@@ -30,9 +30,6 @@ record_issues:
   PAIR_INCOMPLETE:
     severity: error
     message: "Expected Amount and Expected Amount Unit must both be filled in."
-  OR_EQUIVALENT:
-    severity: warning
-    message: "The document allows an equivalent product. Confirm which product is used."
   NOT_IN_LOOKUP:
     severity: error
     message: "'{value}' is not in the {field} list. Choose a value from the list."
@@ -60,6 +57,12 @@ record_issues:
   VALUE_INCOMPLETE:
     severity: error
     message: "The {field} value may be cut short. Open the source and enter the whole value."
+  NAME_NOT_SET:
+    severity: error
+    message: "The Consumable Type name is not set. Use the suggested name or type one."
+  DERIVED_VALUE_MISSING:
+    severity: error
+    message: "{field} could not be worked out because a value it depends on is missing. Enter {field}."
 
   # ----- Yellow -----
   UNSUPPORTED_BY_SOURCE:
@@ -70,6 +73,26 @@ record_issues:
     severity: warning
     individual_review: true
     message: "The value or quote for {field} could not be found word for word in the cited document."
+  VALUE_UNCLEAR:
+    severity: warning
+    individual_review: true
+    message: "The documents are unclear for {field}: {warning} Open the source and confirm the value."
+  REVIEWER_CHOICE_NEEDED:
+    severity: warning
+    individual_review: true
+    message: "'{original}' does not give one {field} value. Choose one of: {choices}."
+  NOT_A_CONCENTRATION:
+    severity: warning
+    message: "'{original}' is not a concentration (a number with a unit), so {field} was left blank."
+  DERIVED_VALUE_MISMATCH:
+    severity: warning
+    individual_review: true
+    note_required: true
+    message: "{field} was set by hand and differs from the derived value '{derived}'. Confirm it and note why."
+  PLAUSIBILITY_CHECK:
+    severity: warning
+    individual_review: true
+    message: "Check {check_id}: {reason}"
   VALUE_PRESENT_MISSED:
     severity: warning
     message: "{field} may be in the documents but was not extracted."
@@ -102,6 +125,9 @@ record_issues:
     message: "Re-extraction did not return this record. Check it, or exclude it."
 
   # ----- Grey -----
+  CONFLICT_CLOSED:
+    severity: info
+    message: "The documents gave {field} in different forms ({original}); they match, so '{value}' was used."
   OPTIONAL_NOT_FOUND:
     severity: info
     message: "{field} was not found in the documents. It can stay blank."
@@ -150,6 +176,15 @@ run_issues:
   EXTRACTION_FAILED:
     severity: error
     message: "The extraction could not be completed. Retry the run; if it fails again, contact support."
+  MATCHING_SKIPPED:
+    severity: warning
+    message: "List matching was skipped, so no list values are suggested. Choose list values by hand."
+  NAMING_SKIPPED:
+    severity: warning
+    message: "Name suggestions were skipped. Type the Consumable Type names by hand."
+  PLAUSIBILITY_SKIPPED:
+    severity: warning
+    message: "The plausibility review was skipped. Check the values yourself."
   PROCESSING_INTERRUPTED:
     severity: error
     message: "Processing stopped before it finished (the app was restarted). Retry the run."

@@ -53,6 +53,11 @@ CODES_RAISED_ELSEWHERE = {
     "NO_READABLE_DOCUMENTS",
     "EXTRACTION_FAILED",
     "PROCESSING_INTERRUPTED",
+    # Model steps: raised by Matching, Naming and the plausibility review (M6)
+    "MATCHING_SKIPPED",
+    "NAMING_SKIPPED",
+    "PLAUSIBILITY_SKIPPED",
+    "PLAUSIBILITY_CHECK",
 }
 
 EVIDENCE = Evidence(chunk_id="doc01-c001", quote="synthetic quote")
@@ -66,7 +71,11 @@ def test_every_catalogue_code_is_raised_somewhere(bundle: ConfigBundle) -> None:
 
 def test_missing_required_field_is_red(bundle: ConfigBundle) -> None:
     """An empty required field gives REQUIRED_MISSING, an error."""
-    rule = find_rule(bundle.business_rules, lambda rule: rule.requirement == "required")
+    # The record name has its own issue (NAME_NOT_SET), so another required field is used
+    rule = find_rule(
+        bundle.business_rules,
+        lambda rule: rule.requirement == "required" and not rule.is_record_name,
+    )
     result = run_validation(bundle, [set_output(make_record(bundle), rule.key, None)])
     [issue] = issues_with_code(result, codes.REQUIRED_MISSING)
     assert (issue.field, issue.severity) == (rule.key, "error")

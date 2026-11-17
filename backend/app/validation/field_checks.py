@@ -7,13 +7,24 @@ Every rule comes from `business_rules.md` and the run's lookup lists. Only field
 import re
 import unicodedata
 
+from pydantic import JsonValue
+
 from app.config.business_rules import DisallowedCharacters, FieldDefinition
 from app.config.lookup_lists import LookupLists
-from app.contracts.record import StoredField
+from app.contracts.record import StoredField, Suggestion
 from app.normalization.lookup_matching import BOOLEAN_VALUES
+from app.normalization.notes import find_transform_notes
 from app.normalization.numbers import PLAIN_NUMBER
 from app.validation import codes
 from app.validation.issues import IssueDraft
+
+# Notes that explain why a value is blank: the value was found, but could not be used as it is
+BLANK_EXPLAINING_CODES = (
+    codes.NOT_IN_LOOKUP,
+    codes.REVIEWER_CHOICE_NEEDED,
+    codes.NOT_A_CONCENTRATION,
+    codes.DERIVED_VALUE_MISSING,
+)
 
 # A whole number for integer fields: optional sign, digits only
 PLAIN_INTEGER = re.compile(r"[-+]?\d+")
@@ -37,7 +48,7 @@ def check_field(
     value = stored.output.value
     if value is None or value == "":
         return check_empty_field(record_id, rule, stored)
-    return check_filled_value(record_id, rule, value, lookup_lists)
+    return check_filled_value(record_id, rule, value, lookup_lists, stored.suggestion)
 
 
 def check_empty_field(
@@ -56,6 +67,9 @@ def find_empty_field_code(rule: FieldDefinition, stored: StoredField) -> str | N
     extraction = stored.extraction
     if extraction is not None and extraction.status == "conflicting":
         return codes.CONFLICT_UNRESOLVED
+    # The name has its own issue (NAME_NOT_SET); a blank a note explains is not "not found"
+    if rule.is_record_name or is_blank_explained(stored):
+        return None
     if rule.requirement == "required":
         return codes.REQUIRED_MISSING
     # Conditional fields are checked by their condition groups instead
@@ -64,8 +78,18 @@ def find_empty_field_code(rule: FieldDefinition, stored: StoredField) -> str | N
     return None
 
 
+def is_blank_explained(stored: StoredField) -> bool:
+    """Return True if a coded note says why the value is blank (not that it was not found)."""
+    notes = find_transform_notes(stored.output.changes)
+    return any(note.code in BLANK_EXPLAINING_CODES for note in notes)
+
+
 def check_filled_value(
-    record_id: str, rule: FieldDefinition, value: str, lookup_lists: LookupLists
+    record_id: str,
+    rule: FieldDefinition,
+    value: str,
+    lookup_lists: LookupLists,
+    suggestion: Suggestion | None = None,
 ) -> list[IssueDraft]:
     """Return every rule a filled value breaks: list, type, length and characters."""
     found_codes: list[str] = []
@@ -91,9 +115,17 @@ def check_filled_value(
             field=rule.key,
             value=value,
             message_values=message_values if code == codes.TOO_LONG else {},
+            details=find_suggestion_details(code, suggestion),
         )
         for code in found_codes
     ]
+
+
+def find_suggestion_details(code: str, suggestion: Suggestion | None) -> dict[str, JsonValue]:
+    """Return the suggestion NOT_IN_LOOKUP carries (CONTRACTS §6), else no details."""
+    if code != codes.NOT_IN_LOOKUP or suggestion is None:
+        return {}
+    return {"suggestion": suggestion.model_dump(mode="json")}
 
 
 def is_right_type(rule: FieldDefinition, value: str) -> bool:

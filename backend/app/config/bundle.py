@@ -37,7 +37,11 @@ from app.config.issue_catalogue import IssueCatalogue, load_issue_catalogue
 from app.config.lookup_lists import LookupLists, load_lookup_lists
 from app.config.prompts import FOLDER_NAME as PROMPTS_FOLDER
 from app.config.prompts import PromptTemplate, load_prompts
-from app.config.reference_mapping import ReferenceMapping, load_reference_mapping
+from app.config.reference_mapping import (
+    ReferenceMapping,
+    find_mapping_problems,
+    load_reference_mapping,
+)
 
 
 class ConfigVersions(BaseModel):
@@ -103,6 +107,7 @@ def load_config_bundle(config_dir: Path) -> ConfigBundle:
         + find_lookup_value_problems(rules, bundle.lookup_lists)
         + find_issue_code_problems(rules, bundle.issue_catalogue)
         + find_derivation_problems(rules)
+        + find_mapping_problems(bundle.reference_mapping, [field.key for field in rules.fields])
     )
     if problems:
         raise ConfigError(problems)

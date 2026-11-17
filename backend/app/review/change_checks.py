@@ -61,9 +61,12 @@ def find_record(state: ReviewState, record_id: str) -> StoredRecord:
 
 
 def find_editable_rule(config: ValidationConfig, field: str) -> FieldDefinition:
-    """Return the rule of a field the user may change: an extracted field of the config."""
+    """Return the rule of a field the user may change: an extracted or derived field.
+
+    A person sets a derived field when its derivation cannot run (CC-06) or to correct it.
+    """
     for rule in config.business_rules.fields:
-        if rule.key == field and rule.is_extracted:
+        if rule.key == field and (rule.is_extracted or rule.role == "derived"):
             return rule
     raise ChangeRejectedError(
         f"The field '{field}' cannot be changed in the tool. Choose another field."

@@ -22,17 +22,21 @@ from app.contracts.verification import VerificationOutput
 from app.validation import codes
 from app.validation.action_needed import compute_action_needed
 from app.validation.conditions import check_conditions
+from app.validation.derived_check import check_derived_values
 from app.validation.duplicates import check_reference, find_name_rule, find_run_duplicates
 from app.validation.field_checks import check_field, is_checked_field
 from app.validation.findings_to_issues import (
+    find_context_finding_issues,
     find_field_finding_issues,
     find_record_finding_issues,
     find_run_finding_issues,
+    find_transform_note_issues,
     find_unreported_conflict_issues,
 )
 from app.validation.issues import IssueDraft, make_issue
 from app.validation.judge_cache import JudgeRunner
 from app.validation.lifecycle import merge_issues
+from app.validation.names import check_name
 
 
 class ValidationConfig(BaseModel):
@@ -120,11 +124,20 @@ def find_field_drafts(record: StoredRecord, config: ValidationConfig) -> list[Is
     drafts: list[IssueDraft] = []
     for rule in config.business_rules.fields:
         stored = record.fields.get(rule.key)
+        if stored is None:
+            continue
+        # Derived fields get only their notes (a derivation that could not run)
+        if rule.role == "derived":
+            drafts += find_transform_note_issues(record.record_id, rule, stored)
+            continue
         # Fields the tool does not fill (blank_for_now, system) are not validated
-        if stored is None or not is_checked_field(rule):
+        if not is_checked_field(rule):
             continue
         drafts += check_field(record.record_id, rule, stored, config.lookup_lists)
         drafts += find_field_finding_issues(record.record_id, rule, stored)
+    drafts += find_context_finding_issues(record, config.business_rules)
+    drafts += check_name(record, find_name_rule(config.business_rules))
+    drafts += check_derived_values(record, config.business_rules)
     return drafts
 
 

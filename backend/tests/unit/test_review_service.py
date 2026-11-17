@@ -267,13 +267,13 @@ def test_used_suggestion_is_undone_with_its_bulk_action(
     assert (output.value, output.origin) == (None, "extracted")
 
 
-def test_use_suggestion_on_a_field_that_is_not_extracted_is_rejected(
+def test_use_suggestion_on_a_derived_field_is_rejected(
     tmp_path: Path, bundle: ConfigBundle, config: ValidationConfig, context: ReviewContext
 ) -> None:
-    """Derived fields are set by Assembly, not by a suggestion, so the change is rejected."""
+    """A derived field never has a suggestion (Matching and Naming skip it), so use is rejected."""
     derived_key = config.business_rules.derived_fields()[0].key
     database = start_review(tmp_path, bundle, context, [make_record(bundle)])
-    with pytest.raises(ChangeRejectedError, match="cannot be changed in the tool"):
+    with pytest.raises(ChangeRejectedError, match="has no suggestion to use"):
         save(database, context, use_suggestion("chg_0001", derived_key))
 
 
