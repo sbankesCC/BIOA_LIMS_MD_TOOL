@@ -151,9 +151,10 @@ def find_transform_note_issues(
             for name, text in (("original", note.original), ("value", note.value))
             if text is not None
         }
+        # The choices a "Reviewer chooses" row offers are read from the typed list, not from details
+        if note.code == codes.REVIEWER_CHOICE_NEEDED and stored.normalization is not None:
+            message_values["choices"] = ITEM_SEPARATOR.join(stored.normalization.choices)
         details = find_note_details(note.code, stored)
-        if "choices" in details:
-            message_values["choices"] = ITEM_SEPARATOR.join(map(str, details["choices"] or []))
         drafts.append(
             IssueDraft(
                 code=note.code,
