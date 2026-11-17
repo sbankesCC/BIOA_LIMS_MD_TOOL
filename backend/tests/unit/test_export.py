@@ -226,6 +226,21 @@ def test_text_starting_with_equals_is_not_a_formula(
     assert (cell.value, cell.data_type) == ("=1+1", "s")
 
 
+def test_control_characters_are_removed_so_the_export_does_not_crash(
+    tmp_path: Path, bundle: ConfigBundle, context: ReviewContext, run_folder: RunFolder
+) -> None:
+    """A control character in a value (as PDF text can give) is dropped; the rest is written."""
+    rule = text_rule(bundle)
+    database = start_export_run(tmp_path, bundle, context)
+    save(
+        database, context, set_value("chg_0002", rule.key, "synthetic\x1fvalue\x02", reason="edit")
+    )
+    info = export(database, bundle, context, run_folder)
+    sheet = open_sheet(run_folder.resolve_ref(info.loader_file), bundle.export_template.sheet.name)
+    cell = sheet.cell(row=2, column=bundle.export_template.headers.index(rule.column) + 1)
+    assert cell.value == "syntheticvalue"
+
+
 def test_loader_layout_comes_from_the_template(
     tmp_path: Path, bundle: ConfigBundle, context: ReviewContext, run_folder: RunFolder
 ) -> None:

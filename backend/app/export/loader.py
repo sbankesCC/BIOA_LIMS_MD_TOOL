@@ -14,7 +14,7 @@ from datetime import date
 from pathlib import Path
 
 from openpyxl import Workbook
-from openpyxl.cell.cell import Cell, MergedCell
+from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE, Cell, MergedCell
 from openpyxl.styles import Font
 from openpyxl.worksheet.worksheet import Worksheet
 
@@ -115,8 +115,19 @@ def find_cell(sheet: Worksheet, row: int, column: int) -> Cell:
     return cell
 
 
+def remove_illegal_characters(value: LoaderValue) -> LoaderValue:
+    """Return text without the control characters an Excel file cannot hold."""
+    if isinstance(value, str):
+        return ILLEGAL_CHARACTERS_RE.sub("", value)
+    return value
+
+
 def write_cell(cell: Cell, value: LoaderValue) -> None:
-    """Write a value to a cell, keeping text that starts with "=" as text, not a formula."""
-    cell.value = value
+    """Write a value to a cell, keeping text that starts with "=" as text, not a formula.
+
+    Every cell of the loader and the audit workbook goes through here, so a control character
+    (for example from PDF text) is removed at write time instead of crashing the export.
+    """
+    cell.value = remove_illegal_characters(value)
     if isinstance(value, str) and value.startswith(FORMULA_START):
         cell.data_type = TEXT_DATA_TYPE
