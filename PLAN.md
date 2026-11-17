@@ -609,3 +609,8 @@ Every milestone does the following:
 - The review view (`/runs/{id}/records`): each cell has `suggestion` and `no_suggestion_reason`; each issue summary has `choices` (a "Reviewer chooses" issue's list values). `/runs/{id}` already returned the new models and versions; `use_suggestion` was already an accepted change type. Tests cover all of these through the API with the fake LLM.
 - **`backend/openapi.json` is regenerated in the working tree but NOT committed:** it waits for review. The committed lock lags it, so `test_openapi_lock` passes in the working tree and would fail on the commit alone.
 - Note for the review: the lock file was also regenerated, one commit at a time, in M2, M3, M3b, M6 and M7, because the lock test fails as soon as a contract changes. The last schema anyone reviewed is the one at `cac95f4` (the v0.13.1 API). The review therefore covers every change since then, summarized below.
+
+### OpenAPI lock re-locked (approved)
+- The user approved the schema diff since the v0.13.1 lock (`cac95f4`); `backend/openapi.json` is committed as the new lock.
+- Before M9 starts: get Node.js on PATH, so `pyright` and the front end commands (`npm ci`, `npm run typecheck`, `npm run build`) run again. Pyright has not run since M3b.
+- M9 front end clean-up found while checking `allows_equivalent`: `frontend/src/api/generated/schema.ts` still has the old types (regenerate from the lock), and `frontend/src/lib/issueActions.ts` still maps the removed `OR_EQUIVALENT` code. The status names (`transforming`) are the other known stale spot.

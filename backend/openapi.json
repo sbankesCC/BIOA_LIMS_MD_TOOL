@@ -3562,6 +3562,12 @@
               "$ref": "#/components/schemas/DuplicateCandidate"
             },
             "type": "array"
+          },
+          "choices": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "type": "object",
@@ -3574,9 +3580,10 @@
           "individual_review",
           "note_required",
           "sources",
-          "duplicate_candidates"
+          "duplicate_candidates",
+          "choices"
         ],
-        "description": "An issue as the grid shows it (open or accepted).\n\n`note_required`: accepting it needs a note (catalogue). `sources`: the chunks the issue's\nfinding cites (e.g. missed candidates, challenged excluded items), only chunks of the run.\n`duplicate_candidates`: the existing types a duplicate issue names (`details.candidates`)."
+        "description": "An issue as the grid shows it (open or accepted).\n\n`note_required`: accepting it needs a note (catalogue). `sources`: the chunks the issue's\nfinding cites (e.g. missed candidates, challenged excluded items), only chunks of the run.\n`duplicate_candidates`: the existing types a duplicate issue names (`details.candidates`).\n`choices`: the list values a \"Reviewer chooses\" issue offers (`details.choices`)."
       },
       "JsonValue": {},
       "LookupUploadReport": {
@@ -4024,6 +4031,26 @@
               "$ref": "#/components/schemas/CellAlternative"
             },
             "type": "array"
+          },
+          "suggestion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Suggestion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "no_suggestion_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -4039,9 +4066,11 @@
           "color",
           "issues",
           "sources",
-          "alternatives"
+          "alternatives",
+          "suggestion",
+          "no_suggestion_reason"
         ],
-        "description": "One field of one record in the grid."
+        "description": "One field of one record in the grid.\n\n`suggestion` is what Matching or Naming proposes (never applied until a person uses it);\nwithout one, `no_suggestion_reason` says why, when known."
       },
       "ReviewCounts": {
         "properties": {
