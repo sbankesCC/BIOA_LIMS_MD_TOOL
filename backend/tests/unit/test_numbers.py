@@ -2,8 +2,8 @@
 
 import pytest
 
-from app.transform.notes import TransformNote
-from app.transform.numbers import read_number
+from app.normalization.notes import TransformNote
+from app.normalization.numbers import read_number
 
 
 @pytest.mark.parametrize("value", ["10", "2.50", "-20", "0"])

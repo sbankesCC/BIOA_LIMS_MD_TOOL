@@ -17,6 +17,7 @@ class ReferenceType(ContractModel):
     consumable_class: str | None = None
     active_flag: str | None = None
     version_status: str | None = None
+    catalog_no: str | None = None
 
 
 class ReferenceData(ContractModel):

@@ -11,6 +11,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from app.assembly.assemble import assemble_records
 from app.contracts.changes import Change, StoredChange
 from app.contracts.issue import Issue, IssueHistoryEntry
 from app.contracts.record import StoredRecord
@@ -24,6 +25,7 @@ from app.review.state import ReviewState, make_review_state
 from app.review.view import ReviewCounts, count_review
 from app.storage.review_db import ReviewDatabase, StoredChangeRow
 from app.validation.judge_cache import DuplicateJudge, JudgeCache, JudgeRunner
+from app.validation.plausibility_check import PlausibilityReviewer
 from app.validation.service import (
     ValidationConfig,
     ValidationResult,
@@ -41,9 +43,11 @@ ACCEPTED_ON_VERIFY_NOTE = "accepted on Verify"
 
 @dataclass(frozen=True)
 class ReviewContext:
-    """What a run is checked with: its captured config, the duplicate judge and reference data.
+    """What a run is checked with: its captured config, the model reviewers and reference data.
 
     The caller builds it from the config versions the run started with (ARCHITECTURE §6).
+    `plausibility` is the reviewer a re-check runs (None: the review is not run, and the
+    plausibility issues already found are kept).
     """
 
     config: ValidationConfig
@@ -52,6 +56,7 @@ class ReviewContext:
     judge_prompt_version: str
     judge_call_limit: int | None
     reference: ReferenceData | None
+    plausibility: PlausibilityReviewer | None
 
 
 class SaveResult(BaseModel):
@@ -165,12 +170,17 @@ def remove_verified_label(database: ReviewDatabase, run_id: str, user: str, at: 
 def recheck_run(
     database: ReviewDatabase, context: ReviewContext, run_id: str, user: str, at: datetime
 ) -> RecheckResult:
-    """Apply the pending changes in order, run the Validation service, and store the result."""
+    """Apply the pending changes, run Assembly again, run Validation, and store the result.
+
+    Assembly recomputes every derived field a person did not set, so a changed Manufacturer
+    changes Consumable Class. No model step except the cached plausibility review runs.
+    """
     started = time.monotonic()
     with database.transaction():
         require_in_review(database, run_id)
         state = load_state(database, run_id)
         applied_ids = apply_pending_changes(database, context, run_id, state, at)
+        reassemble_state(state, context)
         result = validate_state(database, context, run_id, state)
         store_validation(database, run_id, state.issue_list(), result, user, at)
     counts = count_review(result.records, result.issues)
@@ -188,6 +198,12 @@ def recheck_run(
     return RecheckResult(
         applied_change_ids=applied_ids, counts=counts, judge_calls_made=result.judge_calls_made
     )
+
+
+def reassemble_state(state: ReviewState, context: ReviewContext) -> None:
+    """Rebuild every record's output from its normalized values and the person's changes."""
+    records = assemble_records(state.record_list(), context.config.business_rules)
+    state.records = {record.record_id: record for record in records}
 
 
 def apply_pending_changes(
@@ -257,6 +273,7 @@ def validate_state(
         context.reference,
         database.read_findings(run_id),
         state.issue_list(),
+        context.plausibility,
     )
 
 

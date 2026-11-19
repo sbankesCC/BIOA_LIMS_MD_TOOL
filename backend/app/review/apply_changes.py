@@ -10,7 +10,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, JsonValue
 
-from app.config.field_rules import FieldRule
+from app.config.business_rules import FieldDefinition
 from app.contracts.changes import (
     AcceptWarningChange,
     ExcludeRecordChange,
@@ -18,13 +18,14 @@ from app.contracts.changes import (
     RestoreRecordChange,
     SetValueChange,
     UndoBulkChange,
+    UseSuggestionChange,
 )
 from app.contracts.issue import IssueHistoryEntry
 from app.contracts.record import Exclusion, FieldOutput
 from app.contracts.run import AuditEvent
+from app.normalization.normalize import normalize_value
 from app.review.state import ReviewState
 from app.storage.review_db import AppliedChange, StoredChangeRow
-from app.transform.transform import transform_value
 from app.validation.service import ValidationConfig
 
 # Audit events written by the review service
@@ -59,6 +60,8 @@ def apply_change(
         return apply_set_value(state, change, at)
     if isinstance(change, PickAlternativeChange):
         return apply_pick_alternative(state, change, config, at)
+    if isinstance(change, UseSuggestionChange):
+        return apply_use_suggestion(state, change, at)
     if isinstance(change, AcceptWarningChange):
         return apply_accept_warning(state, change, row.stored.user, at)
     if isinstance(change, ExcludeRecordChange | RestoreRecordChange):
@@ -76,24 +79,37 @@ def apply_set_value(state: ReviewState, change: SetValueChange, at: datetime) ->
 def apply_pick_alternative(
     state: ReviewState, change: PickAlternativeChange, config: ValidationConfig, at: datetime
 ) -> ApplyOutcome:
-    """Use one alternative as written, formatted by transformation like any extracted value."""
+    """Use one alternative as written, normalized like any extracted value."""
     stored = state.records[change.record_id].fields[change.field]
     alternatives = stored.extraction.alternatives if stored.extraction is not None else []
     rule = find_rule(config, change.field)
     alternative = alternatives[change.alternative_index]
-    transformed = transform_value(rule, alternative.value, config.lookup_lists)
+    normalized = normalize_value(
+        rule, alternative.value, config.business_rules, config.lookup_lists
+    )
     output = FieldOutput(
-        value=transformed.value,
+        # A value no list value matches is kept as written for the person to see
+        value=normalized.value or normalized.matching_value,
         origin="user_edited",
-        changes=transformed.changes,
+        changes=normalized.notes,
         selected_alternative=change.alternative_index,
     )
     return replace_output(state, change.change_id, change.record_id, change.field, output, at)
 
 
-def find_rule(config: ValidationConfig, field: str) -> FieldRule:
+def apply_use_suggestion(
+    state: ReviewState, change: UseSuggestionChange, at: datetime
+) -> ApplyOutcome:
+    """Set the field to its current suggestion; the value is then the person's choice."""
+    suggestion = state.records[change.record_id].fields[change.field].suggestion
+    value = suggestion.value if suggestion is not None else None
+    output = FieldOutput(value=value, origin="from_suggestion")
+    return replace_output(state, change.change_id, change.record_id, change.field, output, at)
+
+
+def find_rule(config: ValidationConfig, field: str) -> FieldDefinition:
     """Return a field's rule from the run's config."""
-    return next(rule for rule in config.field_rules.fields if rule.key == field)
+    return next(rule for rule in config.business_rules.fields if rule.key == field)
 
 
 def replace_output(
@@ -215,7 +231,7 @@ def revert_change(
 ) -> bool:
     """Put back what one change replaced, if its target still holds what it wrote."""
     change = row.stored.change
-    if isinstance(change, SetValueChange | PickAlternativeChange):
+    if isinstance(change, SetValueChange | PickAlternativeChange | UseSuggestionChange):
         return revert_output(state, change.record_id, change.field, row)
     if isinstance(change, AcceptWarningChange):
         return revert_acceptance(state, change.issue_id, row, user, at, outcome)

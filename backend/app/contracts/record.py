@@ -1,19 +1,40 @@
 """Stored record (CONTRACTS §4): one record with a section per layer, for every loader field.
 
-Each layer writes only its own section. Field keys come from `field_rules.yaml`, so the check
-that a record holds every field (all 22 today) takes the field rules as input.
+Each layer writes only its own section. Field and context attribute keys come from
+`business_rules.md`, so the check that a record holds every one takes the business rules as input.
 """
 
 from datetime import datetime
 from typing import Literal
 
-from app.config.field_rules import FieldRules
+from app.config.business_rules import BusinessRules, FieldDefinition
 from app.contracts.base import ContractModel
 from app.contracts.extraction import ExtractedField
 from app.contracts.verification import CitationCheck, FieldVerdict, RecordFinding
 
-Origin = Literal["extracted", "default", "fixed", "user_edited", "blank_for_now", "system"]
+Origin = Literal[
+    "extracted",
+    "default",
+    "derived",
+    "from_suggestion",
+    "fixed",
+    "user_edited",
+    "blank_for_now",
+    "system",
+]
 ActionNeeded = Literal["fix", "check", "none", "excluded"]
+
+# The model step that made a suggestion
+SuggestionSource = Literal["matching", "naming"]
+
+
+def find_initial_origin(rule: FieldDefinition) -> Origin:
+    """Return a field's first origin: `extracted` if the model extracts it, else its role."""
+    if rule.is_extracted:
+        return "extracted"
+    if rule.role == "derived" or rule.role == "system":
+        return rule.role
+    return "blank_for_now"
 
 
 class RecordExtraction(ContractModel):
@@ -47,6 +68,29 @@ class FieldVerification(ContractModel):
     note: str | None = None
 
 
+class FieldNormalization(ContractModel):
+    """Field-level normalization: the normalized value, or a conflict's normalized alternatives.
+
+    `matching_value` is the value sent to Matching (else None); `choices` are the list values a
+    "Reviewer chooses" translation row offers.
+    """
+
+    value: str | None = None
+    alternatives: list[str] = []
+    notes: list[str] = []
+    matching_value: str | None = None
+    choices: list[str] = []
+
+
+class Suggestion(ContractModel):
+    """A value a model step proposes for a field; never applied until a person uses it."""
+
+    value: str
+    source: SuggestionSource
+    reason: str
+    rule_id: str | None = None
+
+
 class FieldOutput(ContractModel):
     """Field-level output: the loader value (always text or empty), its origin and clean-ups."""
 
@@ -57,37 +101,62 @@ class FieldOutput(ContractModel):
 
 
 class StoredField(ContractModel):
-    """One field of a stored record; `extraction` and `verification` are null if not extracted."""
+    """One field of a stored record; `extraction` and `verification` are null if not extracted.
+
+    `no_suggestion_reason` says why Matching or Naming made no suggestion (the model's own
+    reason for an empty answer, or why its answer was dropped); it is null when there is one.
+    """
 
     extraction: ExtractedField | None = None
     verification: FieldVerification | None = None
+    normalization: FieldNormalization | None = None
+    suggestion: Suggestion | None = None
+    no_suggestion_reason: str | None = None
     output: FieldOutput
     issue_ids: list[str] = []
 
 
+class StoredContextAttribute(ContractModel):
+    """One context attribute of a stored record: extraction and verification only, no output."""
+
+    extraction: ExtractedField | None = None
+    verification: FieldVerification | None = None
+
+
 class StoredRecord(ContractModel):
-    """A stored record with its sections and one entry per loader field."""
+    """A stored record with its sections, one entry per context attribute and per loader field."""
 
     record_id: str
     found_in: list[str]
     extraction: RecordExtraction
     verification: RecordVerification = RecordVerification()
     exclusion: Exclusion | None = None
+    context: dict[str, StoredContextAttribute] = {}
     fields: dict[str, StoredField]
     issue_ids: list[str] = []
     action_needed: ActionNeeded = "none"
 
 
-def find_record_field_problems(record: StoredRecord, field_rules: FieldRules) -> list[str]:
-    """Return a problem for each loader field missing from the record and each unknown key."""
-    expected_keys = [field.key for field in field_rules.fields]
+def find_record_field_problems(record: StoredRecord, business_rules: BusinessRules) -> list[str]:
+    """Return a problem for each loader field or context attribute missing, and each unknown key."""
+    field_keys = [field.key for field in business_rules.fields]
+    context_keys = [attribute.key for attribute in business_rules.context_fields()]
+    return find_key_problems(record.record_id, "field", field_keys, list(record.fields)) + (
+        find_key_problems(record.record_id, "context attribute", context_keys, list(record.context))
+    )
+
+
+def find_key_problems(
+    record_id: str, kind: str, expected_keys: list[str], keys: list[str]
+) -> list[str]:
+    """Return a problem for each expected key the record lacks and each key it should not have."""
     problems: list[str] = []
-    # Every loader field must be present, whatever its role
+    # Every loader field (whatever its role) and every context attribute must be present
     for key in expected_keys:
-        if key not in record.fields:
-            problems.append(f"Record {record.record_id} has no entry for field '{key}'.")
-    # Keys the field rules do not define would never be exported
-    for key in record.fields:
+        if key not in keys:
+            problems.append(f"Record {record_id} has no entry for {kind} '{key}'.")
+    # Keys the business rules do not define would never be read
+    for key in keys:
         if key not in expected_keys:
-            problems.append(f"Record {record.record_id} has unknown field '{key}'.")
+            problems.append(f"Record {record_id} has unknown {kind} '{key}'.")
     return problems

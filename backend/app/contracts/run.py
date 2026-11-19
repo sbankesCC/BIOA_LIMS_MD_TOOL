@@ -17,7 +17,10 @@ RunStatus = Literal[
     "ingesting",
     "extracting",
     "verifying_extraction",
-    "transforming",
+    "normalizing",
+    "matching",
+    "naming",
+    "assembling",
     "validating",
     "in_review",
     "rechecking",
@@ -28,8 +31,9 @@ RunStatus = Literal[
 class RunInfo(ContractModel):
     """One run: name, who started it, config versions captured at start, status, verified label.
 
-    `models` names the LLM model used per node (e.g. extraction), captured at start like the
-    config versions, so the audit file can list them.
+    `models` names the LLM model used per node (extraction, extraction verification, matching,
+    naming, plausibility, duplicate judge), captured at start like the config versions, so the
+    audit file can list them.
     """
 
     run_id: str

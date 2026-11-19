@@ -17,6 +17,7 @@ export type ReviewRow = Schemas["ReviewRow"];
 export type ReviewCell = Schemas["ReviewCell"];
 export type ReviewCounts = Schemas["ReviewCounts"];
 export type IssueSummary = Schemas["IssueSummary"];
+export type Suggestion = Schemas["Suggestion"];
 export type DuplicateCandidate = Schemas["DuplicateCandidate"];
 export type RunField = Schemas["RunField"];
 export type RunFieldList = Schemas["RunFieldList"];
@@ -30,6 +31,7 @@ export type Change = ChangesRequest["changes"][number];
 export type SetValueChange = Schemas["SetValueChange"];
 export type PickAlternativeChange = Schemas["PickAlternativeChange"];
 export type AcceptWarningChange = Schemas["AcceptWarningChange"];
+export type UseSuggestionChange = Schemas["UseSuggestionChange"];
 export type SaveResult = Schemas["SaveResult"];
 export type RecheckResult = Schemas["RecheckResult"];
 

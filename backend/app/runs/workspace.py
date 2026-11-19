@@ -31,7 +31,12 @@ class Workspace:
 
     def lookup_admin(self) -> LookupListAdmin:
         """Return the lookup list admin (current version for new runs, captured ones for old)."""
-        return LookupListAdmin(self.database, self.run_store.storage_dir, self.bundle)
+        return LookupListAdmin(
+            self.database,
+            self.run_store.storage_dir,
+            self.bundle,
+            self.settings.matching_shortlist_size,
+        )
 
     def reference_admin(self) -> ReferenceDataAdmin:
         """Return the reference data admin."""

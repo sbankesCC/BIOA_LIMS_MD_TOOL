@@ -51,7 +51,7 @@ def make_case(case_id: str, tags: list[str]) -> EvalCase:
         tags=tags,
         labeled_by="synthetic",
         labeled_on="2026-10-20",
-        field_rules_version="0.3",
+        business_rules_version="0.3",
     )
     expected = ExpectedExtraction(records=[])
     return EvalCase.model_validate(
@@ -125,7 +125,7 @@ def test_report_files_have_the_documented_shape(bundle: ConfigBundle, tmp_path: 
     assert csv_path.name == "20261020T120000Z_cases.csv"
     data = json.loads(json_path.read_text(encoding="utf-8"))
     assert set(data) >= {"config_versions", "cases", "by_tag", "by_field", "unscored_fields"}
-    assert data["config_versions"]["field_rules"] == bundle.field_rules.version
+    assert data["config_versions"]["business_rules"] == bundle.business_rules.version
     run = data["cases"][0]["runs"][0]
     assert set(run) >= {"scores", "records", "by_field", "unmatched_expected", "seeded_errors"}
     assert run["scores"]["field_values"] == {"correct": 3, "total": 4, "rate": 0.75}

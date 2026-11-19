@@ -83,7 +83,7 @@ def set_value(
 def finding_replies(bundle: ConfigBundle) -> dict[str, list[FakeReply]]:
     """Return replies with an excluded table row the agent challenges and a missed row."""
     extraction = ExtractionOutput.model_validate_json(
-        extraction_reply(bundle.field_rules, TWO_ROWS)
+        extraction_reply(bundle.business_rules, TWO_ROWS)
     )
     item = REAGENT_TABLE[EXCLUDED_ROW][0]
     extraction.excluded_items = [
@@ -198,7 +198,7 @@ def test_exactly_one_field_is_the_record_name(
         start_happy_run(api, synthetic_documents)
         fields = api.client.get(f"/runs/{RUN_ID}/fields").json()["fields"]
         named = [field["key"] for field in fields if field["is_record_name"]]
-        assert named == [bundle.field_rules.record_name_field().key]
+        assert named == [bundle.business_rules.record_name_field().key]
 
 
 def test_note_required_and_run_finding_sources(

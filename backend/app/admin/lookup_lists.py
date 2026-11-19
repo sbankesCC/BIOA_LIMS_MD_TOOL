@@ -32,6 +32,7 @@ from app.config.lookup_lists import (
     load_lookup_lists,
 )
 from app.logging_setup import log_event
+from app.normalization.lookup_values import log_large_matching_lists
 from app.storage.review_db import DataVersion, DataVersionKind, ReviewDatabase
 
 LOOKUP_FOLDER = "lookup_lists"
@@ -53,11 +54,18 @@ class LookupUploadResult(BaseModel):
 class LookupListAdmin:
     """Lookup list versions: the seed from the client config plus admin uploads."""
 
-    def __init__(self, database: ReviewDatabase, storage_dir: Path, bundle: ConfigBundle) -> None:
-        """Use the review database, STORAGE_DIR, and the seed and field rules from the bundle."""
+    def __init__(
+        self,
+        database: ReviewDatabase,
+        storage_dir: Path,
+        bundle: ConfigBundle,
+        shortlist_size: int | None,
+    ) -> None:
+        """Use the review database, STORAGE_DIR, the bundle, and MATCHING_SHORTLIST_SIZE."""
+        self.shortlist_size = shortlist_size
         self.database = database
         self.storage_dir = storage_dir
-        self.field_rules = bundle.field_rules
+        self.business_rules = bundle.business_rules
         self.seed = bundle.lookup_lists
         self.seed_path = bundle.config_dir / FILE_NAME
 
@@ -116,7 +124,9 @@ class LookupListAdmin:
     ) -> LookupUploadResult:
         """Check an uploaded workbook; without problems it is stored as a pending version."""
         current = self.find_current_lookup_lists()
-        result = check_lookup_upload(file_name, content, self.field_rules, current)
+        result = check_lookup_upload(
+            file_name, content, self.business_rules, current, self.shortlist_size
+        )
         version = None
         if result.lookup_lists is not None:
             version = self.store_upload(content, result.report, user, at)
@@ -171,6 +181,10 @@ class LookupListAdmin:
             )
             self.database.add_admin_event(event)
         log_event("lookup_version_applied")
+        # The version is live now: a large Matching list left whole is worth a log line
+        log_large_matching_lists(
+            self.business_rules, self.load_version(applied.version), self.shortlist_size
+        )
         return applied.version
 
     def check_not_stale(self, version: DataVersion) -> None:

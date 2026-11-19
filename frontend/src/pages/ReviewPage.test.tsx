@@ -3,7 +3,7 @@
 // All data is synthetic; the API is a recording fetch mock behind the client context.
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReviewView } from "../api/types";
+import type { IssueSummary, ReviewCell, ReviewView } from "../api/types";
 import { makeRunDetail, renderApp } from "../test/helpers";
 import {
   makeFieldList,
@@ -196,6 +196,8 @@ describe("Resolution panel", () => {
     expect(body.changes[0]).toMatchObject({ type: "set_value", record_id: "rec_0001", field: "storage", value: "Fridge 2-8", reason: null });
     expect(String(body.changes[0].change_id)).toMatch(/^chg_[0-9a-f]{32}$/);
     expect(Number.isNaN(Date.parse(body.timestamp))).toBe(false);
+    // The save re-checks at once, so the row shows the new value without leaving the record
+    await waitFor(() => expect(findPosts(calls, "/runs/run_0001/recheck")).toHaveLength(1));
   });
 
   it("moving to another record re-checks the run and reloads the view", async () => {
@@ -388,5 +390,75 @@ describe("Review grid wording (mockup pass)", () => {
     renderApp(REVIEW_PATH, fetchMock);
     const link = await screen.findByText("synthetic_method.docx · 6.2 Reagents");
     expect(link.closest("button")?.title).toBe("synthetic_method.docx · Synthetic Method > 6 Materials > 6.2 Reagents");
+  });
+});
+
+describe("Suggestions, choices and derived values", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  const suggestion = { value: "Fridge door", source: "matching" as const, reason: "Same place as the door shelf", rule_id: null };
+
+  /** A one-record view whose empty Storage cell has this issue (and any cell overrides). */
+  function makeStorageView(code: string, cell: Partial<ReviewCell>, issue: Partial<IssueSummary> = {}): () => ReviewView {
+    const storageIssue = makeIssue({ issue_id: "iss_one", code, severity: "error", message: "Synthetic message.", ...issue });
+    const storage = { value: null, display_value: null, color: "red" as const, issues: [storageIssue], ...cell };
+    return () => makeView([makeRow("rec_0001", "Synthetic Buffer A", { storage }, { action_needed: "fix" })]);
+  }
+
+  /** Open the panel on the first record's Storage cell. */
+  async function openStorage() {
+    fireEvent.click(await screen.findByRole("button", { name: /Storage:/ }));
+    return screen.findByRole("complementary", { name: "Resolution panel" });
+  }
+
+  it("a suggested value shows in the grid as suggested", async () => {
+    const { fetchMock } = makeRecordingFetch(makeReviewHandler(makeStorageView("NOT_IN_LOOKUP", { suggestion })));
+    renderApp(REVIEW_PATH, fetchMock);
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("Fridge door").closest("td")?.textContent).toContain("suggested");
+  });
+
+  it("Use the suggestion shows its reason and sends use_suggestion", async () => {
+    const { fetchMock, calls } = makeRecordingFetch(makeReviewHandler(makeStorageView("NOT_IN_LOOKUP", { suggestion })));
+    renderApp(REVIEW_PATH, fetchMock);
+    const panel = await openStorage();
+    expect(within(panel).getByText("Same place as the door shelf")).not.toBeNull();
+    fireEvent.click(within(panel).getByRole("radio", { name: /Use the suggestion/ }));
+    fireEvent.click(within(panel).getByRole("button", { name: "Save and next issue" }));
+    await waitFor(() => expect(findPosts(calls, "/runs/run_0001/changes")).toHaveLength(1));
+    const body = findPosts(calls, "/runs/run_0001/changes")[0].body as { changes: Record<string, unknown>[] };
+    expect(body.changes[0]).toMatchObject({ type: "use_suggestion", record_id: "rec_0001", field: "storage" });
+  });
+
+  it("a name-not-set issue with no suggestion says why", async () => {
+    const view = makeStorageView("NAME_NOT_SET", { no_suggestion_reason: "The suggested name was longer than the limit." });
+    const { fetchMock } = makeRecordingFetch(makeReviewHandler(view));
+    renderApp(REVIEW_PATH, fetchMock);
+    const panel = await openStorage();
+    expect(within(panel).getByText(/No suggestion: The suggested name was longer than the limit\./)).not.toBeNull();
+    expect(within(panel).queryByRole("radio", { name: /Use the suggestion/ })).toBeNull();
+  });
+
+  it("a reviewer-choice issue offers its values and sends the chosen one as set_value", async () => {
+    const view = makeStorageView("REVIEWER_CHOICE_NEEDED", {}, { severity: "warning", individual_review: true, choices: ["Fridge 2-8", "Freezer minus 20"] });
+    const { fetchMock, calls } = makeRecordingFetch(makeReviewHandler(view));
+    renderApp(REVIEW_PATH, fetchMock);
+    const panel = await openStorage();
+    expect(within(panel).getAllByRole("radio").map((radio) => radio.closest("label")?.textContent)).toEqual(["Fridge 2-8", "Freezer minus 20"]);
+    fireEvent.click(within(panel).getByRole("radio", { name: "Freezer minus 20" }));
+    fireEvent.click(within(panel).getByRole("button", { name: "Save and next issue" }));
+    await waitFor(() => expect(findPosts(calls, "/runs/run_0001/changes")).toHaveLength(1));
+    const body = findPosts(calls, "/runs/run_0001/changes")[0].body as { changes: Record<string, unknown>[] };
+    expect(body.changes[0]).toMatchObject({ type: "set_value", field: "storage", value: "Freezer minus 20", reason: null });
+  });
+
+  it("the panel says a derived value was derived", async () => {
+    const view = makeStorageView("DERIVED_VALUE_MISMATCH", { value: "Fridge door", display_value: "Fridge door", origin: "derived", color: "yellow" }, { severity: "warning" });
+    const { fetchMock } = makeRecordingFetch(makeReviewHandler(view));
+    renderApp(REVIEW_PATH, fetchMock);
+    const panel = await openStorage();
+    expect(within(panel).getByText(/Derived: this value was worked out by a rule/)).not.toBeNull();
   });
 });

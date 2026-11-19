@@ -12,7 +12,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.config.dfd_template import DfdTemplate
+from app.config.export_template import ExportTemplate
 from app.contracts.export import ExportInfo
 from app.contracts.run import AuditEvent, RunInfo
 from app.export.audit_rows import AuditSource, build_audit_rows
@@ -48,7 +48,7 @@ class ExportContext:
     """
 
     review: ReviewContext
-    template: DfdTemplate
+    template: ExportTemplate
     models: Mapping[str, str]
 
 
@@ -139,11 +139,11 @@ def write_export_files(
     export: ExportInfo,
 ) -> int:
     """Write the loader and the audit workbook; return the number of loader rows."""
-    field_rules = context.review.config.field_rules
+    business_rules = context.review.config.business_rules
     records = database.read_records(run.run_id)
     run_folder.exports_dir.mkdir(parents=True, exist_ok=True)
     row_count = write_loader(
-        context.template, field_rules, records, run_folder.resolve_ref(export.loader_file)
+        context.template, business_rules, records, run_folder.resolve_ref(export.loader_file)
     )
     # Chunks resolve sources to documents and pages; a run without them still exports
     chunks = run_folder.read_chunks() if run_folder.chunks_file.is_file() else []
@@ -155,10 +155,10 @@ def write_export_files(
         changes=database.read_changes(run.run_id),
         documents=run_folder.read_documents(),
         chunks=chunks,
-        field_rules=field_rules,
+        business_rules=business_rules,
         models=context.models,
     )
-    name_column = find_name_rule(field_rules).column
+    name_column = find_name_rule(business_rules).column
     audit_target = run_folder.resolve_ref(export.audit_file)
     write_audit_workbook(build_audit_rows(source), name_column, audit_target)
     return row_count

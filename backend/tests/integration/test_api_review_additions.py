@@ -13,9 +13,10 @@ from openpyxl import load_workbook
 
 from app.config.bundle import ConfigBundle
 from app.main import create_app
+from app.normalization.lookup_matching import BOOLEAN_VALUES
+from app.normalization.lookup_values import ALL_STEPS, find_allowed_values
 from app.storage.review_db import ReviewDatabase
 from app.storage.run_store import RunStore
-from app.transform.lookup_matching import BOOLEAN_VALUES
 from tests.fixtures.fake_llm import TABLE_CHUNK_ID
 from tests.fixtures.make_documents import SCANNED_PDF_FILE, WORD_FILE
 from tests.integration.api_helpers import (
@@ -101,11 +102,11 @@ def test_page_image_is_served_for_a_scanned_page(
 # ----- Run fields -----
 
 
-def test_run_fields_follow_the_field_rules_and_the_run_lookup_version(
+def test_run_fields_follow_the_business_rules_and_the_run_lookup_version(
     tmp_path: Path, bundle: ConfigBundle, synthetic_documents: dict[str, Path]
 ) -> None:
     """Fields come in loader order; list values stay the run's own version after an admin apply."""
-    rules = bundle.field_rules.fields
+    rules = bundle.business_rules.fields
     list_rule = next(rule for rule in rules if rule.lookup_sheet is not None)
     sheet = list_rule.lookup_sheet or ""
     with open_api(make_settings(tmp_path), happy_replies(bundle)) as api:
@@ -115,16 +116,20 @@ def test_run_fields_follow_the_field_rules_and_the_run_lookup_version(
         api.start_run([read_file(synthetic_documents, WORD_FILE)])
         new_run = api.client.get("/runs/run_0002/fields").json()
         assert_error(api.client.get("/runs/run_9999/fields"), 404, "RUN_NOT_FOUND")
-    # Count and order match the field rules
+    # Count and order match the business rules
     assert [field["key"] for field in old_run["fields"]] == [rule.key for rule in rules]
-    assert old_run["field_rules_version"] == bundle.field_rules.version
+    assert old_run["business_rules_version"] == bundle.business_rules.version
     # The older run keeps the lookup version it captured; the new run gets v1
     old_field = next(field for field in old_run["fields"] if field["key"] == list_rule.key)
     new_field = next(field for field in new_run["fields"] if field["key"] == list_rule.key)
     assert old_run["lookup_lists_version"] == bundle.lookup_lists.version
-    assert old_field["allowed_values"] == bundle.lookup_lists.sheets[sheet]
+    # Values excluded from every step are not offered (see the M8 tests for that rule)
+    expected_old = find_allowed_values(
+        list_rule, bundle.business_rules, bundle.lookup_lists, ALL_STEPS
+    )
+    assert old_field["allowed_values"] == expected_old
     assert new_run["lookup_lists_version"] == "v1"
-    assert new_field["allowed_values"] == [*bundle.lookup_lists.sheets[sheet], ADDED_LOOKUP_VALUE]
+    assert new_field["allowed_values"] == [*expected_old, ADDED_LOOKUP_VALUE]
 
 
 def test_run_fields_give_boolean_values_and_none_for_free_fields(
@@ -134,7 +139,7 @@ def test_run_fields_give_boolean_values_and_none_for_free_fields(
     with open_api(make_settings(tmp_path), happy_replies(bundle)) as api:
         api.start_run([read_file(synthetic_documents, WORD_FILE)])
         fields = api.client.get("/runs/run_0001/fields").json()["fields"]
-    rules = {rule.key: rule for rule in bundle.field_rules.fields}
+    rules = {rule.key: rule for rule in bundle.business_rules.fields}
     booleans = [field for field in fields if field["is_boolean"]]
     assert booleans
     for field in fields:
@@ -171,6 +176,21 @@ def test_startup_fails_an_interrupted_run_and_it_can_be_retried(
         api.runner.wait_for_all()
         assert retry.status_code == 202, retry.text
         assert api.client.get("/runs/run_0002").json()["status"] == "in_review"
+
+
+def test_startup_skips_a_run_saved_in_an_older_format(
+    tmp_path: Path, bundle: ConfigBundle, synthetic_documents: dict[str, Path]
+) -> None:
+    """A stored run whose config versions are outdated is skipped; the app still starts."""
+    settings = make_settings(tmp_path)
+    with open_api(settings, happy_replies(bundle)) as api:
+        api.start_run([read_file(synthetic_documents, WORD_FILE)])
+    # Give the run config versions from an older build (synthetic names), as if it predates this one
+    database = ReviewDatabase(tmp_path / "review.sqlite")
+    database.update_run("run_0001", config_versions={"synthetic_old_file": "0.1"})
+    database.close()
+    with TestClient(create_app(settings)) as client:
+        assert client.get("/health").status_code == 200
 
 
 def test_app_starts_with_config_but_no_review_db(tmp_path: Path) -> None:

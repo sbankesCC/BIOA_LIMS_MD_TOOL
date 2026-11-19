@@ -5,21 +5,25 @@ affected records' extraction sections and keeps their IDs; a record it does not 
 unchanged and listed as dropped; new items get new IDs.
 """
 
-from collections.abc import Sequence
+from collections.abc import Collection, Mapping, Sequence
 
 from pydantic import BaseModel
 
-from app.config.field_rules import FieldRules
+from app.agents.matching import MatchingGroup, MatchingResult
+from app.config.business_rules import BusinessRules
 from app.contracts.extraction import ExtractedRecord, ExtractionOutput
 from app.contracts.record import (
     FieldOutput,
     FieldVerification,
     RecordExtraction,
     RecordVerification,
+    StoredContextAttribute,
     StoredField,
     StoredRecord,
+    Suggestion,
+    find_initial_origin,
 )
-from app.contracts.verification import VerificationOutput
+from app.contracts.verification import FieldVerdict, VerificationOutput
 from app.ids import make_record_id_counter
 
 
@@ -31,14 +35,14 @@ class MergeResult(BaseModel):
 
 
 def build_stored_record(
-    record_id: str, extracted: ExtractedRecord, field_rules: FieldRules, is_re_extracted: bool
+    record_id: str, extracted: ExtractedRecord, business_rules: BusinessRules, is_re_extracted: bool
 ) -> StoredRecord:
-    """Wrap an extracted record with every loader field; outputs wait for transformation."""
+    """Wrap an extracted record with every context attribute and loader field."""
     fields: dict[str, StoredField] = {}
-    for rule in field_rules.fields:
-        # Non-extracted fields get their role as origin; transformation fills every output
-        if rule.role != "extracted":
-            fields[rule.key] = StoredField(output=FieldOutput(origin=rule.role))
+    for rule in business_rules.fields:
+        # Fields the model does not extract get their role as origin; transformation fills outputs
+        if not rule.is_extracted:
+            fields[rule.key] = StoredField(output=FieldOutput(origin=find_initial_origin(rule)))
             continue
         fields[rule.key] = StoredField(
             extraction=extracted.fields.get(rule.key), output=FieldOutput(origin="extracted")
@@ -52,15 +56,21 @@ def build_stored_record(
             record_warning=extracted.record_warning,
         ),
         verification=RecordVerification(re_extracted=is_re_extracted),
+        context={
+            attribute.key: StoredContextAttribute(extraction=extracted.context.get(attribute.key))
+            for attribute in business_rules.context_fields()
+        },
         fields=fields,
     )
 
 
-def build_first_records(output: ExtractionOutput, field_rules: FieldRules) -> list[StoredRecord]:
+def build_first_records(
+    output: ExtractionOutput, business_rules: BusinessRules
+) -> list[StoredRecord]:
     """Give every extracted record a new record ID, in response order."""
     counter = make_record_id_counter()
     return [
-        build_stored_record(counter.next_id(), extracted, field_rules, is_re_extracted=False)
+        build_stored_record(counter.next_id(), extracted, business_rules, is_re_extracted=False)
         for extracted in output.records
     ]
 
@@ -69,7 +79,7 @@ def merge_reextraction(
     records: Sequence[StoredRecord],
     output: ExtractionOutput,
     affected_ids: set[str],
-    field_rules: FieldRules,
+    business_rules: BusinessRules,
 ) -> MergeResult:
     """Replace the affected records that came back, keep the others, and add new items."""
     returned = {extracted.record_ref: extracted for extracted in output.records}
@@ -78,7 +88,7 @@ def merge_reextraction(
     for record in records:
         extracted = returned.get(record.record_id)
         if record.record_id in affected_ids and extracted is not None:
-            merged.append(build_stored_record(record.record_id, extracted, field_rules, True))
+            merged.append(build_stored_record(record.record_id, extracted, business_rules, True))
         else:
             merged.append(record)
         # An affected record the re-extraction left out is kept and flagged, never deleted
@@ -88,19 +98,22 @@ def merge_reextraction(
     counter = make_record_id_counter(record.record_id for record in records)
     for extracted in output.records:
         if extracted.record_ref not in affected_ids:
-            merged.append(build_stored_record(counter.next_id(), extracted, field_rules, True))
+            merged.append(build_stored_record(counter.next_id(), extracted, business_rules, True))
     return MergeResult(records=merged, dropped_record_ids=dropped)
 
 
 def clear_agent_findings(record: StoredRecord) -> StoredRecord:
     """Remove the verification agent's earlier verdicts, keeping citation results."""
     fields = {key: clear_field_verdict(stored) for key, stored in record.fields.items()}
+    context = {key: clear_field_verdict(stored) for key, stored in record.context.items()}
     verification = record.verification.model_copy(update={"findings": []})
-    return record.model_copy(update={"fields": fields, "verification": verification})
+    return record.model_copy(
+        update={"fields": fields, "context": context, "verification": verification}
+    )
 
 
-def clear_field_verdict(stored: StoredField) -> StoredField:
-    """Remove a field's agent verdict and note, keeping its citation result."""
+def clear_field_verdict[Stored: StoredField | StoredContextAttribute](stored: Stored) -> Stored:
+    """Remove a field's (or context attribute's) agent verdict and note, keeping its citation."""
     if stored.verification is None:
         return stored
     verification = stored.verification.model_copy(update={"verdict": None, "note": None})
@@ -108,16 +121,79 @@ def clear_field_verdict(stored: StoredField) -> StoredField:
 
 
 def apply_findings(record: StoredRecord, findings: VerificationOutput) -> StoredRecord:
-    """Write the agent's field verdicts into the fields and its record verdicts into the record."""
+    """Write the agent's verdicts into fields and context, and record verdicts into the record."""
     fields = dict(record.fields)
+    context = dict(record.context)
     for finding in findings.field_findings:
-        stored = fields.get(finding.field)
-        # Findings on unknown records or on fields that were not extracted are ignored
-        if finding.record_id != record.record_id or stored is None or stored.extraction is None:
+        if finding.record_id != record.record_id:
             continue
-        current = stored.verification or FieldVerification()
-        verification = current.model_copy(update={"verdict": finding.verdict, "note": finding.note})
-        fields[finding.field] = stored.model_copy(update={"verification": verification})
+        # The finding's section says whether it names a loader field or a context attribute
+        if finding.section == "context":
+            write_verdict(context, finding.field, finding.verdict, finding.note)
+        else:
+            write_verdict(fields, finding.field, finding.verdict, finding.note)
     record_findings = [f for f in findings.record_findings if f.record_id == record.record_id]
     verification = record.verification.model_copy(update={"findings": record_findings})
-    return record.model_copy(update={"fields": fields, "verification": verification})
+    return record.model_copy(
+        update={"fields": fields, "context": context, "verification": verification}
+    )
+
+
+def write_verdict[Stored: StoredField | StoredContextAttribute](
+    entries: dict[str, Stored], key: str, verdict: FieldVerdict, note: str
+) -> None:
+    """Set one entry's verdict and note; unknown keys and entries not extracted are ignored."""
+    stored = entries.get(key)
+    if stored is None or stored.extraction is None:
+        return
+    current = stored.verification or FieldVerification()
+    verification = current.model_copy(update={"verdict": verdict, "note": note})
+    entries[key] = stored.model_copy(update={"verification": verification})
+
+
+def find_matching_suggestions(
+    groups: Sequence[MatchingGroup], result: MatchingResult
+) -> tuple[dict[tuple[str, str], Suggestion], dict[tuple[str, str], str]]:
+    """Return the Matching suggestions by (record, field), and why the others have none."""
+    suggestions: dict[tuple[str, str], Suggestion] = {}
+    reasons: dict[tuple[str, str], str] = {}
+    for group in groups:
+        answer = result.answers.get(group.item.item_id)
+        if answer is None:
+            continue
+        for target in group.targets:
+            key = (target.record_id, target.field)
+            if answer.choice is None:
+                reasons[key] = answer.reason
+            else:
+                suggestions[key] = Suggestion(
+                    value=answer.choice, source="matching", reason=answer.reason, rule_id=None
+                )
+    return suggestions, reasons
+
+
+def apply_suggestions(
+    records: Sequence[StoredRecord],
+    suggestions: Mapping[tuple[str, str], Suggestion],
+    field_keys: Collection[str],
+    reasons: Mapping[tuple[str, str], str] | None = None,
+) -> list[StoredRecord]:
+    """Return the records with each suggestion set on its field (the only section written).
+
+    Only the fields a step owns (`field_keys`) change; one with no new suggestion loses an old
+    one, so a rerun never keeps a stale suggestion. `reasons` say why a field has none.
+    """
+    reasons = reasons or {}
+    updated: list[StoredRecord] = []
+    for record in records:
+        fields = dict(record.fields)
+        for key in field_keys:
+            stored = record.fields.get(key)
+            if stored is not None:
+                suggestion = suggestions.get((record.record_id, key))
+                reason = None if suggestion else reasons.get((record.record_id, key))
+                fields[key] = stored.model_copy(
+                    update={"suggestion": suggestion, "no_suggestion_reason": reason}
+                )
+        updated.append(record.model_copy(update={"fields": fields}))
+    return updated

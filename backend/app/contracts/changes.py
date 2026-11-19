@@ -15,7 +15,12 @@ ChangeStatus = Literal["pending", "applied"]
 
 # Change types that can be part of a bulk action (an undo cannot)
 BulkChangeType = Literal[
-    "set_value", "pick_alternative", "accept_warning", "exclude_record", "restore_record"
+    "set_value",
+    "pick_alternative",
+    "use_suggestion",
+    "accept_warning",
+    "exclude_record",
+    "restore_record",
 ]
 
 
@@ -39,6 +44,16 @@ class PickAlternativeChange(ContractModel):
     record_id: str
     field: str
     alternative_index: int = Field(ge=0)
+    bulk_id: str | None = None
+
+
+class UseSuggestionChange(ContractModel):
+    """Set a field to its current suggestion (origin `from_suggestion`); refused if it has none."""
+
+    type: Literal["use_suggestion"]
+    change_id: str
+    record_id: str
+    field: str
     bulk_id: str | None = None
 
 
@@ -83,6 +98,7 @@ class UndoBulkChange(ContractModel):
 Change = Annotated[
     SetValueChange
     | PickAlternativeChange
+    | UseSuggestionChange
     | AcceptWarningChange
     | ExcludeRecordChange
     | RestoreRecordChange

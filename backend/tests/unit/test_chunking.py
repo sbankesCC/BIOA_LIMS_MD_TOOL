@@ -59,7 +59,7 @@ def test_cell_values_are_shown_as_saved() -> None:
 
 def test_loader_header_needs_every_dfd_column(bundle: ConfigBundle) -> None:
     """All DFD columns (extra columns allowed) mean a loader; a partial header does not."""
-    headers = bundle.dfd_template.headers
+    headers = bundle.export_template.headers
     assert is_loader_header([*headers, "synthetic extra"], headers)
     assert is_loader_header([f" {header} " for header in headers], headers)
     assert not is_loader_header(headers[:-1], headers)

@@ -52,6 +52,7 @@ If a task seems to need one of these, explain why and let me run it.
 - Make the smallest change that solves the problem. No unrelated refactors.
 - Run the relevant tests and linters after changes. Report results honestly, including failures.
 - If a requirement is ambiguous and the choice matters, ask one focused question.
+- Live wiring: a dependency of a context object the app builds (caches, reviewers, limits, settings) has no default that a test would also use; callers state it, and a test that wants a fake passes it explicitly. Every live context factory (`make_*_context`) has a wiring test that builds it the way the app does and checks the real types, because tests that hand-build a context with fakes cannot see a live factory that forgot a real part.
 
 ### Code style (required)
 Simple, readable code beats clever code. When unsure, choose the more readable option.
@@ -81,21 +82,27 @@ Simple, readable code beats clever code. When unsure, choose the more readable o
 
 ### What this is
 A tool that reads BioAgilytix lab documents (methods, study plans, worksheets), extracts
-Consumable Type master data, lets a user review and fix it, and fills out the DFD template
-(an Excel loader). The tool's job ends at the filled template; it never connects to LabVantage.
+Consumable Type master data, lets a user review and fix it, and fills out the DFD loader (an Excel
+file built from `export_template.md`). The tool's job ends at the filled loader; it never connects
+to LabVantage.
 
-How it works: a LangGraph flow processes the documents: Ingest → Extraction (LLM) → Extraction
-verification (code citation check + LLM) → Transformation (code) → Validation (code + LLM duplicate
-judge), then ends with the run ready for review. Routing is code, not an LLM. Review (changes,
-re-checks, Verify) is a review service on a database that calls the Validation service directly.
-Export and admin are services too.
+How it works: a LangGraph flow processes the documents: Ingest → Extraction (LLM) ⇄ Extraction
+verification (code citation check + LLM) → Normalization (code) → Matching (code + LLM suggestion) →
+Naming (LLM suggestion + code check) → Assembly (code) → Validation (code + LLM duplicate judge +
+LLM plausibility review), then ends with the run ready for review. Routing is code, not an LLM.
+Review (changes, re-checks, Verify) is a review service on a database; a re-check runs Assembly and
+then Validation directly. Export and admin are services too.
 
 ### Spec files (read before design decisions)
 - `docs/ARCHITECTURE.md`: glossary, flow, components, routing, data rules, configuration
 - `docs/CONTRACTS.md`: every JSON shape, file format and API endpoint. Build to these exactly
 - `docs/UI_SPEC.md` and `docs/ui_mockups/`: screens and review behaviors
-- `clients/bioa/`: field rules, issue catalogue, lookup lists, DFD template, prompts (BioA confidential)
-- `clients/bioa/source/`: BioA's original field definitions and lists; the config must match it
+- `clients/bioa/business_rules.md`: the only source of field and business rules (BioA confidential)
+- `clients/bioa/extraction_rules.md`: extraction guidance, the only rules the extraction prompts read
+- `clients/bioa/export_template.md`: the loader layout and the only source of column order
+- `clients/bioa/`: also the issue catalogue, lookup lists, prompts, reference mapping
+- `clients/bioa/source/`: BioA's original field definitions and lists; differences from
+  `business_rules.md` are listed in the config consistency test, each with its rule ID
 
 ### Stack
 - Back end: Python 3.12, FastAPI, Pydantic v2, LangGraph (no LangChain), openpyxl, pytest; `uv`.
@@ -122,7 +129,7 @@ Machine-specific notes:
 ### Build workflow
 - `PLAN.md` holds the approved milestones and open questions. Start each milestone in a fresh
   session; it ends with passing tests and a stop for review.
-- Contracts, config loaders and deterministic code (ingest, transformation, validation, export)
+- Contracts, config loaders and deterministic code (ingest, normalization, assembly, validation, export)
   are built and tested before any LLM integration.
 - Back end first. Its OpenAPI schema is reviewed and locked before front-end work starts.
   Front-end API types are generated from that schema, never written by hand.
@@ -130,14 +137,27 @@ Machine-specific notes:
 ### Architecture essentials
 - **Never invent data.** If extraction cannot find a value in the documents, it is `not_found`.
   No code, prompt, default or fixture may fill a value the documents do not give.
-- Extraction copies values exactly as written. All formatting and lookup matching is code.
-- Field definitions and allowed values come only from `clients/bioa/` (built from BioA's workbook).
-  Never hard-code BioA fields, values, prompts or rules in `backend/` or `frontend/`.
-- LLM calls only in extraction, extraction verification and the duplicate judge.
-- Each layer writes only its own section of the stored record. Validation reports issues and never changes values.
+- Extraction copies values whole and exactly as written. All formatting and lookup matching is code.
+- **A model reports, suggests or judges; it never writes a loader value.** Only code and people write
+  values. A suggestion is used only when a person uses it. A value set by a person is never overwritten.
+- Field definitions, rules and data tables come only from `clients/bioa/business_rules.md`, except
+  extraction guidance, which comes only from `clients/bioa/extraction_rules.md`; allowed values from
+  the lookup lists. Never hard-code BioA fields, values, prompts or rules in `backend/` or `frontend/`.
+  Prompt files never contain BioA rules: the prompt builder inserts the active rule lines.
+- Exception: a field's self-contained style guidance, read whole by exactly one prompt and never
+  looked up by rule ID, may live in that prompt file instead of `business_rules.md`. Today this is
+  only the naming rules in `clients/bioa/prompts/naming.md`. Open rules stay out of the text the
+  model sees (keep them in a developer note).
+- A rule or table row with status `Open` is inactive: not inserted into prompts, ignored by code.
+- No general rules engine: each derivation is a small named function that reads its table.
+- LLM calls only in extraction, extraction verification, Matching, Naming, the duplicate judge and the
+  plausibility review. Each is one constrained call: strict structured output, one retry, cached,
+  call-limited. No agent loops, no tools. Matching, Naming and plausibility never fail a run (`_SKIPPED`).
+- Each step writes only its own section of the stored record. Only Validation creates issues, and it
+  never changes values.
 - Routing lives only in `backend/app/graph/routing.py`. Nodes never call each other.
 - Record IDs come from code, never from the LLM.
-- JSON Schemas sent to the LLM are generated from Pydantic models and `field_rules.yaml`, never written by hand.
+- JSON Schemas sent to the LLM are generated from Pydantic models and `business_rules.md`, never written by hand.
 - Extraction status rules (`CONTRACTS.md` §2) are checked in code on every LLM response.
 - LangGraph runs processing only. Review state lives in the review database, never in the graph.
 - LangGraph state holds records, issues and references, never document text or page images.
@@ -149,11 +169,14 @@ Machine-specific notes:
 - Prompt changes are allowed when reasonable: say what and why, bump the prompt version, re-run the tests.
 
 ### Gotchas
-- `BAL Consumable Type Import Example.xlsx` (Data info + List Values sheets) is the only source of
-  truth for fields and values. Follow it literally, even where it disagrees with itself
-  (Container Tracking Method: 1-character limit, default "Individual"). The workbook gets edited, not the code.
-- Approval Type, Consumable Params and Worksheet Template: exported blank and not validated; the UI
-  shows "TEST VALUE" so they are easy to spot.
+- `business_rules.md` is read by code: keep its structure (attribute tables, `### Rules` lines, `###`
+  tables). The app refuses to start if it is missing or malformed. It gets edited, not the code.
+- 22 loader columns and 2 context attributes: 13 extracted (incl. the generated record name),
+  4 derived (Critical, Consumable Class, Approval Type, Worksheet Template), 2 system (Version, Status,
+  exported blank), 3 `blank_for_now` (the expiry fields, exported blank and not validated).
+- The record name (Consumable Type) stays empty until a person uses the Naming suggestion or types one.
+- Container Tracking Method holds the codes `i` and `t` (default `i`).
+- Every active rule tagged for a code step is named by a test (`@pytest.mark.rule("<ID>")`).
 - Never edit `clients/bioa/` or eval expected outputs to make a test pass.
 - Test documents and fixtures are synthetic and labeled `synthetic`. No real BioA data in the repo.
 - The env template is `env.example` (the `.env*` deny rule blocks `.env.example`).

@@ -9,9 +9,10 @@ from collections.abc import Sequence
 
 from pydantic import JsonValue
 
-from app.config.field_rules import FieldRule
-from app.contracts.extraction import ExcludedItem
-from app.contracts.record import StoredField, StoredRecord
+from app.assembly.assemble import USER_ORIGINS
+from app.config.business_rules import BusinessRules, FieldDefinition
+from app.contracts.extraction import ExcludedItem, ExtractedField
+from app.contracts.record import FieldVerification, StoredField, StoredRecord
 from app.contracts.verification import (
     CitationCheck,
     FieldVerdict,
@@ -19,8 +20,7 @@ from app.contracts.verification import (
     VerificationOutput,
 )
 from app.ids import RECORD_PREFIX
-from app.transform.notes import find_transform_notes
-from app.transform.transform import USER_ORIGINS
+from app.normalization.notes import find_transform_notes
 from app.validation import codes
 from app.validation.issues import IssueDraft
 
@@ -35,6 +35,7 @@ FIELD_VERDICT_CODES: dict[FieldVerdict, str] = {
     "contradicted": codes.CONTRADICTED_BY_SOURCE,
     "unsupported": codes.UNSUPPORTED_BY_SOURCE,
     "present_missed": codes.VALUE_PRESENT_MISSED,
+    "incomplete": codes.VALUE_INCOMPLETE,
 }
 
 # Verification agent verdicts on a whole record (CONTRACTS §3)
@@ -50,6 +51,9 @@ RECORD_ID_PATTERN = re.compile(rf"{RECORD_PREFIX}\d+")
 # Shown for {other} when the agent's note names no other record of the run
 OTHER_RECORD_FALLBACK = "another record in this run"
 
+# Shown for {warning} when extraction gave no reason for an unclear value
+UNCLEAR_FALLBACK = "The value could not be read with confidence."
+
 # Separator for lists of items in a message
 ITEM_SEPARATOR = ", "
 
@@ -60,25 +64,36 @@ def is_set_by_person(stored: StoredField) -> bool:
 
 
 def find_field_finding_issues(
-    record_id: str, rule: FieldRule, stored: StoredField
+    record_id: str, rule: FieldDefinition, stored: StoredField
 ) -> list[IssueDraft]:
-    """Return the issues from a field's citation check, agent verdict and transform notes."""
+    """Return the issues from a field's notes, unclear status, citation check and verdict."""
     value = stored.output.value
     drafts = find_transform_note_issues(record_id, rule, stored)
-    verification = stored.verification
-    if verification is None or is_set_by_person(stored):
+    if is_set_by_person(stored):
         return drafts
+    drafts += find_unclear_issues(record_id, rule.key, stored.extraction, value)
+    drafts += find_verification_issues(record_id, rule.key, value, stored.verification)
+    return drafts
+
+
+def find_verification_issues(
+    record_id: str, key: str, value: str | None, verification: FieldVerification | None
+) -> list[IssueDraft]:
+    """Return the issues from a code citation check and the verification agent's verdict."""
+    if verification is None:
+        return []
+    drafts: list[IssueDraft] = []
     # The code citation check first, then the verification agent's verdict
     if verification.citation_check in CITATION_CODES:
         code = CITATION_CODES[verification.citation_check]
-        drafts.append(IssueDraft(code=code, record_id=record_id, field=rule.key, value=value))
+        drafts.append(IssueDraft(code=code, record_id=record_id, field=key, value=value))
     if verification.verdict is not None:
         details: dict[str, JsonValue] = {"note": verification.note}
         drafts.append(
             IssueDraft(
                 code=FIELD_VERDICT_CODES[verification.verdict],
                 record_id=record_id,
-                field=rule.key,
+                field=key,
                 value=value,
                 details=details,
             )
@@ -86,10 +101,48 @@ def find_field_finding_issues(
     return drafts
 
 
-def find_transform_note_issues(
-    record_id: str, rule: FieldRule, stored: StoredField
+def find_unclear_issues(
+    record_id: str, key: str, extraction: ExtractedField | None, value: str | None
 ) -> list[IssueDraft]:
-    """Return one issue per coded transform note (FORMAT_CORRECTED, DEFAULT_APPLIED, ...)."""
+    """Return VALUE_UNCLEAR when extraction marked the value unclear, showing its warning."""
+    if extraction is None or extraction.status != "unclear":
+        return []
+    warning = extraction.warning or UNCLEAR_FALLBACK
+    return [
+        IssueDraft(
+            code=codes.VALUE_UNCLEAR,
+            record_id=record_id,
+            field=key,
+            value=value,
+            message_values={"warning": warning},
+            details={"warning": warning},
+        )
+    ]
+
+
+def find_context_finding_issues(
+    record: StoredRecord, business_rules: BusinessRules
+) -> list[IssueDraft]:
+    """Return findings on context attributes, raised on the field each one drives (SH-02)."""
+    drafts: list[IssueDraft] = []
+    for attribute in business_rules.context_fields():
+        context = record.context.get(attribute.key)
+        driven = record.fields.get(attribute.drives)
+        # A person's value on the driven field ends the finding, as for the field's own
+        if context is None or driven is None or is_set_by_person(driven):
+            continue
+        value = driven.output.value
+        drafts += find_unclear_issues(record.record_id, attribute.drives, context.extraction, value)
+        drafts += find_verification_issues(
+            record.record_id, attribute.drives, value, context.verification
+        )
+    return drafts
+
+
+def find_transform_note_issues(
+    record_id: str, rule: FieldDefinition, stored: StoredField
+) -> list[IssueDraft]:
+    """Return one issue per coded note: corrections, defaults, choices, derivations, conflicts."""
     drafts: list[IssueDraft] = []
     for note in find_transform_notes(stored.output.changes):
         # The note's own original and value fill the message; the current value keys the issue
@@ -98,6 +151,10 @@ def find_transform_note_issues(
             for name, text in (("original", note.original), ("value", note.value))
             if text is not None
         }
+        # The choices a "Reviewer chooses" row offers are read from the typed list, not from details
+        if note.code == codes.REVIEWER_CHOICE_NEEDED and stored.normalization is not None:
+            message_values["choices"] = ITEM_SEPARATOR.join(stored.normalization.choices)
+        details = find_note_details(note.code, stored)
         drafts.append(
             IssueDraft(
                 code=note.code,
@@ -105,18 +162,29 @@ def find_transform_note_issues(
                 field=rule.key,
                 value=stored.output.value,
                 message_values=message_values,
+                details=details,
             )
         )
     return drafts
 
 
-def find_or_equivalent_issue(record: StoredRecord) -> list[IssueDraft]:
-    """Return one OR_EQUIVALENT issue if any extracted value allows an equivalent product."""
-    for stored in record.fields.values():
-        extraction = stored.extraction
-        if extraction is not None and extraction.allows_equivalent and not is_set_by_person(stored):
-            return [IssueDraft(code=codes.OR_EQUIVALENT, record_id=record.record_id)]
-    return []
+def find_note_details(code: str, stored: StoredField) -> dict[str, JsonValue]:
+    """Return what a note's issue carries: the choices offered, or the suggestion (CONTRACTS §6)."""
+    if code == codes.REVIEWER_CHOICE_NEEDED and stored.normalization is not None:
+        choices: list[JsonValue] = list(stored.normalization.choices)
+        return {"choices": choices}
+    if code == codes.NOT_IN_LOOKUP:
+        return find_suggestion_details(stored)
+    return {}
+
+
+def find_suggestion_details(stored: StoredField) -> dict[str, JsonValue]:
+    """Return the field's suggestion, or why it has none (CONTRACTS §6), for an issue's details."""
+    if stored.suggestion is not None:
+        return {"suggestion": stored.suggestion.model_dump(mode="json")}
+    if stored.no_suggestion_reason is not None:
+        return {"no_suggestion_reason": stored.no_suggestion_reason}
+    return {}
 
 
 def find_unreported_conflict_issues(

@@ -6,7 +6,7 @@ with. Any failure raises ChangeRejectedError and nothing in the request is saved
 
 from collections.abc import Sequence
 
-from app.config.field_rules import FieldRule
+from app.config.business_rules import FieldDefinition
 from app.config.issue_catalogue import IssueCatalogue
 from app.contracts.changes import (
     AcceptWarningChange,
@@ -16,12 +16,14 @@ from app.contracts.changes import (
     RestoreRecordChange,
     SetValueChange,
     UndoBulkChange,
+    UseSuggestionChange,
 )
 from app.contracts.issue import Issue
 from app.contracts.record import StoredRecord
+from app.normalization.lookup_matching import BOOLEAN_VALUES
+from app.normalization.lookup_values import ALL_STEPS, find_allowed_values
 from app.review.errors import ChangeRejectedError
 from app.review.state import ReviewState, has_open_field_issue
-from app.transform.lookup_matching import BOOLEAN_VALUES
 from app.validation.service import ValidationConfig
 
 
@@ -36,6 +38,8 @@ def check_change(
         check_set_value(change, state, config)
     elif isinstance(change, PickAlternativeChange):
         check_pick_alternative(change, state, config)
+    elif isinstance(change, UseSuggestionChange):
+        check_use_suggestion(change, state, config)
     elif isinstance(change, AcceptWarningChange):
         check_accept_warning(change, state, config.issue_catalogue)
     elif isinstance(change, ExcludeRecordChange):
@@ -57,10 +61,13 @@ def find_record(state: ReviewState, record_id: str) -> StoredRecord:
     return record
 
 
-def find_editable_rule(config: ValidationConfig, field: str) -> FieldRule:
-    """Return the rule of a field the user may change: an extracted field of the config."""
-    for rule in config.field_rules.fields:
-        if rule.key == field and rule.role == "extracted":
+def find_editable_rule(config: ValidationConfig, field: str) -> FieldDefinition:
+    """Return the rule of a field the user may change: an extracted or derived field.
+
+    A person sets a derived field when its derivation cannot run (CC-06) or to correct it.
+    """
+    for rule in config.business_rules.fields:
+        if rule.key == field and (rule.is_extracted or rule.role == "derived"):
             return rule
     raise ChangeRejectedError(
         f"The field '{field}' cannot be changed in the tool. Choose another field."
@@ -88,11 +95,12 @@ def check_set_value(change: SetValueChange, state: ReviewState, config: Validati
         )
 
 
-def check_list_value(rule: FieldRule, value: str, config: ValidationConfig) -> None:
+def check_list_value(rule: FieldDefinition, value: str, config: ValidationConfig) -> None:
     """Reject a list or Y/N field value that is not one of the allowed values."""
     allowed: Sequence[str] | None = None
     if rule.lookup_sheet is not None:
-        allowed = config.lookup_lists.sheets.get(rule.lookup_sheet, [])
+        # Values excluded from every step (for example DNU_ ones) are never allowed
+        allowed = find_allowed_values(rule, config.business_rules, config.lookup_lists, ALL_STEPS)
     elif rule.type == "boolean":
         allowed = BOOLEAN_VALUES
     if allowed is not None and value not in allowed:
@@ -113,6 +121,19 @@ def check_pick_alternative(
         raise ChangeRejectedError(
             f"{rule.column} has no alternative number {change.alternative_index + 1}. "
             "Reload the record and choose again."
+        )
+
+
+def check_use_suggestion(
+    change: UseSuggestionChange, state: ReviewState, config: ValidationConfig
+) -> None:
+    """Check the field has a suggestion to use."""
+    record = find_record(state, change.record_id)
+    rule = find_editable_rule(config, change.field)
+    stored = record.fields.get(rule.key)
+    if stored is None or stored.suggestion is None:
+        raise ChangeRejectedError(
+            f"{rule.column} has no suggestion to use. Pick a value or type one instead."
         )
 
 

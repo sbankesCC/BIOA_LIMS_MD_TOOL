@@ -1,7 +1,7 @@
 """Eval case (CONTRACTS §9): `case.yaml`, the expected extraction and the seeded errors of a case.
 
 Expected sources name a document and page or section, never chunk IDs. A field key missing from
-a record's expected fields is "not labeled", not wrong. Field keys come from `field_rules.yaml`.
+a record's expected fields is "not labeled", not wrong. Field keys come from `business_rules.md`.
 """
 
 from typing import Literal
@@ -22,7 +22,7 @@ class EvalCaseInfo(ContractModel):
     tags: list[str] = []
     labeled_by: str
     labeled_on: str
-    field_rules_version: str
+    business_rules_version: str
 
 
 class ExpectedSource(ContractModel):

@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 import pytest
 
 from app.config.bundle import ConfigBundle
-from app.config.field_rules import FieldRule
+from app.config.business_rules import FieldDefinition
 from app.contracts.extraction import Alternative, ExtractedField
 from app.contracts.issue import Issue, IssueSeverity
 from app.contracts.record import Exclusion, FieldOutput, StoredRecord
@@ -23,10 +23,10 @@ EXCLUSION = Exclusion(
 )
 
 
-def text_rule(bundle: ConfigBundle) -> FieldRule:
+def text_rule(bundle: ConfigBundle) -> FieldDefinition:
     """Return an extracted single-value text field without a lookup list (not the name)."""
     return find_rule(
-        bundle.field_rules,
+        bundle.business_rules,
         lambda rule: (
             rule.type == "text"
             and rule.lookup_sheet is None
@@ -81,7 +81,7 @@ def preview(
 ) -> BulkPreview:
     """Run the bulk preview for one mode with the given request values."""
     request = BulkRequest.model_validate({"mode": mode, **values})
-    return find_bulk_matches(records, issues, request, bundle.field_rules)
+    return find_bulk_matches(records, issues, request, bundle.business_rules)
 
 
 def matched_ids(result: BulkPreview) -> list[str]:
@@ -142,7 +142,7 @@ def test_fill_missing_matches_empty_values_but_not_conflicts_or_excluded(
 
 def test_fill_missing_refuses_a_field_review_cannot_fill(bundle: ConfigBundle) -> None:
     """Only extracted fields can be filled; a placeholder or system field is refused."""
-    rule = next(rule for rule in bundle.field_rules.fields if rule.role != "extracted")
+    rule = next(rule for rule in bundle.business_rules.fields if not rule.is_extracted)
     with pytest.raises(ReviewError) as caught:
         preview(bundle, [make_record(bundle)], [], "fill_missing", field=rule.key)
     assert caught.value.code == "BULK_NOT_POSSIBLE"
@@ -156,7 +156,7 @@ def test_accept_type_matches_open_warnings_of_the_code_on_any_field(
 ) -> None:
     """Warnings of the same code match on any field and on the record; excluded ones never."""
     key = text_rule(bundle).key
-    name_key = bundle.field_rules.record_name_field().key
+    name_key = bundle.business_rules.record_name_field().key
     records = [make_record(bundle, f"rec_000{n}") for n in (1, 2, 3)]
     records.append(exclude(make_record(bundle, "rec_0004")))
     accepted = make_issue("rec_0002", key).model_copy(update={"status": "accepted"})

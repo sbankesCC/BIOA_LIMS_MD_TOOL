@@ -18,7 +18,7 @@ from app.contracts.eval_case import (
 )
 from app.contracts.extraction import ExtractedField, ExtractedValue
 from app.contracts.verification import FieldFinding, VerificationOutput
-from app.transform.lookup_matching import normalize_for_match
+from app.normalization.lookup_matching import normalize_for_match
 
 
 class Score(BaseModel):

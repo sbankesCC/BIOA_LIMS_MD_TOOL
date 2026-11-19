@@ -156,10 +156,17 @@
   color: var(--color-text-faint);
 }
 
-/* "TEST VALUE": grey and italic, display only */
-.records-grid__text--placeholder {
+/* A blank-for-now field: an empty grey cell, display only */
+.records-grid__text--placeholder,
+.records-grid__text--suggestion {
   color: var(--color-text-faint);
   font-style: italic;
+}
+
+/* The word after a suggested value: it is not exported until a person uses it */
+.records-grid__suggested {
+  color: var(--color-text-muted);
+  font-size: 0.85em;
 }
 
 .records-grid__written {

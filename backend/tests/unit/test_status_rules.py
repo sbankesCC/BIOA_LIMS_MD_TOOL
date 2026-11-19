@@ -1,12 +1,12 @@
 """Status rule tests: one test per CONTRACTS §2 violation, on a synthetic extraction response.
 
-Field keys are read from the client field rules, never written here.
+Field and context attribute keys are read from the client business rules, never written here.
 """
 
 import pytest
 
 from app.config.bundle import ConfigBundle
-from app.config.field_rules import FieldRules
+from app.config.business_rules import BusinessRules
 from app.contracts.extraction import (
     Alternative,
     Evidence,
@@ -22,31 +22,41 @@ EVIDENCE = Evidence(chunk_id="doc01-p01-c001", quote="synthetic quote")
 OTHER_EVIDENCE = Evidence(chunk_id="doc01-p01-c002", quote="other synthetic quote")
 
 
-def single_key(field_rules: FieldRules) -> str:
+def single_key(business_rules: BusinessRules) -> str:
     """Return the key of the first extracted field that holds one value."""
-    return next(field.key for field in field_rules.extracted_fields() if not field.multi_value)
+    return next(field.key for field in business_rules.extracted_fields() if not field.multi_value)
 
 
-def multi_key(field_rules: FieldRules) -> str:
+def multi_key(business_rules: BusinessRules) -> str:
     """Return the key of the first extracted multi_value field."""
-    return next(field.key for field in field_rules.extracted_fields() if field.multi_value)
+    return next(field.key for field in business_rules.extracted_fields() if field.multi_value)
 
 
-def build_valid_output(field_rules: FieldRules) -> ExtractionOutput:
+def context_key(business_rules: BusinessRules) -> str:
+    """Return the key of the first context attribute."""
+    return business_rules.context_fields()[0].key
+
+
+def build_valid_output(business_rules: BusinessRules) -> ExtractionOutput:
     """Build a valid response: one record, one found single field, one found list field."""
     fields = {
-        field.key: ExtractedField(status="not_found") for field in field_rules.extracted_fields()
+        field.key: ExtractedField(status="not_found") for field in business_rules.extracted_fields()
     }
-    fields[single_key(field_rules)] = ExtractedField(
+    fields[single_key(business_rules)] = ExtractedField(
         status="found", value="synthetic value", evidence=[EVIDENCE]
     )
-    fields[multi_key(field_rules)] = ExtractedField(
+    fields[multi_key(business_rules)] = ExtractedField(
         status="found", value=["SYN-1", "SYN-2"], evidence=[EVIDENCE]
     )
+    context = {
+        attribute.key: ExtractedField(status="not_found")
+        for attribute in business_rules.context_fields()
+    }
     record = ExtractedRecord(
         record_ref="R1",
         found_in=["doc01-p01-c001"],
         record_summary="synthetic record",
+        context=context,
         fields=fields,
     )
     excluded = ExcludedItem(item="synthetic plate reader", reason="Instrument", chunk_ids=[])
@@ -65,61 +75,65 @@ def build_conflicting_field() -> ExtractedField:
     )
 
 
-def rules_found(output: ExtractionOutput, field_rules: FieldRules) -> list[str]:
+def rules_found(output: ExtractionOutput, business_rules: BusinessRules) -> list[str]:
     """Return the rule names of every violation in a response."""
-    violations: list[StatusViolation] = find_status_violations(output, field_rules, CHUNK_IDS)
+    violations: list[StatusViolation] = find_status_violations(output, business_rules, CHUNK_IDS)
     return [violation.rule for violation in violations]
 
 
 @pytest.fixture
-def rules(bundle: ConfigBundle) -> FieldRules:
-    """Return the client field rules."""
-    return bundle.field_rules
+def rules(bundle: ConfigBundle) -> BusinessRules:
+    """Return the client business rules."""
+    return bundle.business_rules
 
 
 @pytest.fixture
-def output(rules: FieldRules) -> ExtractionOutput:
+def output(rules: BusinessRules) -> ExtractionOutput:
     """Return a fresh valid response that a test can break."""
     return build_valid_output(rules)
 
 
-def set_single_field(output: ExtractionOutput, rules: FieldRules, field: ExtractedField) -> None:
+def set_single_field(output: ExtractionOutput, rules: BusinessRules, field: ExtractedField) -> None:
     """Replace the single-value test field of the first record."""
     output.records[0].fields[single_key(rules)] = field
 
 
-def test_valid_output_has_no_violations(output: ExtractionOutput, rules: FieldRules) -> None:
+def test_valid_output_has_no_violations(output: ExtractionOutput, rules: BusinessRules) -> None:
     """A response that follows every rule gives no violations."""
     assert rules_found(output, rules) == []
 
 
 def test_valid_conflicting_field_has_no_violations(
-    output: ExtractionOutput, rules: FieldRules
+    output: ExtractionOutput, rules: BusinessRules
 ) -> None:
     """A conflicting field with two cited alternatives and a warning is fine."""
     set_single_field(output, rules, build_conflicting_field())
     assert rules_found(output, rules) == []
 
 
-def test_duplicate_record_ref_is_violation(output: ExtractionOutput, rules: FieldRules) -> None:
+def test_duplicate_record_ref_is_violation(output: ExtractionOutput, rules: BusinessRules) -> None:
     """Two records with the same record_ref are reported."""
     output.records.append(output.records[0].model_copy())
     assert "duplicate_record_ref" in rules_found(output, rules)
 
 
-def test_empty_found_in_is_violation(output: ExtractionOutput, rules: FieldRules) -> None:
+def test_empty_found_in_is_violation(output: ExtractionOutput, rules: BusinessRules) -> None:
     """A record must name at least one chunk in found_in."""
     output.records[0].found_in = []
     assert rules_found(output, rules) == ["found_in_empty"]
 
 
-def test_unknown_found_in_chunk_is_violation(output: ExtractionOutput, rules: FieldRules) -> None:
+def test_unknown_found_in_chunk_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
     """A found_in chunk ID that is not in the run is reported."""
     output.records[0].found_in.append("doc09-p01-c999")
     assert rules_found(output, rules) == ["unknown_chunk_id"]
 
 
-def test_unknown_evidence_chunk_is_violation(output: ExtractionOutput, rules: FieldRules) -> None:
+def test_unknown_evidence_chunk_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
     """An evidence pair citing a chunk that does not exist is reported, with the field."""
     bad_evidence = Evidence(chunk_id="doc09-p01-c999", quote="synthetic quote")
     set_single_field(
@@ -131,7 +145,7 @@ def test_unknown_evidence_chunk_is_violation(output: ExtractionOutput, rules: Fi
 
 
 def test_unknown_alternative_chunk_is_violation(
-    output: ExtractionOutput, rules: FieldRules
+    output: ExtractionOutput, rules: BusinessRules
 ) -> None:
     """Evidence inside an alternative must also cite a real chunk."""
     field = build_conflicting_field()
@@ -141,28 +155,30 @@ def test_unknown_alternative_chunk_is_violation(
 
 
 def test_unknown_excluded_item_chunk_is_violation(
-    output: ExtractionOutput, rules: FieldRules
+    output: ExtractionOutput, rules: BusinessRules
 ) -> None:
     """An excluded item citing a chunk that does not exist is reported."""
     output.excluded_items[0].chunk_ids = ["doc09-p01-c999"]
     assert rules_found(output, rules) == ["unknown_chunk_id"]
 
 
-def test_missing_extracted_field_is_violation(output: ExtractionOutput, rules: FieldRules) -> None:
+def test_missing_extracted_field_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
     """Every extracted field must be returned, even when not found."""
     del output.records[0].fields[single_key(rules)]
     assert rules_found(output, rules) == ["field_missing"]
 
 
-def test_non_extracted_field_is_violation(output: ExtractionOutput, rules: FieldRules) -> None:
+def test_non_extracted_field_is_violation(output: ExtractionOutput, rules: BusinessRules) -> None:
     """A field with another role (blank_for_now, system) must not be returned."""
-    other_key = next(field.key for field in rules.fields if field.role != "extracted")
+    other_key = next(field.key for field in rules.fields if not field.is_extracted)
     output.records[0].fields[other_key] = ExtractedField(status="not_found")
     assert rules_found(output, rules) == ["field_not_extracted"]
 
 
 def test_list_value_for_single_field_is_violation(
-    output: ExtractionOutput, rules: FieldRules
+    output: ExtractionOutput, rules: BusinessRules
 ) -> None:
     """A single-value field must not hold a list."""
     set_single_field(
@@ -172,7 +188,7 @@ def test_list_value_for_single_field_is_violation(
 
 
 def test_text_value_for_multi_value_field_is_violation(
-    output: ExtractionOutput, rules: FieldRules
+    output: ExtractionOutput, rules: BusinessRules
 ) -> None:
     """A multi_value field must hold a list, not a single string."""
     field = ExtractedField(status="found", value="SYN-1", evidence=[EVIDENCE])
@@ -180,32 +196,38 @@ def test_text_value_for_multi_value_field_is_violation(
     assert rules_found(output, rules) == ["value_wrong_shape"]
 
 
-def test_found_without_value_is_violation(output: ExtractionOutput, rules: FieldRules) -> None:
+def test_found_without_value_is_violation(output: ExtractionOutput, rules: BusinessRules) -> None:
     """A found field needs a value."""
     set_single_field(output, rules, ExtractedField(status="found", evidence=[EVIDENCE]))
     assert rules_found(output, rules) == ["found_without_value"]
 
 
-def test_found_with_blank_value_is_violation(output: ExtractionOutput, rules: FieldRules) -> None:
+def test_found_with_blank_value_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
     """A found field whose value is only whitespace has no value."""
     set_single_field(output, rules, ExtractedField(status="found", value="  ", evidence=[EVIDENCE]))
     assert rules_found(output, rules) == ["found_without_value"]
 
 
-def test_found_with_empty_list_is_violation(output: ExtractionOutput, rules: FieldRules) -> None:
+def test_found_with_empty_list_is_violation(output: ExtractionOutput, rules: BusinessRules) -> None:
     """A found multi_value field needs at least one value."""
     field = ExtractedField(status="found", value=[], evidence=[EVIDENCE])
     output.records[0].fields[multi_key(rules)] = field
     assert rules_found(output, rules) == ["found_without_value"]
 
 
-def test_found_without_evidence_is_violation(output: ExtractionOutput, rules: FieldRules) -> None:
+def test_found_without_evidence_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
     """A found field needs at least one evidence pair."""
     set_single_field(output, rules, ExtractedField(status="found", value="v"))
     assert rules_found(output, rules) == ["found_without_evidence"]
 
 
-def test_found_with_alternatives_is_violation(output: ExtractionOutput, rules: FieldRules) -> None:
+def test_found_with_alternatives_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
     """A found field must not list alternatives."""
     alternatives = build_conflicting_field().alternatives
     field = ExtractedField(
@@ -215,7 +237,9 @@ def test_found_with_alternatives_is_violation(output: ExtractionOutput, rules: F
     assert rules_found(output, rules) == ["found_with_alternatives"]
 
 
-def test_conflicting_with_value_is_violation(output: ExtractionOutput, rules: FieldRules) -> None:
+def test_conflicting_with_value_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
     """A conflicting field must not choose a value."""
     field = build_conflicting_field()
     field.value = "synthetic A"
@@ -224,7 +248,7 @@ def test_conflicting_with_value_is_violation(output: ExtractionOutput, rules: Fi
 
 
 def test_conflicting_with_evidence_is_violation(
-    output: ExtractionOutput, rules: FieldRules
+    output: ExtractionOutput, rules: BusinessRules
 ) -> None:
     """A conflicting field keeps its evidence in the alternatives only."""
     field = build_conflicting_field()
@@ -234,7 +258,7 @@ def test_conflicting_with_evidence_is_violation(
 
 
 def test_conflicting_without_two_alternatives_is_violation(
-    output: ExtractionOutput, rules: FieldRules
+    output: ExtractionOutput, rules: BusinessRules
 ) -> None:
     """A conflicting field needs at least two alternatives."""
     field = build_conflicting_field()
@@ -244,7 +268,7 @@ def test_conflicting_without_two_alternatives_is_violation(
 
 
 def test_alternative_without_value_is_violation(
-    output: ExtractionOutput, rules: FieldRules
+    output: ExtractionOutput, rules: BusinessRules
 ) -> None:
     """Each alternative needs a value."""
     field = build_conflicting_field()
@@ -254,7 +278,7 @@ def test_alternative_without_value_is_violation(
 
 
 def test_alternative_without_evidence_is_violation(
-    output: ExtractionOutput, rules: FieldRules
+    output: ExtractionOutput, rules: BusinessRules
 ) -> None:
     """Each alternative needs at least one evidence pair."""
     field = build_conflicting_field()
@@ -264,7 +288,7 @@ def test_alternative_without_evidence_is_violation(
 
 
 def test_conflicting_without_warning_is_violation(
-    output: ExtractionOutput, rules: FieldRules
+    output: ExtractionOutput, rules: BusinessRules
 ) -> None:
     """A conflicting field needs a warning that says what the conflict is."""
     field = build_conflicting_field()
@@ -273,20 +297,22 @@ def test_conflicting_without_warning_is_violation(
     assert rules_found(output, rules) == ["conflicting_without_warning"]
 
 
-def test_not_found_with_value_is_violation(output: ExtractionOutput, rules: FieldRules) -> None:
+def test_not_found_with_value_is_violation(output: ExtractionOutput, rules: BusinessRules) -> None:
     """A not_found field must have a null value (never a filled-in one)."""
     set_single_field(output, rules, ExtractedField(status="not_found", value="v"))
     assert rules_found(output, rules) == ["not_found_with_value"]
 
 
-def test_not_found_with_evidence_is_violation(output: ExtractionOutput, rules: FieldRules) -> None:
+def test_not_found_with_evidence_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
     """A not_found field must have no evidence."""
     set_single_field(output, rules, ExtractedField(status="not_found", evidence=[EVIDENCE]))
     assert rules_found(output, rules) == ["not_found_with_evidence"]
 
 
 def test_not_found_with_alternatives_is_violation(
-    output: ExtractionOutput, rules: FieldRules
+    output: ExtractionOutput, rules: BusinessRules
 ) -> None:
     """A not_found field must have no alternatives."""
     alternatives = build_conflicting_field().alternatives
@@ -294,7 +320,117 @@ def test_not_found_with_alternatives_is_violation(
     assert rules_found(output, rules) == ["not_found_with_alternatives"]
 
 
-def test_violation_messages_hold_no_values(output: ExtractionOutput, rules: FieldRules) -> None:
+def build_unclear_field() -> ExtractedField:
+    """Build a valid unclear field: no value, a warning, and the evidence that could not be read."""
+    return ExtractedField(status="unclear", evidence=[EVIDENCE], warning="Digit cannot be read")
+
+
+def test_valid_unclear_field_has_no_violations(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """An unclear field with a warning is fine, with or without evidence."""
+    set_single_field(output, rules, build_unclear_field())
+    assert rules_found(output, rules) == []
+    set_single_field(output, rules, ExtractedField(status="unclear", warning="Not assignable"))
+    assert rules_found(output, rules) == []
+
+
+def test_unclear_with_value_is_violation(output: ExtractionOutput, rules: BusinessRules) -> None:
+    """An unclear field must not give a value."""
+    field = build_unclear_field()
+    field.value = "1.? mg/mL"
+    set_single_field(output, rules, field)
+    assert rules_found(output, rules) == ["unclear_with_value"]
+
+
+def test_unclear_with_alternatives_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """An unclear field must not list alternatives (that is a conflict)."""
+    field = build_unclear_field()
+    field.alternatives = build_conflicting_field().alternatives
+    set_single_field(output, rules, field)
+    assert rules_found(output, rules) == ["unclear_with_alternatives"]
+
+
+def test_unclear_without_warning_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """An unclear field needs a warning that says what cannot be read or assigned."""
+    field = build_unclear_field()
+    field.warning = " "
+    set_single_field(output, rules, field)
+    assert rules_found(output, rules) == ["unclear_without_warning"]
+
+
+def test_found_context_attribute_has_no_violations(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """A context attribute found with a single value and evidence is fine."""
+    attribute = ExtractedField(status="found", value="synthetic heading", evidence=[EVIDENCE])
+    output.records[0].context[context_key(rules)] = attribute
+    assert rules_found(output, rules) == []
+
+
+def test_missing_context_attribute_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """Every context attribute must be returned, even when not found."""
+    del output.records[0].context[context_key(rules)]
+    assert rules_found(output, rules) == ["context_missing"]
+
+
+def test_unknown_context_attribute_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """A context key that is not a context attribute (here: a loader field) is reported."""
+    output.records[0].context[single_key(rules)] = ExtractedField(status="not_found")
+    assert rules_found(output, rules) == ["context_not_attribute"]
+
+
+def test_context_attribute_list_value_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """A context attribute holds a single value, never a list."""
+    attribute = ExtractedField(status="found", value=["a"], evidence=[EVIDENCE])
+    output.records[0].context[context_key(rules)] = attribute
+    violations = find_status_violations(output, rules, CHUNK_IDS)
+    assert [violation.rule for violation in violations] == ["value_wrong_shape"]
+    assert "context attribute" in violations[0].message
+
+
+def test_context_attribute_follows_the_status_table(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """Context attributes get the same status rows as fields, e.g. found needs evidence."""
+    attribute = ExtractedField(status="found", value="synthetic heading")
+    output.records[0].context[context_key(rules)] = attribute
+    violations = find_status_violations(output, rules, CHUNK_IDS)
+    assert [violation.rule for violation in violations] == ["found_without_evidence"]
+    assert violations[0].field == context_key(rules)
+
+
+def test_unclear_context_attribute_without_warning_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """The unclear row applies to context attributes the same way."""
+    output.records[0].context[context_key(rules)] = ExtractedField(status="unclear")
+    assert rules_found(output, rules) == ["unclear_without_warning"]
+
+
+def test_unknown_context_evidence_chunk_is_violation(
+    output: ExtractionOutput, rules: BusinessRules
+) -> None:
+    """A context attribute's evidence must cite a chunk of the run."""
+    bad_evidence = Evidence(chunk_id="doc09-p01-c999", quote="synthetic quote")
+    attribute = ExtractedField(status="found", value="v", evidence=[bad_evidence])
+    output.records[0].context[context_key(rules)] = attribute
+    violations = find_status_violations(output, rules, CHUNK_IDS)
+    assert [violation.rule for violation in violations] == ["unknown_chunk_id"]
+    assert "context attribute" in violations[0].message
+
+
+def test_violation_messages_hold_no_values(output: ExtractionOutput, rules: BusinessRules) -> None:
     """Messages name records and fields only, so they are safe to log."""
     set_single_field(output, rules, ExtractedField(status="not_found", value="secret synthetic"))
     violations = find_status_violations(output, rules, CHUNK_IDS)

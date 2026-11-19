@@ -8,6 +8,22 @@
       ],
       "record_summary": "synthetic: coating antibody from the 6.2 reagent table and the worksheet",
       "record_warning": null,
+      "context": {
+        "source_heading": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "warning": null
+        },
+        "serial_dilution": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "warning": null
+        }
+      },
       "fields": {
         "consumable_type": {
           "status": "found",
@@ -19,7 +35,6 @@
             }
           ],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "description": {
@@ -27,15 +42,6 @@
           "value": null,
           "evidence": [],
           "alternatives": [],
-          "allows_equivalent": false,
-          "warning": null
-        },
-        "consumable_class": {
-          "status": "not_found",
-          "value": null,
-          "evidence": [],
-          "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "storage_condition": {
@@ -62,16 +68,7 @@
               ]
             }
           ],
-          "allows_equivalent": false,
           "warning": "synthetic: method and worksheet give different storage conditions"
-        },
-        "critical": {
-          "status": "not_found",
-          "value": null,
-          "evidence": [],
-          "alternatives": [],
-          "allows_equivalent": false,
-          "warning": null
         },
         "expected_amount": {
           "status": "found",
@@ -83,7 +80,6 @@
             }
           ],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "expected_amount_unit": {
@@ -96,7 +92,6 @@
             }
           ],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "expected_no_of_containers": {
@@ -104,7 +99,6 @@
           "value": null,
           "evidence": [],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "container_tracking_method": {
@@ -112,7 +106,6 @@
           "value": null,
           "evidence": [],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "manage_container_inventory_flag": {
@@ -120,7 +113,6 @@
           "value": null,
           "evidence": [],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "container_type": {
@@ -128,23 +120,6 @@
           "value": null,
           "evidence": [],
           "alternatives": [],
-          "allows_equivalent": false,
-          "warning": null
-        },
-        "container_type_size": {
-          "status": "not_found",
-          "value": null,
-          "evidence": [],
-          "alternatives": [],
-          "allows_equivalent": false,
-          "warning": null
-        },
-        "container_type_unit": {
-          "status": "not_found",
-          "value": null,
-          "evidence": [],
-          "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "manufacturer": {
@@ -157,7 +132,6 @@
             }
           ],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "supplier": {
@@ -170,7 +144,6 @@
             }
           ],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "catalog_no": {
@@ -185,7 +158,6 @@
             }
           ],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "target_concentration": {
@@ -193,7 +165,6 @@
           "value": null,
           "evidence": [],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         }
       }
@@ -205,6 +176,22 @@
       ],
       "record_summary": "synthetic: detection reagent from the worksheet",
       "record_warning": null,
+      "context": {
+        "source_heading": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "warning": null
+        },
+        "serial_dilution": {
+          "status": "not_found",
+          "value": null,
+          "evidence": [],
+          "alternatives": [],
+          "warning": null
+        }
+      },
       "fields": {
         "consumable_type": {
           "status": "found",
@@ -216,7 +203,6 @@
             }
           ],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "description": {
@@ -224,15 +210,6 @@
           "value": null,
           "evidence": [],
           "alternatives": [],
-          "allows_equivalent": false,
-          "warning": null
-        },
-        "consumable_class": {
-          "status": "not_found",
-          "value": null,
-          "evidence": [],
-          "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "storage_condition": {
@@ -245,15 +222,6 @@
             }
           ],
           "alternatives": [],
-          "allows_equivalent": false,
-          "warning": null
-        },
-        "critical": {
-          "status": "not_found",
-          "value": null,
-          "evidence": [],
-          "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "expected_amount": {
@@ -261,7 +229,6 @@
           "value": null,
           "evidence": [],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "expected_amount_unit": {
@@ -269,7 +236,6 @@
           "value": null,
           "evidence": [],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "expected_no_of_containers": {
@@ -277,7 +243,6 @@
           "value": null,
           "evidence": [],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "container_tracking_method": {
@@ -285,7 +250,6 @@
           "value": null,
           "evidence": [],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "manage_container_inventory_flag": {
@@ -293,7 +257,6 @@
           "value": null,
           "evidence": [],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "container_type": {
@@ -301,23 +264,6 @@
           "value": null,
           "evidence": [],
           "alternatives": [],
-          "allows_equivalent": false,
-          "warning": null
-        },
-        "container_type_size": {
-          "status": "not_found",
-          "value": null,
-          "evidence": [],
-          "alternatives": [],
-          "allows_equivalent": false,
-          "warning": null
-        },
-        "container_type_unit": {
-          "status": "not_found",
-          "value": null,
-          "evidence": [],
-          "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "manufacturer": {
@@ -325,7 +271,6 @@
           "value": null,
           "evidence": [],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "supplier": {
@@ -333,7 +278,6 @@
           "value": null,
           "evidence": [],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "catalog_no": {
@@ -341,7 +285,6 @@
           "value": null,
           "evidence": [],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         },
         "target_concentration": {
@@ -349,7 +292,6 @@
           "value": null,
           "evidence": [],
           "alternatives": [],
-          "allows_equivalent": false,
           "warning": null
         }
       }

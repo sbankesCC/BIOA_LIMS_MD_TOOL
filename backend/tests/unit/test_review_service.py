@@ -8,14 +8,14 @@ from pathlib import Path
 import pytest
 
 from app.config.bundle import ConfigBundle
-from app.config.field_rules import FieldRule
+from app.config.business_rules import FieldDefinition
 from app.contracts.changes import SetValueChange
 from app.contracts.extraction import Alternative, Evidence, ExtractedField
-from app.contracts.record import FieldVerification, StoredRecord
+from app.contracts.record import FieldVerification, StoredRecord, Suggestion
 from app.contracts.verification import CitationCheck, MissedCandidate, VerificationOutput
+from app.normalization.notes import TransformNote
 from app.review.errors import ChangeRejectedError, RunNotInReviewError
 from app.review.service import ReviewContext, verify_run
-from app.transform.notes import TransformNote
 from app.validation import codes
 from app.validation.duplicates import find_name_rule
 from app.validation.service import ProcessingFindings, ValidationConfig, make_validation_config
@@ -27,7 +27,6 @@ from tests.unit.review_helpers import (
     exclude_record,
     find_issues,
     make_context,
-    make_relaxed_config,
     pick_alternative,
     read_record,
     recheck,
@@ -36,26 +35,33 @@ from tests.unit.review_helpers import (
     set_value,
     start_review,
     undo_bulk,
+    use_suggestion,
 )
-from tests.unit.validation_helpers import find_rule, make_record, set_output, update_field
+from tests.unit.validation_helpers import (
+    find_rule,
+    make_record,
+    make_red_record,
+    set_output,
+    update_field,
+)
 
 
 @pytest.fixture
 def config(bundle: ConfigBundle) -> ValidationConfig:
-    """Return the run config with the workbook's impossible length limits dropped."""
-    return make_relaxed_config(bundle)
+    """Return the run config."""
+    return make_validation_config(bundle)
 
 
 @pytest.fixture
 def context(config: ValidationConfig) -> ReviewContext:
-    """Return a review context on the relaxed config."""
+    """Return a review context on the run config."""
     return make_context(config)
 
 
-def lookup_rule(config: ValidationConfig) -> FieldRule:
+def lookup_rule(config: ValidationConfig) -> FieldDefinition:
     """Return an optional lookup field with at least two list values."""
     return find_rule(
-        config.field_rules,
+        config.business_rules,
         lambda rule: (
             rule.lookup_sheet is not None
             and rule.requirement == "optional"
@@ -64,16 +70,16 @@ def lookup_rule(config: ValidationConfig) -> FieldRule:
     )
 
 
-def text_rule(config: ValidationConfig) -> FieldRule:
+def text_rule(config: ValidationConfig) -> FieldDefinition:
     """Return a free-text field that is not the record name."""
-    name_key = find_name_rule(config.field_rules).key
+    name_key = find_name_rule(config.business_rules).key
     return find_rule(
-        config.field_rules,
+        config.business_rules,
         lambda rule: rule.type == "text" and rule.lookup_sheet is None and rule.key != name_key,
     )
 
 
-def list_values(config: ValidationConfig, rule: FieldRule) -> list[str]:
+def list_values(config: ValidationConfig, rule: FieldDefinition) -> list[str]:
     """Return the list values of a lookup field."""
     assert rule.lookup_sheet is not None
     return config.lookup_lists.sheets[rule.lookup_sheet]
@@ -86,12 +92,9 @@ def with_citation(record: StoredRecord, key: str, check: CitationCheck) -> Store
     return update_field(record, key, stored.model_copy(update={"verification": verification}))
 
 
-def with_equivalent(record: StoredRecord, key: str) -> StoredRecord:
-    """Return the record with one field marked "or equivalent" (raises OR_EQUIVALENT)."""
-    stored = record.fields[key]
-    assert stored.extraction is not None
-    extraction = stored.extraction.model_copy(update={"allows_equivalent": True})
-    return update_field(record, key, stored.model_copy(update={"extraction": extraction}))
+def with_warning(record: StoredRecord, key: str) -> StoredRecord:
+    """Return the record with an ordinary warning on one field (a scanned, unchecked source)."""
+    return with_citation(record, key, "not_checkable")
 
 
 # ----- set_value -----
@@ -165,7 +168,7 @@ def test_blank_for_now_field_cannot_be_changed(
 ) -> None:
     """Fields the tool does not fill are rejected (they are exported blank)."""
     database = start_review(tmp_path, bundle, context, [make_record(bundle)])
-    key = next(rule.key for rule in config.field_rules.fields if rule.role == "blank_for_now")
+    key = next(rule.key for rule in config.business_rules.fields if rule.role == "blank_for_now")
     with pytest.raises(ChangeRejectedError):
         save(database, context, set_value("chg_0001", key, "synthetic", reason="x"))
 
@@ -173,7 +176,9 @@ def test_blank_for_now_field_cannot_be_changed(
 # ----- pick_alternative -----
 
 
-def make_conflict_record(bundle: ConfigBundle, rule: FieldRule, values: list[str]) -> StoredRecord:
+def make_conflict_record(
+    bundle: ConfigBundle, rule: FieldDefinition, values: list[str]
+) -> StoredRecord:
     """Return a record whose field is conflicting between the given values (case changed)."""
     alternatives = [
         Alternative(value=value.lower(), evidence=[Evidence(chunk_id="doc01-c001", quote=value)])
@@ -211,6 +216,83 @@ def test_pick_alternative_out_of_range_is_rejected(
         save(database, context, pick_alternative("chg_0001", rule.key, 2))
 
 
+# ----- use_suggestion -----
+
+
+def with_suggestion(record: StoredRecord, key: str, value: str) -> StoredRecord:
+    """Return the record with a synthetic Matching suggestion on one field and no value."""
+    record = set_output(record, key, None)
+    suggestion = Suggestion(value=value, source="matching", reason="synthetic reason")
+    stored = record.fields[key].model_copy(update={"suggestion": suggestion})
+    return update_field(record, key, stored)
+
+
+def test_use_suggestion_sets_the_value_from_the_suggestion(
+    tmp_path: Path, bundle: ConfigBundle, config: ValidationConfig, context: ReviewContext
+) -> None:
+    """Using a suggestion sets the field to it with origin from_suggestion, kept on re-check."""
+    rule = lookup_rule(config)
+    value = list_values(config, rule)[0]
+    record = with_suggestion(make_record(bundle), rule.key, value)
+    database = start_review(tmp_path, bundle, context, [record])
+    save(database, context, use_suggestion("chg_0001", rule.key))
+    recheck(database, context)
+    output = read_record(database).fields[rule.key].output
+    assert (output.value, output.origin) == (value, "from_suggestion")
+    assert read_record(database).fields[rule.key].suggestion is not None
+
+
+def test_use_suggestion_without_a_suggestion_is_rejected(
+    tmp_path: Path, bundle: ConfigBundle, config: ValidationConfig, context: ReviewContext
+) -> None:
+    """A field with no suggestion cannot use one."""
+    database = start_review(tmp_path, bundle, context, [make_record(bundle)])
+    with pytest.raises(ChangeRejectedError, match="no suggestion"):
+        save(database, context, use_suggestion("chg_0001", lookup_rule(config).key))
+
+
+def test_used_suggestion_is_undone_with_its_bulk_action(
+    tmp_path: Path, bundle: ConfigBundle, config: ValidationConfig, context: ReviewContext
+) -> None:
+    """Undoing the bulk action puts back the field's earlier output."""
+    rule = lookup_rule(config)
+    record = with_suggestion(make_record(bundle), rule.key, list_values(config, rule)[0])
+    database = start_review(tmp_path, bundle, context, [record])
+    change = use_suggestion("chg_0001", rule.key).model_copy(update={"bulk_id": "blk_0001"})
+    save(database, context, change)
+    recheck(database, context)
+    save(database, context, undo_bulk("chg_0002", "blk_0001"))
+    recheck(database, context)
+    output = read_record(database).fields[rule.key].output
+    assert (output.value, output.origin) == (None, "extracted")
+
+
+def test_use_suggestion_on_a_derived_field_is_rejected(
+    tmp_path: Path, bundle: ConfigBundle, config: ValidationConfig, context: ReviewContext
+) -> None:
+    """A derived field never has a suggestion (Matching and Naming skip it), so use is rejected."""
+    derived_key = config.business_rules.derived_fields()[0].key
+    database = start_review(tmp_path, bundle, context, [make_record(bundle)])
+    with pytest.raises(ChangeRejectedError, match="has no suggestion to use"):
+        save(database, context, use_suggestion("chg_0001", derived_key))
+
+
+def test_undo_of_a_used_suggestion_keeps_a_later_value(
+    tmp_path: Path, bundle: ConfigBundle, config: ValidationConfig, context: ReviewContext
+) -> None:
+    """A value typed after the suggestion was used is not undone with the bulk action."""
+    rule = lookup_rule(config)
+    suggested, later = list_values(config, rule)[:2]
+    record = with_suggestion(make_record(bundle), rule.key, suggested)
+    database = start_review(tmp_path, bundle, context, [record])
+    change = use_suggestion("chg_0001", rule.key).model_copy(update={"bulk_id": "blk_0001"})
+    save(database, context, change, set_value("chg_0002", rule.key, later, reason="later"))
+    save(database, context, undo_bulk("chg_0003", "blk_0001"))
+    recheck(database, context)
+    output = read_record(database).fields[rule.key].output
+    assert (output.value, output.origin) == (later, "user_edited")
+
+
 # ----- accept_warning -----
 
 
@@ -218,12 +300,12 @@ def test_accept_warning_marks_it_accepted_by_the_user(
     tmp_path: Path, bundle: ConfigBundle, config: ValidationConfig, context: ReviewContext
 ) -> None:
     """An accepted warning stays accepted after the re-check, closed by the user."""
-    record = with_equivalent(make_record(bundle), text_rule(config).key)
+    record = with_warning(make_record(bundle), text_rule(config).key)
     database = start_review(tmp_path, bundle, context, [record])
-    issue = find_issues(database, codes.OR_EQUIVALENT, "open")[0]
+    issue = find_issues(database, codes.SCANNED_SOURCE, "open")[0]
     save(database, context, accept_warning("chg_0001", issue.issue_id))
     recheck(database, context)
-    accepted = find_issues(database, codes.OR_EQUIVALENT)[0]
+    accepted = find_issues(database, codes.SCANNED_SOURCE)[0]
     assert (accepted.status, accepted.closed_by) == ("accepted", USER)
     assert read_record(database).action_needed == "none"
 
@@ -287,7 +369,7 @@ def test_error_cannot_be_accepted(
 ) -> None:
     """Only warnings can be accepted; a red issue must be fixed."""
     strict = make_context(make_validation_config(bundle))
-    database = start_review(tmp_path, bundle, strict, [make_record(bundle)])
+    database = start_review(tmp_path, bundle, strict, [make_red_record(bundle)])
     issue = find_issues(database, codes.TOO_LONG, "open")[0]
     with pytest.raises(ChangeRejectedError):
         save(database, strict, accept_warning("chg_0001", issue.issue_id))
@@ -430,28 +512,28 @@ def test_undo_bulk_reopens_accepted_warnings(
 ) -> None:
     """Undoing an "accept all of this type" bulk action opens the warnings again."""
     key = text_rule(config).key
-    records = [with_equivalent(record, key) for record in make_two_records(bundle)]
+    records = [with_warning(record, key) for record in make_two_records(bundle)]
     database = start_review(tmp_path, bundle, context, records)
-    issues = find_issues(database, codes.OR_EQUIVALENT, "open")
+    issues = find_issues(database, codes.SCANNED_SOURCE, "open")
     accepts = [
         accept_warning(f"chg_{n:04d}", issue.issue_id, bulk_id="blk_0001")
         for n, issue in enumerate(issues, start=1)
     ]
     save(database, context, *accepts)
     recheck(database, context)
-    assert len(find_issues(database, codes.OR_EQUIVALENT, "accepted")) == 2
+    assert len(find_issues(database, codes.SCANNED_SOURCE, "accepted")) == 2
     save(database, context, undo_bulk("chg_0003", "blk_0001"))
     recheck(database, context)
-    assert len(find_issues(database, codes.OR_EQUIVALENT, "open")) == 2
+    assert len(find_issues(database, codes.SCANNED_SOURCE, "open")) == 2
 
 
 # ----- Verify and the verified label -----
 
 
 def test_verify_is_blocked_by_a_red_issue(tmp_path: Path, bundle: ConfigBundle) -> None:
-    """With the literal workbook limits every record is red, so Verify is blocked."""
+    """A record with a red issue blocks Verify."""
     strict = make_context(make_validation_config(bundle))
-    database = start_review(tmp_path, bundle, strict, [make_record(bundle)])
+    database = start_review(tmp_path, bundle, strict, [make_red_record(bundle)])
     result = verify_run(database, strict, RUN_ID, USER, NOW)
     assert not result.is_verified
     assert [issue.code for issue in result.blocking_errors] == [codes.TOO_LONG]
@@ -474,12 +556,12 @@ def test_verify_accepts_other_warnings_and_sets_the_label(
     tmp_path: Path, bundle: ConfigBundle, config: ValidationConfig, context: ReviewContext
 ) -> None:
     """With only ordinary warnings left, Verify accepts them for the user and sets the label."""
-    record = with_equivalent(make_record(bundle), text_rule(config).key)
+    record = with_warning(make_record(bundle), text_rule(config).key)
     database = start_review(tmp_path, bundle, context, [record])
     result = verify_run(database, context, RUN_ID, USER, NOW)
     assert result.is_verified
-    assert [issue.code for issue in result.accepted_warnings] == [codes.OR_EQUIVALENT]
-    issue = find_issues(database, codes.OR_EQUIVALENT)[0]
+    assert [issue.code for issue in result.accepted_warnings] == [codes.SCANNED_SOURCE]
+    issue = find_issues(database, codes.SCANNED_SOURCE)[0]
     assert (issue.status, issue.closed_by) == ("accepted", USER)
     run = database.read_run(RUN_ID)
     assert (run.is_verified, run.verified_by, run.verified_at) == (True, USER, NOW)

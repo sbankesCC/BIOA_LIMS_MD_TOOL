@@ -40,11 +40,11 @@ def edit_case_yaml(folder: Path, key: str, value: object) -> None:
 
 
 def test_synthetic_case_loads_without_warnings(bundle: ConfigBundle) -> None:
-    """The committed synthetic case matches the current field rules and has fake replies."""
-    case = load_case(SYNTHETIC_CASE, bundle.field_rules)
+    """The committed synthetic case matches the current business rules and has fake replies."""
+    case = load_case(SYNTHETIC_CASE, bundle.business_rules)
     assert case.info.source == "synthetic"
     assert case.warnings == []
-    assert not case.has_field_rules_mismatch
+    assert not case.has_business_rules_mismatch
     assert case.fake_llm_folder is not None
     assert [path.name for path in case.documents] == [
         "synthetic_001_method.docx",
@@ -56,8 +56,8 @@ def test_synthetic_case_loads_without_warnings(bundle: ConfigBundle) -> None:
 
 def test_record_name_becomes_a_found_label_of_the_name_field(bundle: ConfigBundle) -> None:
     """The name under the name field's key is the record's name and that field's label."""
-    case = load_case(SYNTHETIC_CASE, bundle.field_rules)
-    name_key = bundle.field_rules.record_name_field().key
+    case = load_case(SYNTHETIC_CASE, bundle.business_rules)
+    name_key = bundle.business_rules.record_name_field().key
     record = case.expected.records[0]
     label = record.fields[name_key]
     assert label.status == "found"
@@ -66,16 +66,16 @@ def test_record_name_becomes_a_found_label_of_the_name_field(bundle: ConfigBundl
 
 def test_template_folder_is_skipped(bundle: ConfigBundle) -> None:
     """`_template` is not a case."""
-    loaded = load_suite(CASES_DIR, bundle.field_rules)
+    loaded = load_suite(CASES_DIR, bundle.business_rules)
     assert [case.info.id for case in loaded.cases] == ["synthetic_001"]
     assert loaded.problems == []
 
 
-def test_field_rules_version_mismatch_is_flagged(bundle: ConfigBundle, suite_copy: Path) -> None:
-    """A case labeled against other field rules still loads, with a warning."""
-    edit_case_yaml(suite_copy / "synthetic_001", "field_rules_version", "0.0-synthetic")
-    case = load_case(suite_copy / "synthetic_001", bundle.field_rules)
-    assert case.has_field_rules_mismatch
+def test_business_rules_version_mismatch_is_flagged(bundle: ConfigBundle, suite_copy: Path) -> None:
+    """A case labeled against other business rules still loads, with a warning."""
+    edit_case_yaml(suite_copy / "synthetic_001", "business_rules_version", "0.0-synthetic")
+    case = load_case(suite_copy / "synthetic_001", bundle.business_rules)
+    assert case.has_business_rules_mismatch
     assert any("0.0-synthetic" in warning for warning in case.warnings)
 
 
@@ -85,7 +85,7 @@ def test_unknown_field_key_is_a_warning(bundle: ConfigBundle, suite_copy: Path) 
     data = json.loads(path.read_text(encoding="utf-8"))
     data["records"][0]["fields"]["synthetic_unknown_field"] = {"status": "not_found"}
     path.write_text(json.dumps(data), encoding="utf-8")
-    case = load_case(suite_copy / "synthetic_001", bundle.field_rules)
+    case = load_case(suite_copy / "synthetic_001", bundle.business_rules)
     assert any("synthetic_unknown_field" in warning for warning in case.warnings)
 
 
@@ -93,10 +93,10 @@ def test_record_without_a_name_is_a_case_problem(bundle: ConfigBundle, suite_cop
     """An expected record with no name cannot be matched, so the case is skipped with a problem."""
     path = suite_copy / "synthetic_001" / "expected_extraction.json"
     data = json.loads(path.read_text(encoding="utf-8"))
-    name_key = bundle.field_rules.record_name_field().key
+    name_key = bundle.business_rules.record_name_field().key
     del data["records"][0][name_key]
     path.write_text(json.dumps(data), encoding="utf-8")
-    loaded = load_suite(suite_copy, bundle.field_rules)
+    loaded = load_suite(suite_copy, bundle.business_rules)
     assert loaded.cases == []
     assert [problem.folder for problem in loaded.problems] == ["synthetic_001"]
     assert name_key in loaded.problems[0].message
@@ -106,7 +106,7 @@ def test_broken_case_yaml_is_a_case_problem(bundle: ConfigBundle, suite_copy: Pa
     """A case.yaml with a wrong source is reported with the file name."""
     edit_case_yaml(suite_copy / "synthetic_001", "source", "synthetic-unknown-source")
     with pytest.raises(CaseLoadError, match=r"case\.yaml"):
-        load_case(suite_copy / "synthetic_001", bundle.field_rules)
+        load_case(suite_copy / "synthetic_001", bundle.business_rules)
 
 
 def test_case_without_documents_is_a_case_problem(bundle: ConfigBundle, tmp_path: Path) -> None:
@@ -114,7 +114,7 @@ def test_case_without_documents_is_a_case_problem(bundle: ConfigBundle, tmp_path
     folder = tmp_path / "synthetic_empty"
     shutil.copytree(SYNTHETIC_CASE, folder, ignore=shutil.ignore_patterns("*.docx", "*.xlsx"))
     with pytest.raises(CaseLoadError, match="no documents"):
-        load_case(folder, bundle.field_rules)
+        load_case(folder, bundle.business_rules)
 
 
 def test_suite_name_resolves_under_evals_and_absolute_paths_are_kept(tmp_path: Path) -> None:
@@ -126,4 +126,4 @@ def test_suite_name_resolves_under_evals_and_absolute_paths_are_kept(tmp_path: P
 def test_missing_suite_folder_is_an_error(bundle: ConfigBundle, tmp_path: Path) -> None:
     """A suite folder that does not exist stops the harness with a plain message."""
     with pytest.raises(CaseLoadError, match="does not exist"):
-        load_suite(tmp_path / "missing", bundle.field_rules)
+        load_suite(tmp_path / "missing", bundle.business_rules)

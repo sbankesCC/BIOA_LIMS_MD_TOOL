@@ -9,11 +9,11 @@ import json
 from collections.abc import Sequence
 from typing import Any, cast
 
-from app.config.field_rules import FieldRules
+from app.config.business_rules import BusinessRules
 from app.contracts.eval_case import SeededError
 from app.contracts.trace import LlmNode
 from app.llm.client import LLMClient, LLMRequest, LLMResponse
-from app.transform.lookup_matching import normalize_for_match
+from app.normalization.lookup_matching import normalize_for_match
 
 EXTRACTION_NODE = "extraction"
 VERIFICATION_NODE = "extraction_verification"
@@ -23,12 +23,12 @@ class EvalLLMClient:
     """An LLM client that passes calls on, plants seeded errors, and keeps verification replies."""
 
     def __init__(
-        self, client: LLMClient, seeded: Sequence[SeededError], field_rules: FieldRules
+        self, client: LLMClient, seeded: Sequence[SeededError], business_rules: BusinessRules
     ) -> None:
         """Wrap `client`; `seeded` errors are planted into the first extraction response."""
         self.client = client
         self.seeded = list(seeded)
-        self.field_rules = field_rules
+        self.business_rules = business_rules
         self.extraction_responses = 0
         self.planted: list[SeededError] = []
         self.verification_texts: list[str] = []
@@ -50,7 +50,7 @@ class EvalLLMClient:
             # Only the first extraction is seeded; a re-extraction may correct the mistake
             if self.extraction_responses == 1 and self.seeded:
                 text, self.planted = plant_seeded_errors(
-                    response.text, self.seeded, self.field_rules
+                    response.text, self.seeded, self.business_rules
                 )
                 response = response.model_copy(update={"text": text})
         elif request.node == VERIFICATION_NODE:
@@ -59,7 +59,7 @@ class EvalLLMClient:
 
 
 def plant_seeded_errors(
-    text: str, seeded: Sequence[SeededError], field_rules: FieldRules
+    text: str, seeded: Sequence[SeededError], business_rules: BusinessRules
 ) -> tuple[str, list[SeededError]]:
     """Return the extraction text with the seeded values planted, and the errors planted.
 
@@ -71,17 +71,19 @@ def plant_seeded_errors(
         return text, []
     planted: list[SeededError] = []
     for error in seeded:
-        record = find_extracted_record(data, error.record, field_rules)
-        if record is not None and plant_value(record, error, field_rules):
+        record = find_extracted_record(data, error.record, business_rules)
+        if record is not None and plant_value(record, error, business_rules):
             planted.append(error)
     if not planted:
         return text, []
     return json.dumps(data, ensure_ascii=False), planted
 
 
-def find_extracted_record(data: Any, name: str, field_rules: FieldRules) -> dict[str, Any] | None:
+def find_extracted_record(
+    data: Any, name: str, business_rules: BusinessRules
+) -> dict[str, Any] | None:
     """Return the extracted record whose name matches `name` (ignoring case and spaces)."""
-    name_key = field_rules.record_name_field().key
+    name_key = business_rules.record_name_field().key
     wanted = normalize_for_match(name)
     for record in read_list(read_dict(data).get("records")):
         value = read_field(record, name_key).get("value")
@@ -105,16 +107,16 @@ def read_field(record: Any, key: str) -> dict[str, Any]:
     return read_dict(read_dict(read_dict(record).get("fields")).get(key))
 
 
-def plant_value(record: dict[str, Any], error: SeededError, field_rules: FieldRules) -> bool:
+def plant_value(record: dict[str, Any], error: SeededError, business_rules: BusinessRules) -> bool:
     """Set the seeded field to the planted value as `found`; return False if it cannot be."""
-    rules = {rule.key: rule for rule in field_rules.extracted_fields()}
+    rules = {rule.key: rule for rule in business_rules.extracted_fields()}
     rule = rules.get(error.field)
     fields = read_dict(record.get("fields"))
     if rule is None or error.field not in fields:
         return False
     # The planted value keeps the field's own evidence, else the record name's evidence
     evidence = read_field(record, error.field).get("evidence") or read_field(
-        record, field_rules.record_name_field().key
+        record, business_rules.record_name_field().key
     ).get("evidence")
     if not evidence:
         return False
@@ -126,7 +128,6 @@ def plant_value(record: dict[str, Any], error: SeededError, field_rules: FieldRu
         "value": value,
         "evidence": evidence,
         "alternatives": [],
-        "allows_equivalent": False,
         "warning": None,
     }
     return True

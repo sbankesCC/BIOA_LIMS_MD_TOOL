@@ -7,17 +7,21 @@ from typing import Literal
 
 from app.contracts.base import ContractModel
 
-FieldVerdict = Literal["contradicted", "unsupported", "present_missed"]
+FieldVerdict = Literal["contradicted", "unsupported", "present_missed", "incomplete"]
 RecordVerdict = Literal["not_a_consumable_type", "duplicate_within_run", "should_be_split"]
 
-# Result of the code citation check, per field
+# Which part of the record a finding names: a loader field or a context attribute
+FindingSection = Literal["fields", "context"]
+
+# Result of the code citation check, per field and context attribute
 CitationCheck = Literal["verified", "not_verified", "not_checkable"]
 
 
 class FieldFinding(ContractModel):
-    """A problem with one field of one record."""
+    """A problem with one field (or context attribute, by `section`) of one record."""
 
     record_id: str
+    section: FindingSection = "fields"
     field: str
     verdict: FieldVerdict
     sources: list[str]
@@ -51,6 +55,7 @@ class UnreportedConflict(ContractModel):
     """Another source may give a different value for a field, not reported by extraction."""
 
     record_id: str
+    section: FindingSection = "fields"
     field: str
     sources: list[str]
     note: str

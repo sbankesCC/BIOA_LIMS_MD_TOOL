@@ -1,4 +1,4 @@
-"""JSON Schemas sent to the LLM, generated from the contract models plus `field_rules.yaml`.
+"""JSON Schemas sent to the LLM, generated from the contract models plus `business_rules.md`.
 
 Every schema is OpenAI strict-mode compatible: references inlined, every object closed
 (`additionalProperties: false`) with all its properties required, and only supported keywords.
@@ -9,9 +9,12 @@ from typing import Any, cast
 
 from pydantic import BaseModel
 
-from app.config.field_rules import FieldRule, FieldRules
+from app.config.business_rules import BusinessRules, FieldDefinition
 from app.contracts.extraction import ExtractedField, ExtractionOutput
 from app.contracts.judge import JudgeOutput
+from app.contracts.matching import MatchingOutput
+from app.contracts.naming import NamingOutput
+from app.contracts.plausibility import PlausibilityOutput
 from app.contracts.verification import VerificationOutput
 
 JsonSchema = dict[str, Any]
@@ -25,22 +28,22 @@ STRING_LIST_SCHEMA: JsonSchema = {"type": "array", "items": {"type": "string"}}
 NULL_SCHEMA: JsonSchema = {"type": "null"}
 
 
-def build_extraction_schema(field_rules: FieldRules) -> JsonSchema:
-    """Build the extraction schema: one property per extracted field, a list for multi_value."""
+def build_extraction_schema(business_rules: BusinessRules) -> JsonSchema:
+    """Build the extraction schema: one property per extracted field and per context attribute."""
     schema = build_strict_schema(ExtractionOutput)
-    # The model's `fields` is an open mapping; replace it with the configured fields
+    # The model's `context` and `fields` are open mappings; replace them with the configured keys
     record_schema = schema["properties"]["records"]["items"]
-    record_schema["properties"]["fields"] = build_fields_schema(field_rules)
+    record_schema["properties"]["context"] = build_context_schema(business_rules)
+    record_schema["properties"]["fields"] = build_fields_schema(business_rules)
     return schema
 
 
-def build_verification_schema(field_rules: FieldRules) -> JsonSchema:
-    """Build the verification schema; field keys are limited to the extracted fields."""
+def build_verification_schema(business_rules: BusinessRules) -> JsonSchema:
+    """Build the verification schema; keys are limited to extracted fields and context keys."""
     schema = build_strict_schema(VerificationOutput)
-    field_key_schema: JsonSchema = {
-        "type": "string",
-        "enum": [field.key for field in field_rules.extracted_fields()],
-    }
+    keys = [field.key for field in business_rules.extracted_fields()]
+    keys += [attribute.key for attribute in business_rules.context_fields()]
+    field_key_schema: JsonSchema = {"type": "string", "enum": keys}
     # Both finding lists that name a field may only name an extracted one
     for list_name in ("field_findings", "unreported_conflicts"):
         item_schema = schema["properties"][list_name]["items"]
@@ -53,26 +56,57 @@ def build_judge_schema() -> JsonSchema:
     return build_strict_schema(JudgeOutput)
 
 
-def build_fields_schema(field_rules: FieldRules) -> JsonSchema:
+def build_matching_schema() -> JsonSchema:
+    """Build the Matching schema (code checks each choice against the item's shortlist)."""
+    return build_strict_schema(MatchingOutput)
+
+
+def build_naming_schema() -> JsonSchema:
+    """Build the Naming schema (code checks each suggested name)."""
+    return build_strict_schema(NamingOutput)
+
+
+def build_plausibility_schema() -> JsonSchema:
+    """Build the plausibility review schema (code drops findings under unknown check IDs)."""
+    return build_strict_schema(PlausibilityOutput)
+
+
+def build_fields_schema(business_rules: BusinessRules) -> JsonSchema:
     """Build the closed `fields` object: one required property per extracted field, in order."""
     base_field_schema = build_strict_schema(ExtractedField)
     properties = {
         field.key: build_field_schema(base_field_schema, field)
-        for field in field_rules.extracted_fields()
+        for field in business_rules.extracted_fields()
     }
     return close_object({"type": "object", "properties": properties})
 
 
-def build_field_schema(base_field_schema: JsonSchema, field: FieldRule) -> JsonSchema:
-    """Narrow the generic field schema to one field: a string, or a list of strings."""
+def build_context_schema(business_rules: BusinessRules) -> JsonSchema:
+    """Build the closed `context` object: one required property per context attribute, in order."""
+    base_field_schema = build_strict_schema(ExtractedField)
+    properties = {
+        attribute.key: build_value_schema(base_field_schema, is_list=False)
+        for attribute in business_rules.context_fields()
+    }
+    return close_object({"type": "object", "properties": properties})
+
+
+def build_field_schema(base_field_schema: JsonSchema, field: FieldDefinition) -> JsonSchema:
+    """Narrow the generic field schema to one field, described by its column name."""
+    schema = build_value_schema(base_field_schema, is_list=field.multi_value)
+    # The column name tells the model which loader column this key is
+    schema["description"] = field.column
+    return schema
+
+
+def build_value_schema(base_field_schema: JsonSchema, is_list: bool) -> JsonSchema:
+    """Narrow the generic field schema's values to a string, or to a list of strings."""
     schema = copy.deepcopy(base_field_schema)
-    value_schema = STRING_LIST_SCHEMA if field.multi_value else STRING_SCHEMA
-    # The field's value may be null (not found, conflicting); an alternative's value may not
+    value_schema = STRING_LIST_SCHEMA if is_list else STRING_SCHEMA
+    # The value may be null (not found, conflicting, unclear); an alternative's value may not
     schema["properties"]["value"] = {"anyOf": [copy.deepcopy(value_schema), NULL_SCHEMA]}
     alternative_schema = schema["properties"]["alternatives"]["items"]
     alternative_schema["properties"]["value"] = copy.deepcopy(value_schema)
-    # The column name tells the model which loader column this key is
-    schema["description"] = field.column
     return schema
 
 

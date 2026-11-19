@@ -93,7 +93,7 @@ def test_attributes_do_not_change_the_issue_id_or_accepted_state(bundle: ConfigB
     record = make_record(bundle)
     bare = run_validation(bundle, [record], reference=make_described_reference("Syn A", False))
     [before] = issues_with_code(bare, codes.EXISTS_IN_LABVANTAGE)
-    name_key = find_name_rule(bundle.field_rules).key
+    name_key = find_name_rule(bundle.business_rules).key
     expected_id = make_issue_id(codes.EXISTS_IN_LABVANTAGE, record.record_id, name_key, "Syn A")
     assert before.issue_id == expected_id
     # The same issue, accepted earlier with details that had no attributes
@@ -114,8 +114,8 @@ def test_review_view_types_the_candidates(bundle: ConfigBundle) -> None:
     result = run_validation(
         bundle, [make_record(bundle)], reference=make_described_reference("Syn A")
     )
-    view = build_review_view(result.records, result.issues, bundle.field_rules, [], [])
-    name_key = find_name_rule(bundle.field_rules).key
+    view = build_review_view(result.records, result.issues, bundle.business_rules, [], [])
+    name_key = find_name_rule(bundle.business_rules).key
     [cell] = [cell for cell in view.rows[0].cells if cell.field == name_key]
     [summary] = [i for i in cell.issues if i.code == codes.EXISTS_IN_LABVANTAGE]
     assert [c.description for c in summary.duplicate_candidates] == [DESCRIPTION]

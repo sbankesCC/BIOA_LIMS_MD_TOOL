@@ -1,7 +1,7 @@
 """Eval case loader: reads a suite's case folders (CONTRACTS §9) and checks them against the config.
 
 A case whose files are broken is skipped and reported as a problem. A case labeled against other
-field rules, or naming fields the current rules do not extract, still runs with a warning.
+business rules, or naming fields the current rules do not extract, still runs with a warning.
 """
 
 import json
@@ -10,8 +10,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from app.config.business_rules import BusinessRules
 from app.config.errors import ConfigError, parse_model, read_yaml
-from app.config.field_rules import FieldRules
 from app.contracts.base import ContractModel
 from app.contracts.eval_case import (
     EvalCaseInfo,
@@ -20,8 +20,8 @@ from app.contracts.eval_case import (
     ExpectedRecord,
     SeededErrors,
 )
+from app.normalization.lookup_matching import normalize_for_match
 from app.settings import PROJECT_ROOT
-from app.transform.lookup_matching import normalize_for_match
 
 # Suites are folders under `evals/` at the repo root (e.g. `cases`), whatever the working folder
 EVALS_DIR = PROJECT_ROOT / "evals"
@@ -76,7 +76,7 @@ class EvalCase(BaseModel):
     seeded: SeededErrors
     documents: list[Path]
     fake_llm_folder: Path | None = None
-    has_field_rules_mismatch: bool = False
+    has_business_rules_mismatch: bool = False
     warnings: list[str] = []
 
 
@@ -110,7 +110,7 @@ def load_scoring_config(evals_dir: Path = EVALS_DIR) -> ScoringConfig:
     return parse_model(ScoringConfig, read_yaml(path), SCORING_FILE)
 
 
-def load_suite(suite_dir: Path, field_rules: FieldRules) -> SuiteCases:
+def load_suite(suite_dir: Path, business_rules: BusinessRules) -> SuiteCases:
     """Load every case folder of a suite; broken ones become problems, not errors."""
     if not suite_dir.is_dir():
         raise CaseLoadError(f"The eval suite folder {suite_dir} does not exist. Check --suite.")
@@ -118,7 +118,7 @@ def load_suite(suite_dir: Path, field_rules: FieldRules) -> SuiteCases:
     problems: list[CaseProblem] = []
     for folder in find_case_folders(suite_dir):
         try:
-            cases.append(load_case(folder, field_rules))
+            cases.append(load_case(folder, business_rules))
         except CaseLoadError as error:
             problems.append(CaseProblem(folder=folder.name, message=str(error)))
     return SuiteCases(cases=cases, problems=problems)
@@ -133,16 +133,16 @@ def find_case_folders(suite_dir: Path) -> list[Path]:
     )
 
 
-def load_case(folder: Path, field_rules: FieldRules) -> EvalCase:
+def load_case(folder: Path, business_rules: BusinessRules) -> EvalCase:
     """Load one case folder; raise CaseLoadError if a file is missing or broken."""
     info = read_case_model(EvalCaseInfo, read_case_yaml(folder / CASE_FILE), folder, CASE_FILE)
-    name_key = field_rules.record_name_field().key
+    name_key = business_rules.record_name_field().key
     expected = read_expected_extraction(folder, name_key)
     seeded = read_seeded_errors(folder)
     documents = list_documents(folder)
     fake_folder = folder / FAKE_LLM_FOLDER
     # A mismatch means the labels may be out of date; the case still runs
-    has_mismatch = info.field_rules_version != field_rules.version
+    has_mismatch = info.business_rules_version != business_rules.version
     return EvalCase(
         folder=folder,
         info=info,
@@ -150,8 +150,8 @@ def load_case(folder: Path, field_rules: FieldRules) -> EvalCase:
         seeded=seeded,
         documents=documents,
         fake_llm_folder=fake_folder if fake_folder.is_dir() else None,
-        has_field_rules_mismatch=has_mismatch,
-        warnings=find_case_warnings(info, expected, seeded, field_rules),
+        has_business_rules_mismatch=has_mismatch,
+        warnings=find_case_warnings(info, expected, seeded, business_rules),
     )
 
 
@@ -243,24 +243,24 @@ def find_case_warnings(
     info: EvalCaseInfo,
     expected: ExpectedExtraction,
     seeded: SeededErrors,
-    field_rules: FieldRules,
+    business_rules: BusinessRules,
 ) -> list[str]:
-    """Return warnings: other field rules version, unknown field keys, repeated record names."""
+    """Return warnings: other business rules version, unknown field keys, repeated record names."""
     warnings: list[str] = []
-    # Labels made against other field rules may no longer fit the fields
-    if info.field_rules_version != field_rules.version:
+    # Labels made against other business rules may no longer fit the fields
+    if info.business_rules_version != business_rules.version:
         warnings.append(
-            f"The case was labeled against field rules {info.field_rules_version}, but the "
-            f"current field rules are {field_rules.version}. Check the expected output and "
+            f"The case was labeled against business rules {info.business_rules_version}, but the "
+            f"current business rules are {business_rules.version}. Check the expected output and "
             "relabel it if needed."
         )
-    extracted_keys = {rule.key for rule in field_rules.extracted_fields()}
+    extracted_keys = {rule.key for rule in business_rules.extracted_fields()}
     # Field keys the current rules do not extract cannot be scored
     for record in expected.records:
         for key in sorted(set(record.fields) - extracted_keys):
             warnings.append(
                 f"Expected record '{record.name}': field '{key}' is not an extracted field in "
-                "the current field rules, so it is not scored. Fix or remove the label."
+                "the current business rules, so it is not scored. Fix or remove the label."
             )
     for error in seeded.errors:
         if error.field not in extracted_keys:

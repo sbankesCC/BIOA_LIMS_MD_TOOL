@@ -10,7 +10,8 @@ from dataclasses import dataclass
 
 from app.agents.common import AgentError, call_with_one_retry, make_request, parse_response
 from app.agents.extraction import EXTRACTION_FAILED
-from app.config.field_rules import FieldRules
+from app.config.business_rules import BusinessRules
+from app.config.extraction_rules import ExtractionRules
 from app.config.prompts import PromptTemplate
 from app.contracts.chunk import Chunk
 from app.contracts.extraction import ExcludedItem
@@ -19,6 +20,7 @@ from app.contracts.verification import VerificationOutput
 from app.llm.client import LLMCallError, LLMResponse
 from app.llm.prompt_builder import (
     build_prompt_parts,
+    build_rule_placeholders,
     format_citation_results,
     format_excluded_items,
     format_records,
@@ -37,19 +39,21 @@ class VerificationTask:
     chunks: Sequence[Chunk]
     records: Sequence[StoredRecord]
     excluded_items: Sequence[ExcludedItem]
-    field_rules: FieldRules
+    business_rules: BusinessRules
+    extraction_rules: ExtractionRules
     template: PromptTemplate
 
 
 def run_verification(caller: TracedCaller, task: VerificationTask) -> VerificationOutput:
     """Run the verification call; raise AgentError (EXTRACTION_FAILED) if it cannot finish."""
     values = {
+        **build_rule_placeholders(task.business_rules, task.extraction_rules),
         "citation_results": format_citation_results(task.records),
         "records": format_records(task.records),
         "excluded_items": format_excluded_items(task.excluded_items),
     }
     parts = build_prompt_parts(task.template, values, task.chunks)
-    schema = build_verification_schema(task.field_rules)
+    schema = build_verification_schema(task.business_rules)
     request = make_request(task.run_id, NODE, task.template, parts, schema)
     try:
         result = call_with_one_retry(caller, request, check_verification_response)

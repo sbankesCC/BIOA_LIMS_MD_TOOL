@@ -38,7 +38,7 @@ export const SYNTHETIC_FIELDS: RunField[] = [
 
 /** Return the run's field list with the synthetic fields. */
 export function makeFieldList(): RunFieldList {
-  return { field_rules_version: "synthetic-1", lookup_lists_version: "v-synthetic", fields: SYNTHETIC_FIELDS };
+  return { business_rules_version: "synthetic-1", lookup_lists_version: "v-synthetic", fields: SYNTHETIC_FIELDS };
 }
 
 /** Return a synthetic issue summary, changed by `overrides`. */
@@ -53,6 +53,7 @@ export function makeIssue(overrides: Partial<IssueSummary> = {}): IssueSummary {
     note_required: false,
     sources: [],
     duplicate_candidates: [],
+    choices: [],
     ...overrides,
   };
 }
@@ -72,6 +73,8 @@ export function makeCell(overrides: Partial<ReviewCell> = {}): ReviewCell {
     issues: [],
     sources: [],
     alternatives: [],
+    suggestion: null,
+    no_suggestion_reason: null,
     ...overrides,
   };
 }

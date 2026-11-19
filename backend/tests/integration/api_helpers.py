@@ -74,7 +74,7 @@ class ApiHarness:
 def happy_replies(bundle: ConfigBundle) -> dict[str, list[FakeReply]]:
     """Return fake replies for a clean run: two records, nothing to report."""
     return {
-        "extraction": [extraction_reply(bundle.field_rules, TWO_ROWS)],
+        "extraction": [extraction_reply(bundle.business_rules, TWO_ROWS)],
         "extraction_verification": [verification_reply()],
     }
 

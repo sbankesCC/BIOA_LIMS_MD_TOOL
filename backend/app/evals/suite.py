@@ -37,8 +37,8 @@ def run_suite(
 ) -> SuiteReport:
     """Run every case of a suite `runs` times through the graph and return the scored report."""
     started_at = datetime.now(UTC)
-    loaded = load_suite(suite_dir, bundle.field_rules)
-    extracted_keys = [rule.key for rule in bundle.field_rules.extracted_fields()]
+    loaded = load_suite(suite_dir, bundle.business_rules)
+    extracted_keys = [rule.key for rule in bundle.business_rules.extracted_fields()]
     scored_fields = select_scored_fields(extracted_keys, scoring_config.unscored_keys())
     workspace = open_workspace(work_dir)
     try:

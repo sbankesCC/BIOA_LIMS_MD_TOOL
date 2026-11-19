@@ -32,6 +32,9 @@ class AuditValueRow(ContractModel):
     field: str
     written_value: str | None
     exported_value: str | None
+    how_set: str
+    suggestion: str | None
+    suggestion_reason: str | None
     origin: str
     source_document: str | None
     location: str | None
@@ -41,6 +44,24 @@ class AuditValueRow(ContractModel):
     verification_verdict: str | None
     issue_codes: str | None
     issue_outcome: str | None
+
+
+class AuditContextRow(ContractModel):
+    """Context sheet: one context attribute of a record, as written, with its source."""
+
+    record_id: str
+    attribute: str
+    written_value: str | None
+    source: str | None
+
+
+class AuditSuggestionUsedRow(ContractModel):
+    """Suggestions used sheet: one field a person set from a suggestion."""
+
+    record_id: str
+    field: str
+    written_value: str | None
+    value_chosen: str | None
 
 
 class AuditEditRow(ContractModel):

@@ -6,7 +6,7 @@ cannot answer, every candidate is "unsure", so the user checks it (validation ne
 """
 
 from app.agents.common import call_with_one_retry, make_request, parse_response, summarize_problems
-from app.config.field_rules import FieldRules
+from app.config.business_rules import BusinessRules
 from app.config.prompts import PromptTemplate
 from app.contracts.judge import JudgeOutput, Judgment
 from app.llm.client import LLMCallError, LLMResponse
@@ -26,18 +26,22 @@ class DuplicateJudgeAgent:
     """The LLM duplicate judge for one run; every call is traced to that run."""
 
     def __init__(
-        self, caller: TracedCaller, run_id: str, template: PromptTemplate, field_rules: FieldRules
+        self,
+        caller: TracedCaller,
+        run_id: str,
+        template: PromptTemplate,
+        business_rules: BusinessRules,
     ) -> None:
-        """Use the run's traced caller, the judge prompt, and the field rules (column names)."""
+        """Use the run's traced caller, the judge prompt, and the business rules (column names)."""
         self.caller = caller
         self.run_id = run_id
         self.template = template
-        self.field_rules = field_rules
+        self.business_rules = business_rules
 
     def judge(self, request: JudgeRequest) -> JudgeOutput:
         """Return one judgment per candidate; all "unsure" if the judge cannot answer."""
         values = {
-            "record": format_judge_record(request.values, self.field_rules),
+            "record": format_judge_record(request.values, self.business_rules),
             "candidates": format_candidates(request.candidates),
         }
         parts = build_prompt_parts(self.template, values)

@@ -1,10 +1,10 @@
-"""Condition groups (`field_rules.yaml`): cross-field rules checked on each record.
+"""Condition groups (`business_rules.md`): cross-business rules checked on each record.
 
 `one_of`: at least one option (a set of fields) is completely filled.
 `both_or_neither`: the fields are all filled or all empty. Each group names its own issue code.
 """
 
-from app.config.field_rules import BothOrNeitherGroup, FieldRules, OneOfGroup
+from app.config.business_rules import BothOrNeitherGroup, BusinessRules, OneOfGroup
 from app.contracts.record import StoredRecord
 from app.validation.issues import IssueDraft
 
@@ -23,10 +23,10 @@ def is_group_met(record: StoredRecord, group: OneOfGroup | BothOrNeitherGroup) -
     return all(filled) or not any(filled)
 
 
-def check_conditions(record: StoredRecord, field_rules: FieldRules) -> list[IssueDraft]:
+def check_conditions(record: StoredRecord, business_rules: BusinessRules) -> list[IssueDraft]:
     """Return a record-level issue for each condition group the record does not meet."""
     drafts: list[IssueDraft] = []
-    for group_name, group in field_rules.condition_groups.items():
+    for group_name, group in business_rules.condition_groups.items():
         if not is_group_met(record, group):
             drafts.append(
                 IssueDraft(

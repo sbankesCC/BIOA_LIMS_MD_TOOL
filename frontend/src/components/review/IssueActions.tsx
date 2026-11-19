@@ -21,12 +21,17 @@ export interface IssueActionProps {
   isSourceViewed: boolean;
   hasSources: boolean;
   isRunIssue: boolean;
+  // The rule offers the field's suggestion (NOT_IN_LOOKUP, NAME_NOT_SET)
+  canUseSuggestion: boolean;
   onState: (patch: Partial<ActionState>) => void;
   onViewSource: () => void;
   onShowAlternativeSource: (alternative: CellAlternative) => void;
   // M13: bulk "Also apply to N similar", Exclude record and the like, shown under the actions
   extraActions?: ReactNode;
 }
+
+// Kinds with their own view (everything else shows the Accept / Change options)
+const SELF_CONTAINED_KINDS: ActionKind[] = ["enter_value", "choose_value", "pick_alternative", "nothing_to_do"];
 
 /** One radio option: its value, its label, and why it is disabled (if it is). */
 interface OptionItem {
@@ -35,9 +40,9 @@ interface OptionItem {
   disabledReason?: string | null;
 }
 
-/** Return true when the user may change the field's value in the tool (extracted fields only). */
+/** Return true when the user may change the field's value: extracted, generated or derived fields. */
 export function isEditableField(field: RunField | null): boolean {
-  return field !== null && field.role === "extracted";
+  return field !== null && (field.role === "extracted" || field.role === "generated" || field.role === "derived");
 }
 
 /** Show the action view for the selected issue (or the "Change value" view without one). */
@@ -53,12 +58,11 @@ export function IssueAction(props: IssueActionProps) {
   return (
     <div className="issue-action">
       {props.hasSources && <ViewSourceButton {...props} />}
-      {kind === "enter_value" && <ValueField {...props} />}
+      {kind === "enter_value" && <EnterValueAction {...props} />}
+      {kind === "choose_value" && <ChoicesAction {...props} />}
       {kind === "pick_alternative" && <AlternativesAction {...props} />}
       {kind === "nothing_to_do" && <p className="issue-action__note">Nothing to do. This is shown for information.</p>}
-      {kind !== null && kind !== "enter_value" && kind !== "pick_alternative" && kind !== "nothing_to_do" && (
-        <OptionsAction {...props} />
-      )}
+      {kind !== null && !SELF_CONTAINED_KINDS.includes(kind) && <OptionsAction {...props} />}
       {props.extraActions}
     </div>
   );
@@ -93,6 +97,54 @@ function ValueField({ field, cell, state, onState, label }: IssueActionProps & {
       label={label}
       onChange={(value, problem) => onState({ value, valueProblem: problem })}
     />
+  );
+}
+
+/**
+ * Enter a value, or use the field's suggestion. A field with no suggestion says why when the
+ * step knew (the model's reason, or why its answer was dropped).
+ */
+function EnterValueAction(props: IssueActionProps) {
+  const { cell, state, onState, canUseSuggestion } = props;
+  const suggestion = canUseSuggestion ? cell?.suggestion ?? null : null;
+  const noSuggestionReason = canUseSuggestion && suggestion === null ? cell?.no_suggestion_reason ?? null : null;
+  return (
+    <div className="issue-action__group">
+      {suggestion !== null && (
+        <label className="issue-action__option issue-action__option--card">
+          <input type="radio" name="issue-option" checked={state.option === "use_suggestion"} onChange={() => onState({ option: "use_suggestion" })} />
+          <span className="issue-action__option-body">
+            <span>
+              Use the suggestion: <strong>{suggestion.value}</strong>
+            </span>
+            <span className="muted">{suggestion.reason}</span>
+          </span>
+        </label>
+      )}
+      {noSuggestionReason !== null && <p className="issue-action__note">No suggestion: {noSuggestionReason}</p>}
+      {/* Typing a value switches away from "Use the suggestion" */}
+      <ValueField
+        {...props}
+        onState={(patch) => onState(state.option === "use_suggestion" && patch.value ? { ...patch, option: "change" } : patch)}
+      />
+    </div>
+  );
+}
+
+/** A "Reviewer chooses" issue: one radio per value the matched row offers. */
+function ChoicesAction({ issue, state, onState }: IssueActionProps) {
+  const choices = issue?.choices ?? [];
+  return (
+    <fieldset className="issue-action__options">
+      <legend className="issue-action__legend">Choose one value</legend>
+      {choices.map((choice) => (
+        <label key={choice} className="issue-action__option">
+          <input type="radio" name="issue-option" checked={state.option === "choice" && state.value === choice} onChange={() => onState({ option: "choice", value: choice })} />
+          <span>{choice}</span>
+        </label>
+      ))}
+      {choices.length === 0 && <p className="issue-action__note">No values to choose from were recorded.</p>}
+    </fieldset>
   );
 }
 

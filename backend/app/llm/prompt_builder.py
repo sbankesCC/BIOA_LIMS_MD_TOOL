@@ -11,10 +11,14 @@ from collections.abc import Mapping, Sequence
 
 from pydantic import BaseModel
 
-from app.config.field_rules import FieldRules
+from app.config.business_rules import BusinessRules, RuleLine
+from app.config.extraction_rules import ExtractionRules
 from app.config.prompts import HTML_COMMENT_PATTERN, PLACEHOLDER_PATTERN, PromptTemplate
 from app.contracts.chunk import Chunk
 from app.contracts.extraction import ExcludedItem
+from app.contracts.matching import MatchingItem
+from app.contracts.naming import NamingRecord
+from app.contracts.plausibility import PlausibilityRecord
 from app.contracts.record import StoredRecord
 from app.contracts.reference import ReferenceType
 from app.llm.client import ImagePart, PromptPart, TextPart
@@ -102,13 +106,72 @@ def merge_text_parts(parts: Sequence[PromptPart]) -> list[PromptPart]:
     return [part for part in merged if not isinstance(part, TextPart) or part.text]
 
 
-def build_field_section(field_rules: FieldRules) -> str:
-    """Return one line per extracted field: key, column name and extraction guidance."""
-    lines: list[str] = []
-    for field in field_rules.extracted_fields():
+def format_rule_lines(rules: Sequence[RuleLine]) -> str:
+    """Return active rule lines as `- <ID> <text>`, without step, status or source."""
+    lines = [f"- {rule.rule_id} {rule.text}" for rule in rules if rule.is_active]
+    return "\n".join(lines) or NOTHING_TEXT
+
+
+def build_general_rules(extraction_rules: ExtractionRules) -> str:
+    """Return the active general extraction lines."""
+    return format_rule_lines(extraction_rules.general)
+
+
+def build_candidate_rules(extraction_rules: ExtractionRules) -> str:
+    """Return the active candidate criteria."""
+    return format_rule_lines(extraction_rules.candidates)
+
+
+def build_field_section(business_rules: BusinessRules, extraction_rules: ExtractionRules) -> str:
+    """Return one block per extracted or generated field: key, column and its guidance.
+
+    The field's shape (key, column, one value or a list) comes from the business rules.
+    """
+    blocks: list[str] = []
+    for field in business_rules.extracted_fields():
         list_note = " (a list: one entry per value)" if field.multi_value else ""
-        lines.append(f"- {field.key} ({field.column}){list_note}: {field.extraction_guidance}")
-    return "\n".join(lines)
+        heading = f"{field.key} ({field.column}){list_note}"
+        blocks.append(f"{heading}\n{format_rule_lines(extraction_rules.rules_for(field.key))}")
+    return "\n\n".join(blocks) or NOTHING_TEXT
+
+
+def build_context_section(business_rules: BusinessRules, extraction_rules: ExtractionRules) -> str:
+    """Return one block per context attribute: key and its guidance."""
+    blocks = [
+        f"{attribute.key}\n{format_rule_lines(extraction_rules.rules_for(attribute.key))}"
+        for attribute in business_rules.context_fields()
+    ]
+    return "\n\n".join(blocks) or NOTHING_TEXT
+
+
+def build_matching_rules(business_rules: BusinessRules, field_keys: Sequence[str]) -> str:
+    """Return the active [Matching] lines of the fields that have items in the call."""
+    rules = [
+        rule
+        for key in dict.fromkeys(field_keys)
+        for rule in business_rules.rules_for("Matching", key)
+    ]
+    return format_rule_lines(rules)
+
+
+def build_checks(business_rules: BusinessRules) -> str:
+    """Return every active [Plausibility] line."""
+    return format_rule_lines(business_rules.rules_for("Plausibility"))
+
+
+def build_rule_placeholders(
+    business_rules: BusinessRules, extraction_rules: ExtractionRules
+) -> dict[str, str]:
+    """Return the four rule placeholders the extraction and verification prompts share.
+
+    The guidance comes only from the extraction rules; the business rules give the field list.
+    """
+    return {
+        "general_rules": build_general_rules(extraction_rules),
+        "candidate_rules": build_candidate_rules(extraction_rules),
+        "field_section": build_field_section(business_rules, extraction_rules),
+        "context_section": build_context_section(business_rules, extraction_rules),
+    }
 
 
 def build_reextraction_section(
@@ -168,9 +231,9 @@ def format_excluded_items(items: Sequence[ExcludedItem]) -> str:
     return "\n".join(lines) or NOTHING_TEXT
 
 
-def format_judge_record(values: Mapping[str, str | None], field_rules: FieldRules) -> str:
+def format_judge_record(values: Mapping[str, str | None], business_rules: BusinessRules) -> str:
     """Return the new record's identifying values, one line each with the column name."""
-    columns = {field.key: field.column for field in field_rules.fields}
+    columns = {field.key: field.column for field in business_rules.fields}
     lines = [
         f"- {columns.get(key, key)}: {value if value else NOT_GIVEN_TEXT}"
         for key, value in values.items()
@@ -184,4 +247,31 @@ def format_candidates(candidates: Sequence[ReferenceType]) -> str:
         json.dumps(candidate.model_dump(mode="json", exclude_none=True), ensure_ascii=False)
         for candidate in candidates
     ]
+    return "\n".join(lines) or NOTHING_TEXT
+
+
+def format_matching_items(items: Sequence[MatchingItem]) -> str:
+    """Return each Matching item as one JSON line: ID, field column, value, quote, shortlist."""
+    lines = [json.dumps(item.model_dump(mode="json"), ensure_ascii=False) for item in items]
+    return "\n".join(lines) or NOTHING_TEXT
+
+
+def format_naming_records(records: Sequence[NamingRecord], business_rules: BusinessRules) -> str:
+    """Return each record to name as one JSON line, with column names for its values."""
+    columns = {field.key: field.column for field in business_rules.fields}
+    lines: list[str] = []
+    for record in records:
+        data = {
+            "record_id": record.record_id,
+            "name_as_written": record.name_as_written,
+            "values": {columns.get(key, key): value for key, value in record.values.items()},
+            "context": record.context,
+        }
+        lines.append(json.dumps(data, ensure_ascii=False))
+    return "\n".join(lines) or NOTHING_TEXT
+
+
+def format_plausibility_records(records: Sequence[PlausibilityRecord]) -> str:
+    """Return each record to review as one JSON line; values and fields are named by key."""
+    lines = [json.dumps(record.model_dump(mode="json"), ensure_ascii=False) for record in records]
     return "\n".join(lines) or NOTHING_TEXT

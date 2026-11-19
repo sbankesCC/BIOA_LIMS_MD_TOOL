@@ -123,7 +123,7 @@ export interface paths {
          * Get the review view
          * @description Return one row per record, with each cell's value, display value, color and sources.
          *
-         *     Placeholder fields have an empty value and the placeholder as their display value.
+         *     Placeholder (blank_for_now) fields have an empty value and an empty display value.
          */
         get: operations["get_review_view"];
         put?: never;
@@ -590,7 +590,7 @@ export interface components {
         BulkActionSummary: {
             bulk_id: string;
             /** @enum {string} */
-            change_type: "set_value" | "pick_alternative" | "accept_warning" | "exclude_record" | "restore_record";
+            change_type: "set_value" | "pick_alternative" | "use_suggestion" | "accept_warning" | "exclude_record" | "restore_record";
             field: string | null;
             issue_code: string | null;
             record_count: number;
@@ -644,7 +644,7 @@ export interface components {
             user: string;
             /** Format: date-time */
             timestamp: string;
-            changes: (components["schemas"]["SetValueChange"] | components["schemas"]["PickAlternativeChange"] | components["schemas"]["AcceptWarningChange"] | components["schemas"]["ExcludeRecordChange"] | components["schemas"]["RestoreRecordChange"] | components["schemas"]["UndoBulkChange"])[];
+            changes: (components["schemas"]["SetValueChange"] | components["schemas"]["PickAlternativeChange"] | components["schemas"]["UseSuggestionChange"] | components["schemas"]["AcceptWarningChange"] | components["schemas"]["ExcludeRecordChange"] | components["schemas"]["RestoreRecordChange"] | components["schemas"]["UndoBulkChange"])[];
         };
         /**
          * @description A chunk's text for "Show source", with its document, section and page.
@@ -660,10 +660,11 @@ export interface components {
         };
         /** @description The version of each config file; prompts are versioned one by one. */
         ConfigVersions: {
-            field_rules: string;
+            business_rules: string;
+            extraction_rules: string;
             issue_catalogue: string;
             lookup_lists: string;
-            dfd_template: string;
+            export_template: string;
             reference_data_mapping: string;
             prompts: {
                 [key: string]: string;
@@ -748,24 +749,38 @@ export interface components {
             at: string;
             reason: string;
         };
-        /** @description One field of one record as the LLM returned it. */
+        /** @description One field (or context attribute) of one record as the LLM returned it. */
         ExtractedField: {
             /** @enum {string} */
-            status: "found" | "conflicting" | "not_found";
+            status: "found" | "conflicting" | "unclear" | "not_found";
             value?: string | string[] | null;
             /** @default [] */
             evidence: components["schemas"]["Evidence"][];
             /** @default [] */
             alternatives: components["schemas"]["Alternative"][];
-            /** @default false */
-            allows_equivalent: boolean;
             warning?: string | null;
+        };
+        /**
+         * @description Field-level normalization: the normalized value, or a conflict's normalized alternatives.
+         *
+         *     `matching_value` is the value sent to Matching (else None); `choices` are the list values a
+         *     "Reviewer chooses" translation row offers.
+         */
+        FieldNormalization: {
+            value?: string | null;
+            /** @default [] */
+            alternatives: string[];
+            /** @default [] */
+            notes: string[];
+            matching_value?: string | null;
+            /** @default [] */
+            choices: string[];
         };
         /** @description Field-level output: the loader value (always text or empty), its origin and clean-ups. */
         FieldOutput: {
             value?: string | null;
             /** @enum {string} */
-            origin: "extracted" | "default" | "fixed" | "user_edited" | "blank_for_now" | "system";
+            origin: "extracted" | "default" | "derived" | "from_suggestion" | "fixed" | "user_edited" | "blank_for_now" | "system";
             /** @default [] */
             changes: string[];
             selected_alternative?: number | null;
@@ -773,7 +788,7 @@ export interface components {
         /** @description Field-level verification: the code citation check and the agent's verdict, if any. */
         FieldVerification: {
             citation_check?: ("verified" | "not_verified" | "not_checkable") | null;
-            verdict?: ("contradicted" | "unsupported" | "present_missed") | null;
+            verdict?: ("contradicted" | "unsupported" | "present_missed" | "incomplete") | null;
             note?: string | null;
         };
         /** @description Liveness answer, with the config versions in use (or why no config is loaded). */
@@ -786,6 +801,7 @@ export interface components {
          * @description One issue; run-level issues have no record and no field.
          *
          *     `individual_review` and `note_required` are the catalogue's flags for the issue's code.
+         *     `details` may carry `candidates`, `suggestion`, `choices`, `check_id` and `sources` (§5).
          */
         Issue: {
             issue_id: string;
@@ -816,6 +832,7 @@ export interface components {
          *     `note_required`: accepting it needs a note (catalogue). `sources`: the chunks the issue's
          *     finding cites (e.g. missed candidates, challenged excluded items), only chunks of the run.
          *     `duplicate_candidates`: the existing types a duplicate issue names (`details.candidates`).
+         *     `choices`: the list values a "Reviewer chooses" issue offers (`details.choices`).
          */
         IssueSummary: {
             issue_id: string;
@@ -829,6 +846,7 @@ export interface components {
             note_required: boolean;
             sources: components["schemas"]["SourceLocation"][];
             duplicate_candidates: components["schemas"]["DuplicateCandidate"][];
+            choices: string[];
         };
         JsonValue: unknown;
         /** @description The check report of one upload: passed checks, problems, warnings and changes. */
@@ -919,7 +937,12 @@ export interface components {
             record_id: string;
             bulk_id?: string | null;
         };
-        /** @description One field of one record in the grid. */
+        /**
+         * @description One field of one record in the grid.
+         *
+         *     `suggestion` is what Matching or Naming proposes (never applied until a person uses it);
+         *     without one, `no_suggestion_reason` says why, when known.
+         */
         ReviewCell: {
             field: string;
             column: string;
@@ -927,14 +950,16 @@ export interface components {
             display_value: string | null;
             written_value: string | null;
             /** @enum {string} */
-            origin: "extracted" | "default" | "fixed" | "user_edited" | "blank_for_now" | "system";
-            extraction_status: ("found" | "conflicting" | "not_found") | null;
+            origin: "extracted" | "default" | "derived" | "from_suggestion" | "fixed" | "user_edited" | "blank_for_now" | "system";
+            extraction_status: ("found" | "conflicting" | "unclear" | "not_found") | null;
             is_placeholder: boolean;
             /** @enum {string} */
             color: "red" | "yellow" | "grey" | "none";
             issues: components["schemas"]["IssueSummary"][];
             sources: components["schemas"]["CellSource"][];
             alternatives: components["schemas"]["CellAlternative"][];
+            suggestion: components["schemas"]["Suggestion"] | null;
+            no_suggestion_reason: string | null;
         };
         /**
          * @description Summary strip counts; issue counts leave out excluded records.
@@ -981,8 +1006,8 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             /** @enum {string} */
-            status: "created" | "ingesting" | "extracting" | "verifying_extraction" | "transforming" | "validating" | "in_review" | "rechecking" | "failed";
-            current_step: ("created" | "ingesting" | "extracting" | "verifying_extraction" | "transforming" | "validating" | "in_review" | "rechecking" | "failed") | null;
+            status: "created" | "ingesting" | "extracting" | "verifying_extraction" | "normalizing" | "matching" | "naming" | "assembling" | "validating" | "in_review" | "rechecking" | "failed";
+            current_step: ("created" | "ingesting" | "extracting" | "verifying_extraction" | "normalizing" | "matching" | "naming" | "assembling" | "validating" | "in_review" | "rechecking" | "failed") | null;
             retry_of: string | null;
             is_verified: boolean;
             verified_by: string | null;
@@ -1035,7 +1060,7 @@ export interface components {
             key: string;
             column: string;
             /** @enum {string} */
-            role: "extracted" | "blank_for_now" | "system";
+            role: "extracted" | "derived" | "generated" | "context" | "system" | "blank_for_now";
             /** @enum {string} */
             requirement: "required" | "conditional" | "optional";
             /** @enum {string} */
@@ -1050,7 +1075,7 @@ export interface components {
         };
         /** @description Every loader field of a run, in loader order, with the versions they come from. */
         RunFieldList: {
-            field_rules_version: string;
+            business_rules_version: string;
             lookup_lists_version: string;
             fields: components["schemas"]["RunField"][];
         };
@@ -1067,7 +1092,7 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             /** @enum {string} */
-            status: "created" | "ingesting" | "extracting" | "verifying_extraction" | "transforming" | "validating" | "in_review" | "rechecking" | "failed";
+            status: "created" | "ingesting" | "extracting" | "verifying_extraction" | "normalizing" | "matching" | "naming" | "assembling" | "validating" | "in_review" | "rechecking" | "failed";
             retry_of: string | null;
             is_verified: boolean;
             verified_by: string | null;
@@ -1122,15 +1147,28 @@ export interface components {
             run_id: string;
             retry_of?: string | null;
         };
-        /** @description One field of a stored record; `extraction` and `verification` are null if not extracted. */
+        /** @description One context attribute of a stored record: extraction and verification only, no output. */
+        StoredContextAttribute: {
+            extraction?: components["schemas"]["ExtractedField"] | null;
+            verification?: components["schemas"]["FieldVerification"] | null;
+        };
+        /**
+         * @description One field of a stored record; `extraction` and `verification` are null if not extracted.
+         *
+         *     `no_suggestion_reason` says why Matching or Naming made no suggestion (the model's own
+         *     reason for an empty answer, or why its answer was dropped); it is null when there is one.
+         */
         StoredField: {
             extraction?: components["schemas"]["ExtractedField"] | null;
             verification?: components["schemas"]["FieldVerification"] | null;
+            normalization?: components["schemas"]["FieldNormalization"] | null;
+            suggestion?: components["schemas"]["Suggestion"] | null;
+            no_suggestion_reason?: string | null;
             output: components["schemas"]["FieldOutput"];
             /** @default [] */
             issue_ids: string[];
         };
-        /** @description A stored record with its sections and one entry per loader field. */
+        /** @description A stored record with its sections, one entry per context attribute and per loader field. */
         StoredRecord: {
             record_id: string;
             found_in: string[];
@@ -1143,6 +1181,10 @@ export interface components {
              */
             verification: components["schemas"]["RecordVerification"];
             exclusion?: components["schemas"]["Exclusion"] | null;
+            /** @default {} */
+            context: {
+                [key: string]: components["schemas"]["StoredContextAttribute"];
+            };
             fields: {
                 [key: string]: components["schemas"]["StoredField"];
             };
@@ -1153,6 +1195,14 @@ export interface components {
              * @enum {string}
              */
             action_needed: "fix" | "check" | "none" | "excluded";
+        };
+        /** @description A value a model step proposes for a field; never applied until a person uses it. */
+        Suggestion: {
+            value: string;
+            /** @enum {string} */
+            source: "matching" | "naming";
+            reason: string;
+            rule_id?: string | null;
         };
         /** @description Undo every change that shares `bulk_id`. */
         UndoBulkChange: {
@@ -1177,6 +1227,18 @@ export interface components {
         UploadLimits: {
             max_file_size_mb: number | null;
             max_files_per_run: number | null;
+        };
+        /** @description Set a field to its current suggestion (origin `from_suggestion`); refused if it has none. */
+        UseSuggestionChange: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "use_suggestion";
+            change_id: string;
+            record_id: string;
+            field: string;
+            bulk_id?: string | null;
         };
         /** @description Verify's answer: verified, or the issues that block it; and warnings it accepted. */
         VerifyResult: {

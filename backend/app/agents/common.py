@@ -17,6 +17,9 @@ from app.llm.tracing import ResponseCheck, TracedCaller, TracedResult
 SCHEMA_NAMES: dict[LlmNode, str] = {
     "extraction": "extraction_output",
     "extraction_verification": "verification_output",
+    "matching": "matching_output",
+    "naming": "naming_output",
+    "plausibility": "plausibility_output",
     "duplicate_judge": "judge_output",
 }
 

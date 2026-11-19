@@ -16,13 +16,14 @@ from app.agents.common import (
     parse_response,
     summarize_problems,
 )
-from app.config.field_rules import FieldRules
+from app.config.business_rules import BusinessRules
+from app.config.extraction_rules import ExtractionRules
 from app.config.prompts import PromptTemplate
 from app.contracts.chunk import Chunk
 from app.contracts.extraction import ExtractionOutput
 from app.ids import RECORD_PREFIX
 from app.llm.client import LLMCallError, LLMResponse, PromptPart
-from app.llm.prompt_builder import build_field_section, build_prompt_parts
+from app.llm.prompt_builder import build_prompt_parts, build_rule_placeholders
 from app.llm.token_estimate import ImageSizeReader, estimate_parts_tokens
 from app.llm.tracing import ResponseCheck, TracedCaller
 from app.llm_schema import build_extraction_schema
@@ -37,7 +38,7 @@ DOCUMENT_SET_TOO_LARGE = "DOCUMENT_SET_TOO_LARGE"
 
 @dataclass(frozen=True)
 class ExtractionTask:
-    """What one extraction call needs: the run's chunks, field rules, prompt and limits.
+    """What one extraction call needs: chunks, business and extraction rules, prompt, limits.
 
     On re-extraction, `reextraction_section` lists the problems and `allowed_record_ids` the
     existing records the response may return by their record_id.
@@ -45,7 +46,8 @@ class ExtractionTask:
 
     run_id: str
     chunks: Sequence[Chunk]
-    field_rules: FieldRules
+    business_rules: BusinessRules
+    extraction_rules: ExtractionRules
     template: PromptTemplate
     max_input_tokens: int | None
     reextraction_section: str = ""
@@ -57,11 +59,11 @@ def run_extraction(
 ) -> ExtractionOutput:
     """Run the extraction call; raise AgentError (EXTRACTION_FAILED or too large) on failure."""
     values = {
-        "field_section": build_field_section(task.field_rules),
+        **build_rule_placeholders(task.business_rules, task.extraction_rules),
         "reextraction_section": task.reextraction_section,
     }
     parts = build_prompt_parts(task.template, values, task.chunks)
-    schema = build_extraction_schema(task.field_rules)
+    schema = build_extraction_schema(task.business_rules)
     check_input_size(parts, schema, task.max_input_tokens, read_image_size)
     request = make_request(task.run_id, NODE, task.template, parts, schema)
     try:
@@ -104,7 +106,7 @@ def make_extraction_check(task: ExtractionTask) -> ResponseCheck:
             return parsed
         problems = [
             violation.message
-            for violation in find_status_violations(parsed, task.field_rules, chunk_ids)
+            for violation in find_status_violations(parsed, task.business_rules, chunk_ids)
         ]
         problems += find_record_id_problems(parsed, task.allowed_record_ids)
         return summarize_problems(problems) if problems else None

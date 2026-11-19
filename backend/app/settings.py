@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     extraction_model: str | None = None
     verification_model: str | None = None
     duplicate_judge_model: str | None = None
+    matching_model: str | None = None
+    naming_model: str | None = None
+    plausibility_model: str | None = None
     llm_retries: int | None = None
 
     # Fake LLM replies folder, used only when LLM_PROVIDER is fake (local development)
@@ -50,6 +53,10 @@ class Settings(BaseSettings):
     max_files_per_run: int | None = None
     max_input_tokens: int | None = None
     max_duplicate_judge_calls: int | None = None
+    max_matching_calls: int | None = None
+    max_naming_calls: int | None = None
+    max_plausibility_calls: int | None = None
+    matching_shortlist_size: int | None = None
 
     # Re-extraction attempts; 1 is the documented default
     max_reextract: int = 1

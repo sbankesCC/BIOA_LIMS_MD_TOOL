@@ -5,10 +5,11 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from app.config.bundle import ConfigBundle
 from app.config.errors import ConfigError
 from app.main import create_app
 from app.settings import load_settings
-from tests.conftest import CLIENT_CONFIG_DIR, edit_yaml
+from tests.conftest import CLIENT_CONFIG_DIR, edit_business_rules
 
 
 @pytest.mark.usefixtures("blank_environment")
@@ -31,10 +32,11 @@ def test_health_reports_config_versions(monkeypatch: pytest.MonkeyPatch) -> None
         body = client.get("/health").json()
     versions = body["config_versions"]
     assert set(versions) == {
-        "field_rules",
+        "business_rules",
+        "extraction_rules",
         "issue_catalogue",
         "lookup_lists",
-        "dfd_template",
+        "export_template",
         "reference_data_mapping",
         "prompts",
     }
@@ -42,11 +44,14 @@ def test_health_reports_config_versions(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 @pytest.mark.usefixtures("blank_environment")
-def test_broken_config_stops_startup(monkeypatch: pytest.MonkeyPatch, config_copy: Path) -> None:
-    """A broken config stops the app at startup with a message naming the problem."""
-    edit_yaml(config_copy / "field_rules.yaml", lambda data: data.pop("version"))
+def test_broken_config_stops_startup(
+    monkeypatch: pytest.MonkeyPatch, config_copy: Path, bundle: ConfigBundle
+) -> None:
+    """A broken business_rules.md stops the app at startup with a message naming the problem."""
+    version = bundle.business_rules.version
+    edit_business_rules(config_copy, f"| Version | {version} |", "| Edition | 1 |")
     monkeypatch.setenv("CLIENT_CONFIG_DIR", str(config_copy))
     app = create_app(load_settings(env_file=None))
-    with pytest.raises(ConfigError, match="field_rules.yaml: version"):
+    with pytest.raises(ConfigError, match="needs a 'Version' row"):
         with TestClient(app):
             pass

@@ -87,10 +87,11 @@ export function makeRunDetail(overrides: Partial<RunDetail> = {}): RunDetail {
     ...makeRunSummary(),
     current_step: "extracting",
     config_versions: {
-      field_rules: "test-1",
+      business_rules: "test-1",
+      extraction_rules: "test-1",
       issue_catalogue: "test-1",
       lookup_lists: "v-test",
-      dfd_template: "test-1",
+      export_template: "test-1",
       reference_data_mapping: "test-1",
       prompts: {},
     },

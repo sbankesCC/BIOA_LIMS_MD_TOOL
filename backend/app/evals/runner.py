@@ -21,7 +21,12 @@ from app.evals.case_loader import EvalCase
 from app.evals.scoring import ActualRecord, ActualSource, collect_field_findings
 from app.evals.seeding import EvalLLMClient
 from app.graph.build import make_run_info, run_processing
-from app.graph.context import ProcessingContext, ProcessingLimits, read_processing_limits
+from app.graph.context import (
+    ProcessingContext,
+    ProcessingLimits,
+    make_memory_caches,
+    read_processing_limits,
+)
 from app.ids import IdCounter
 from app.llm.client import LLMClient
 from app.llm.fake_client import FakeLLMClient, load_fake_replies
@@ -139,7 +144,7 @@ def run_once(
 ) -> RunOutcome:
     """Store the case's documents as a new run, process it, and describe the result."""
     run_id = workspace.run_ids.next_id()
-    eval_client = EvalLLMClient(client, case.seeded.errors, bundle.field_rules)
+    eval_client = EvalLLMClient(client, case.seeded.errors, bundle.business_rules)
     start_run(case, bundle, eval_client, workspace, run_id)
     context = ProcessingContext(
         bundle=bundle,
@@ -150,6 +155,7 @@ def run_once(
         database=workspace.database,
         judge_cache=InMemoryJudgeCache(),
         limits=limits,
+        step_caches=make_memory_caches(),
     )
     error: str | None = None
     # A failing run is reported with its error; the other runs and cases go on
@@ -195,7 +201,7 @@ def describe_outcome(
     folder = workspace.run_store.open_run(run_id)
     records = workspace.database.read_records(run_id)
     chunks = folder.read_chunks() if folder.chunks_file.is_file() else []
-    name_key = bundle.field_rules.record_name_field().key
+    name_key = bundle.business_rules.record_name_field().key
     return RunOutcome(
         run_id=run_id,
         status=workspace.database.read_run(run_id).status,

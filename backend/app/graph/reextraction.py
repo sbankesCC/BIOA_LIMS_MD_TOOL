@@ -1,6 +1,7 @@
 """Re-extraction problems (ARCHITECTURE §5): what verification found that re-extraction fixes.
 
-Any field verdict, a citation `not_verified`, an unreported conflict, a `should_be_split` record
+Any field or context verdict (including `incomplete`), a citation `not_verified` on a field or
+context attribute, an unreported conflict, a `should_be_split` record
 verdict, or a missed candidate. Routing uses the list to decide; the extraction node sends it.
 """
 
@@ -82,12 +83,16 @@ def find_finding_problems(
 
 
 def find_citation_problems(records: Sequence[StoredRecord]) -> list[ReextractionProblem]:
-    """Return a problem for each field whose citation check is `not_verified`."""
+    """Return a problem for each field or context attribute whose citation check is `not_verified`.
+
+    A value of status `unclear` alone is never a problem here: it becomes an issue instead.
+    """
     problems: list[ReextractionProblem] = []
     for record in records:
-        for key, stored in record.fields.items():
-            citation_check = stored.verification.citation_check if stored.verification else None
-            if citation_check == "not_verified":
+        checked = [(key, stored.verification) for key, stored in record.fields.items()]
+        checked += [(key, attribute.verification) for key, attribute in record.context.items()]
+        for key, verification in checked:
+            if verification is not None and verification.citation_check == "not_verified":
                 problems.append(
                     ReextractionProblem(
                         record_id=record.record_id, field=key, problem=CITATION_NOT_VERIFIED

@@ -47,6 +47,7 @@ function toIssueRef(issue: RunIssue): IssueRef {
     note_required: issue.note_required ?? false,
     sources: [],
     duplicate_candidates: [],
+    choices: [],
   };
   return { issue: summary, recordId: issue.record_id, field: issue.field };
 }

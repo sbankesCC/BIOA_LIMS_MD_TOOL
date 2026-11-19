@@ -26,7 +26,10 @@ from app.settings import Settings
 from app.validation.service import ProcessingFindings
 
 # Bump when a table changes; an existing file with another version is refused, never rewritten
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
+
+# The model-step caches: one table each, keyed by a hash (ARCHITECTURE §4.7, §4.8)
+STEP_CACHE_TABLES = ("matching_cache", "naming_cache", "plausibility_cache")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_info (
@@ -98,6 +101,18 @@ CREATE TABLE IF NOT EXISTS audit_events (
     data TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS duplicate_judgments (
+    cache_key TEXT PRIMARY KEY,
+    output TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS matching_cache (
+    cache_key TEXT PRIMARY KEY,
+    output TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS naming_cache (
+    cache_key TEXT PRIMARY KEY,
+    output TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS plausibility_cache (
     cache_key TEXT PRIMARY KEY,
     output TEXT NOT NULL
 );
@@ -560,6 +575,28 @@ class ReviewDatabase:
                 (cache_key, output.model_dump_json()),
             )
 
+    # ----- Matching, Naming and plausibility caches -----
+
+    def read_step_cache(self, table: str, cache_key: str) -> str | None:
+        """Return the cached JSON text of a model step for a key, or None."""
+        self.require_step_cache_table(table)
+        rows = self.read_all(f"SELECT output FROM {table} WHERE cache_key = ?", (cache_key,))
+        return str(rows[0]["output"]) if rows else None
+
+    def write_step_cache(self, table: str, cache_key: str, output: str) -> None:
+        """Store a model step's JSON text under its key (a repeated key keeps the newest)."""
+        self.require_step_cache_table(table)
+        with self.transaction() as connection:
+            connection.execute(
+                f"INSERT OR REPLACE INTO {table} (cache_key, output) VALUES (?, ?)",
+                (cache_key, output),
+            )
+
+    def require_step_cache_table(self, table: str) -> None:
+        """Refuse a table name that is not one of the step caches (the name goes into SQL)."""
+        if table not in STEP_CACHE_TABLES:
+            raise ReviewDatabaseError(f"'{table}' is not a model step cache table.")
+
     # ----- Admin data versions and admin events -----
 
     def add_data_version(self, kind: DataVersionKind, version: DataVersion) -> None:
@@ -628,6 +665,26 @@ class ReviewDatabase:
         """Return every admin event, oldest first."""
         rows = self.read_all("SELECT data FROM admin_events ORDER BY entry_number")
         return [AuditEvent.model_validate_json(row["data"]) for row in rows]
+
+
+class DatabaseStepCache:
+    """A model-step cache (matching, naming or plausibility) in one review database table.
+
+    Values are JSON text, so each step turns its own results into and out of text.
+    """
+
+    def __init__(self, database: ReviewDatabase, table: str) -> None:
+        """Use one cache table of the review database."""
+        self.database = database
+        self.table = table
+
+    def get(self, key: str) -> str | None:
+        """Return the cached text for a key, or None."""
+        return self.database.read_step_cache(self.table, key)
+
+    def put(self, key: str, output: str) -> None:
+        """Store text under a key."""
+        self.database.write_step_cache(self.table, key, output)
 
 
 class DatabaseJudgeCache:

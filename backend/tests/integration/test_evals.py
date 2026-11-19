@@ -42,8 +42,8 @@ def test_synthetic_case_scores_match_its_labels(suite_report: SuiteReport) -> No
     scores = suite_report.cases[0].runs[0].scores
     assert scores.record_recall == Score(correct=3, total=3)
     assert scores.record_precision == Score(correct=3, total=3)
-    assert scores.field_values == Score(correct=37, total=38)
-    assert scores.field_status == Score(correct=37, total=38)
+    assert scores.field_values == Score(correct=32, total=33)
+    assert scores.field_status == Score(correct=32, total=33)
     assert scores.citations == Score(correct=4, total=4)
     assert scores.seeded_errors_caught == Score(correct=1, total=1)
     assert scores.correct_values_flagged.correct == 0

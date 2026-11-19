@@ -43,7 +43,7 @@ PNG_RESPONSE: dict[int | str, dict[str, Any]] = {
 def get_review_view(user: CurrentUser, workspace: WorkspaceDependency, run_id: str) -> ReviewView:
     """Return one row per record, with each cell's value, display value, color and sources.
 
-    Placeholder fields have an empty value and the placeholder as their display value.
+    Placeholder (blank_for_now) fields have an empty value and an empty display value.
     """
     return build_run_view(workspace, run_id)
 

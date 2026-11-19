@@ -4,7 +4,6 @@ Synthetic records only; field keys, columns and types are read from the client c
 """
 
 import dataclasses
-import hashlib
 from pathlib import Path
 
 import pytest
@@ -12,8 +11,8 @@ from openpyxl import load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
 from app.config.bundle import ConfigBundle
-from app.config.dfd_template import SHEET_NAME
-from app.config.field_rules import FieldRule
+from app.config.business_rules import FieldDefinition
+from app.config.export_template import ExportTemplate, SheetSettings
 from app.contracts.chunk import Chunk
 from app.contracts.export import ExportInfo
 from app.contracts.extraction import Alternative, Evidence, ExtractedField
@@ -26,13 +25,13 @@ from app.review.service import ReviewContext
 from app.storage.review_db import ReviewDatabase
 from app.storage.run_store import RunFolder, RunStore
 from app.validation.duplicates import find_name_rule
+from app.validation.service import make_validation_config
 from tests.unit.review_helpers import (
     NOW,
     RUN_ID,
     USER,
     exclude_record,
     make_context,
-    make_relaxed_config,
     recheck,
     save,
     set_value,
@@ -48,8 +47,8 @@ RUN_NAME = "synthetic run"
 
 @pytest.fixture
 def context(bundle: ConfigBundle) -> ReviewContext:
-    """Return a review context on the relaxed config."""
-    return make_context(make_relaxed_config(bundle))
+    """Return a review context on the run config."""
+    return make_context(make_validation_config(bundle))
 
 
 @pytest.fixture
@@ -73,14 +72,16 @@ def run_folder(tmp_path: Path) -> RunFolder:
     return folder
 
 
-def number_rule(bundle: ConfigBundle, field_type: str) -> FieldRule:
+def number_rule(bundle: ConfigBundle, field_type: str) -> FieldDefinition:
     """Return the first extracted field of a number type."""
-    return find_rule(bundle.field_rules, lambda rule: rule.type == field_type)
+    return find_rule(bundle.business_rules, lambda rule: rule.type == field_type)
 
 
-def unfilled_rules(bundle: ConfigBundle) -> list[FieldRule]:
+def unfilled_rules(bundle: ConfigBundle) -> list[FieldDefinition]:
     """Return the fields the tool does not fill (blank_for_now and system)."""
-    return [rule for rule in bundle.field_rules.fields if rule.role != "extracted"]
+    return [
+        rule for rule in bundle.business_rules.fields if rule.role in ("system", "blank_for_now")
+    ]
 
 
 def make_records(bundle: ConfigBundle) -> list[StoredRecord]:
@@ -104,11 +105,11 @@ def make_records(bundle: ConfigBundle) -> list[StoredRecord]:
     ]
 
 
-def text_rule(bundle: ConfigBundle) -> FieldRule:
+def text_rule(bundle: ConfigBundle) -> FieldDefinition:
     """Return a free-text extracted field that is not the record name."""
-    name_key = find_name_rule(bundle.field_rules).key
+    name_key = find_name_rule(bundle.business_rules).key
     return find_rule(
-        bundle.field_rules,
+        bundle.business_rules,
         lambda rule: rule.type == "text" and rule.lookup_sheet is None and rule.key != name_key,
     )
 
@@ -124,11 +125,17 @@ def start_export_run(
 
 
 def export(
-    database: ReviewDatabase, bundle: ConfigBundle, context: ReviewContext, run_folder: RunFolder
+    database: ReviewDatabase,
+    bundle: ConfigBundle,
+    context: ReviewContext,
+    run_folder: RunFolder,
+    template: ExportTemplate | None = None,
 ) -> ExportInfo:
-    """Export the run for the test user."""
+    """Export the run for the test user, with the client's export template unless one is given."""
     export_context = ExportContext(
-        review=context, template=bundle.dfd_template, models={"extraction": "synthetic-model"}
+        review=context,
+        template=template or bundle.export_template,
+        models={"extraction": "synthetic-model"},
     )
     return export_run(database, export_context, run_folder, RUN_ID, USER, NOW)
 
@@ -154,17 +161,19 @@ def test_loader_round_trips_with_headers_and_rows(
     """The loader has the template headers and one row per included record, as exported."""
     database = start_export_run(tmp_path, bundle, context)
     info = export(database, bundle, context, run_folder)
-    rows = read_rows(open_sheet(run_folder.resolve_ref(info.loader_file), SHEET_NAME))
-    headers = bundle.dfd_template.headers
+    rows = read_rows(
+        open_sheet(run_folder.resolve_ref(info.loader_file), bundle.export_template.sheet.name)
+    )
+    headers = bundle.export_template.headers
     assert list(rows[0]) == headers
-    name_index = headers.index(find_name_rule(bundle.field_rules).column)
+    name_index = headers.index(find_name_rule(bundle.business_rules).column)
     # The excluded record is left out
     assert [row[name_index] for row in rows[1:]] == ["Syn A", "Syn C"]
     records = {r.record_id: r for r in database.read_records(RUN_ID)}
-    for rule in bundle.field_rules.fields:
+    for rule in bundle.business_rules.fields:
         value = rows[2][headers.index(rule.column)]
         expected = records["rec_0003"].fields[rule.key].output.value
-        if rule.role != "extracted":
+        if rule in unfilled_rules(bundle):
             assert value is None
         elif rule.type in ("decimal", "integer"):
             assert value == int(expected or "") and isinstance(value, int)
@@ -178,8 +187,10 @@ def test_loader_writes_numbers_as_numbers_and_unfilled_fields_blank(
     """A decimal is a float cell; blank_for_now and system fields are empty."""
     database = start_export_run(tmp_path, bundle, context)
     info = export(database, bundle, context, run_folder)
-    rows = read_rows(open_sheet(run_folder.resolve_ref(info.loader_file), SHEET_NAME))
-    headers = bundle.dfd_template.headers
+    rows = read_rows(
+        open_sheet(run_folder.resolve_ref(info.loader_file), bundle.export_template.sheet.name)
+    )
+    headers = bundle.export_template.headers
     decimal_value = rows[1][headers.index(number_rule(bundle, "decimal").column)]
     assert decimal_value == 2.5 and isinstance(decimal_value, float)
     integer_value = rows[1][headers.index(number_rule(bundle, "integer").column)]
@@ -196,8 +207,10 @@ def test_unreadable_number_stays_text(
     database = start_export_run(tmp_path, bundle, context)
     save(database, context, set_value("chg_0002", rule.key, "two", reason="synthetic edit"))
     info = export(database, bundle, context, run_folder)
-    rows = read_rows(open_sheet(run_folder.resolve_ref(info.loader_file), SHEET_NAME))
-    assert rows[1][bundle.dfd_template.headers.index(rule.column)] == "two"
+    rows = read_rows(
+        open_sheet(run_folder.resolve_ref(info.loader_file), bundle.export_template.sheet.name)
+    )
+    assert rows[1][bundle.export_template.headers.index(rule.column)] == "two"
 
 
 def test_text_starting_with_equals_is_not_a_formula(
@@ -208,18 +221,61 @@ def test_text_starting_with_equals_is_not_a_formula(
     database = start_export_run(tmp_path, bundle, context)
     save(database, context, set_value("chg_0002", rule.key, "=1+1", reason="synthetic edit"))
     info = export(database, bundle, context, run_folder)
-    sheet = open_sheet(run_folder.resolve_ref(info.loader_file), SHEET_NAME)
-    cell = sheet.cell(row=2, column=bundle.dfd_template.headers.index(rule.column) + 1)
+    sheet = open_sheet(run_folder.resolve_ref(info.loader_file), bundle.export_template.sheet.name)
+    cell = sheet.cell(row=2, column=bundle.export_template.headers.index(rule.column) + 1)
     assert (cell.value, cell.data_type) == ("=1+1", "s")
 
 
-def test_template_is_never_written(
+def test_control_characters_are_removed_so_the_export_does_not_crash(
     tmp_path: Path, bundle: ConfigBundle, context: ReviewContext, run_folder: RunFolder
 ) -> None:
-    """Exporting fills a copy; the template file is unchanged."""
-    before = hashlib.sha256(bundle.dfd_template.path.read_bytes()).hexdigest()
-    export(start_export_run(tmp_path, bundle, context), bundle, context, run_folder)
-    assert hashlib.sha256(bundle.dfd_template.path.read_bytes()).hexdigest() == before
+    """A control character in a value (as PDF text can give) is dropped; the rest is written."""
+    rule = text_rule(bundle)
+    database = start_export_run(tmp_path, bundle, context)
+    save(
+        database, context, set_value("chg_0002", rule.key, "synthetic\x1fvalue\x02", reason="edit")
+    )
+    info = export(database, bundle, context, run_folder)
+    sheet = open_sheet(run_folder.resolve_ref(info.loader_file), bundle.export_template.sheet.name)
+    cell = sheet.cell(row=2, column=bundle.export_template.headers.index(rule.column) + 1)
+    assert cell.value == "syntheticvalue"
+
+
+def test_loader_layout_comes_from_the_template(
+    tmp_path: Path, bundle: ConfigBundle, context: ReviewContext, run_folder: RunFolder
+) -> None:
+    """Sheet name, header style, frozen row and number format come from the export template."""
+    rule = number_rule(bundle, "decimal")
+    columns = [
+        column.model_copy(update={"format": "2 decimals"}) if column.name == rule.column else column
+        for column in bundle.export_template.columns
+    ]
+    sheet_settings = SheetSettings(name="Synthetic", is_header_bold=False, is_header_frozen=True)
+    template = bundle.export_template.model_copy(
+        update={"sheet": sheet_settings, "columns": columns}
+    )
+    database = start_export_run(tmp_path, bundle, context)
+    info = export(database, bundle, context, run_folder, template)
+    sheet = open_sheet(run_folder.resolve_ref(info.loader_file), "Synthetic")
+    assert sheet.freeze_panes == "A2"
+    assert sheet.cell(row=1, column=1).font.bold is False
+    cell = sheet.cell(row=2, column=template.headers.index(rule.column) + 1)
+    # The format only changes how Excel shows the value; the stored value is not rounded
+    assert (cell.number_format, cell.value) == ("0.00", 2.5)
+
+
+def test_loader_columns_follow_the_template_order(
+    tmp_path: Path, bundle: ConfigBundle, context: ReviewContext, run_folder: RunFolder
+) -> None:
+    """The template alone sets the column order."""
+    reversed_columns = list(reversed(bundle.export_template.columns))
+    template = bundle.export_template.model_copy(update={"columns": reversed_columns})
+    database = start_export_run(tmp_path, bundle, context)
+    info = export(database, bundle, context, run_folder, template)
+    rows = read_rows(open_sheet(run_folder.resolve_ref(info.loader_file), template.sheet.name))
+    assert list(rows[0]) == template.headers
+    name_index = template.headers.index(find_name_rule(bundle.business_rules).column)
+    assert rows[1][name_index] == "Syn A"
 
 
 # ----- Re-check, file names, export record -----
@@ -233,8 +289,10 @@ def test_export_applies_pending_changes_first(
     database = start_export_run(tmp_path, bundle, context)
     save(database, context, set_value("chg_0002", rule.key, "synthetic edited", reason="fix"))
     info = export(database, bundle, context, run_folder)
-    rows = read_rows(open_sheet(run_folder.resolve_ref(info.loader_file), SHEET_NAME))
-    assert rows[1][bundle.dfd_template.headers.index(rule.column)] == "synthetic edited"
+    rows = read_rows(
+        open_sheet(run_folder.resolve_ref(info.loader_file), bundle.export_template.sheet.name)
+    )
+    assert rows[1][bundle.export_template.headers.index(rule.column)] == "synthetic edited"
     assert database.read_changes(RUN_ID, "pending") == []
 
 
@@ -292,18 +350,28 @@ def test_audit_workbook_has_five_sheets_with_columns(
     database = start_export_run(tmp_path, bundle, context)
     path = run_folder.resolve_ref(export(database, bundle, context, run_folder).audit_file)
     workbook = load_workbook(path)
-    assert workbook.sheetnames == ["Summary", "Values", "Edits", "Excluded", "Run issues"]
-    name_column = find_name_rule(bundle.field_rules).column
+    assert workbook.sheetnames == [
+        "Summary",
+        "Values",
+        "Edits",
+        "Context",
+        "Suggestions used",
+        "Excluded",
+        "Run issues",
+    ]
+    name_column = find_name_rule(bundle.business_rules).column
     expected_headers = {
         "Summary": audit_workbook.SUMMARY_HEADERS,
         "Values": audit_workbook.make_value_headers(name_column),
         "Edits": audit_workbook.make_edit_headers(name_column),
+        "Context": audit_workbook.CONTEXT_HEADERS,
+        "Suggestions used": audit_workbook.SUGGESTIONS_USED_HEADERS,
         "Excluded": audit_workbook.EXCLUDED_HEADERS,
         "Run issues": audit_workbook.RUN_ISSUE_HEADERS,
     }
     for title, headers in expected_headers.items():
         assert list(read_rows(open_sheet(path, title))[0]) == headers
-    assert len(audit_workbook.make_value_headers(name_column)) == 14
+    assert len(audit_workbook.make_value_headers(name_column)) == 17
     assert len(audit_workbook.make_edit_headers(name_column)) == 11
 
 
@@ -314,22 +382,23 @@ def test_audit_values_cover_every_field_of_included_records(
     database = start_export_run(tmp_path, bundle, context)
     path = run_folder.resolve_ref(export(database, bundle, context, run_folder).audit_file)
     rows = read_rows(open_sheet(path, "Values"))[1:]
-    field_count = len(bundle.field_rules.fields)
+    field_count = len(bundle.business_rules.fields)
     assert len(rows) == 2 * field_count
     assert {row[0] for row in rows} == {"rec_0001", "rec_0003"}
     cited = next(row for row in rows if row[0] == "rec_0001" and row[2] == text_rule(bundle).column)
     # Value as written sits just before the exported value
     assert (cited[3], cited[4]) == ("synthetic", "synthetic")
-    assert (cited[6], cited[7], cited[8]) == (
+    assert cited[5] == "extracted"
+    assert (cited[9], cited[10], cited[11]) == (
         DOCUMENT_NAME,
         f"{DOCUMENT_NAME}, Synthetic section",
         QUOTE,
     )
 
 
-def multi_value_rule(bundle: ConfigBundle) -> FieldRule:
+def multi_value_rule(bundle: ConfigBundle) -> FieldDefinition:
     """Return the first extracted field that holds several values."""
-    return find_rule(bundle.field_rules, lambda rule: rule.multi_value)
+    return find_rule(bundle.business_rules, lambda rule: rule.multi_value)
 
 
 def stored_extraction(extraction: ExtractedField) -> StoredField:
@@ -360,7 +429,7 @@ def test_written_value_of_a_conflict_lists_each_alternative_on_its_own_line(
 
 def test_written_value_of_a_single_value_conflict_is_one_per_line(bundle: ConfigBundle) -> None:
     """A conflict on a single-value field lists its alternatives one per line too."""
-    rule = find_rule(bundle.field_rules, lambda rule: not rule.multi_value)
+    rule = find_rule(bundle.business_rules, lambda rule: not rule.multi_value)
     evidence = [Evidence(chunk_id=CHUNK_ID, quote=QUOTE)]
     alternatives = [
         Alternative(value="syn-a", evidence=evidence),

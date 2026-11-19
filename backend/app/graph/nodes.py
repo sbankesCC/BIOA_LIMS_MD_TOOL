@@ -13,20 +13,33 @@ from typing import Any, cast
 from app.agents.common import AgentError
 from app.agents.extraction import ExtractionTask, run_extraction
 from app.agents.extraction_verification import VerificationTask, run_verification
+from app.agents.matching import (
+    MatchingTask,
+    build_matching_groups,
+    run_matching,
+)
+from app.agents.naming import NamingTask, build_naming_records, run_naming
+from app.agents.step_support import CallBudget
+from app.assembly.assemble import assemble_records
 from app.contracts.chunk import Chunk
 from app.contracts.extraction import ExcludedItem, ExtractionOutput
 from app.contracts.issue import Issue
+from app.contracts.record import StoredRecord
 from app.contracts.run import RunStatus
 from app.graph.context import (
     ProcessingContext,
     make_caller,
     make_judge_runner,
+    make_plausibility_reviewer,
     read_image_size,
+    read_model,
 )
 from app.graph.records import (
     apply_findings,
+    apply_suggestions,
     build_first_records,
     clear_agent_findings,
+    find_matching_suggestions,
     merge_reextraction,
 )
 from app.graph.reextraction import find_affected_record_ids, find_reextraction_problems
@@ -44,8 +57,8 @@ from app.ingest.ingest import ingest_run
 from app.llm.prompt_builder import build_reextraction_section
 from app.llm.tracing import TracedCaller
 from app.logging_setup import DetailValue, log_event
+from app.normalization.normalize import normalize_records
 from app.storage.run_store import RunFolder
-from app.transform.transform import transform_records
 from app.validation.issues import IssueDraft, make_issue
 from app.validation.service import ProcessingFindings, make_validation_config, validate_run
 from app.verification.citation_check import check_record_citations, index_chunks
@@ -57,6 +70,12 @@ NO_RECORDS_FOUND = "NO_RECORDS_FOUND"
 # Prompt templates of the LLM nodes
 EXTRACTION_PROMPT = "extraction"
 VERIFICATION_PROMPT = "extraction_verification"
+MATCHING_PROMPT = "matching"
+NAMING_PROMPT = "naming"
+
+# Run issue codes of the steps that never fail a run
+MATCHING_SKIPPED = "MATCHING_SKIPPED"
+NAMING_SKIPPED = "NAMING_SKIPPED"
 
 StateUpdate = dict[str, Any]
 NodeFunction = Callable[[ProcessingState, ProcessingContext], StateUpdate]
@@ -127,7 +146,8 @@ def extraction_node(state: ProcessingState, context: ProcessingContext) -> State
     task = ExtractionTask(
         run_id=state["run_id"],
         chunks=load_chunks(folder, state["chunk_ids"]),
-        field_rules=context.bundle.field_rules,
+        business_rules=context.bundle.business_rules,
+        extraction_rules=context.bundle.extraction_rules,
         template=context.bundle.prompts[EXTRACTION_PROMPT],
         max_input_tokens=context.limits.max_input_tokens,
         reextraction_section=build_reextraction_section(records, problems),
@@ -148,7 +168,7 @@ def extraction_node(state: ProcessingState, context: ProcessingContext) -> State
 
 def first_extraction_update(output: ExtractionOutput, context: ProcessingContext) -> StateUpdate:
     """Give the extracted records their IDs and store them with the excluded items."""
-    records = build_first_records(output, context.bundle.field_rules)
+    records = build_first_records(output, context.bundle.business_rules)
     return {
         "records": dump_records(records),
         "excluded_items": dump_excluded_items(output.excluded_items),
@@ -163,7 +183,7 @@ def reextraction_update(
 ) -> StateUpdate:
     """Merge a re-extraction: replace returned records, flag dropped ones, add new items."""
     merged = merge_reextraction(
-        read_records(state), output, affected_ids, context.bundle.field_rules
+        read_records(state), output, affected_ids, context.bundle.business_rules
     )
     # A record dropped earlier but returned now is no longer dropped
     returned_ids = affected_ids - set(merged.dropped_record_ids)
@@ -204,7 +224,8 @@ def verification_node(state: ProcessingState, context: ProcessingContext) -> Sta
         chunks=chunks,
         records=records,
         excluded_items=read_excluded_items(state),
-        field_rules=context.bundle.field_rules,
+        business_rules=context.bundle.business_rules,
+        extraction_rules=context.bundle.extraction_rules,
         template=context.bundle.prompts[VERIFICATION_PROMPT],
     )
     try:
@@ -215,14 +236,83 @@ def verification_node(state: ProcessingState, context: ProcessingContext) -> Sta
     return {"records": dump_records(records), "findings": findings.model_dump(mode="json")}
 
 
-# ----- Transformation and validation -----
+# ----- Normalization, Matching, Naming, Assembly and validation -----
 
 
-def transformation_node(state: ProcessingState, context: ProcessingContext) -> StateUpdate:
-    """Write every field's output section (code only)."""
-    records = transform_records(
-        read_records(state), context.bundle.field_rules, context.lookup_lists
+def normalization_node(state: ProcessingState, context: ProcessingContext) -> StateUpdate:
+    """Write every extracted field's normalization section (code only)."""
+    business_rules = context.bundle.business_rules
+    records = normalize_records(read_records(state), business_rules, context.lookup_lists)
+    return {"records": dump_records(records)}
+
+
+def matching_node(state: ProcessingState, context: ProcessingContext) -> StateUpdate:
+    """Suggest list values for unresolved values; never fails the run (skips with a warning)."""
+    business_rules = context.bundle.business_rules
+    records = read_records(state)
+    groups = build_matching_groups(
+        records, business_rules, context.lookup_lists, context.limits.matching_shortlist_size
     )
+    # Nothing unresolved: no call, no warning
+    if not groups:
+        return {}
+    task = MatchingTask(
+        run_id=state["run_id"],
+        groups=groups,
+        business_rules=business_rules,
+        template=context.bundle.prompts[MATCHING_PROMPT],
+        model=read_model(context.client, "matching"),
+    )
+    folder = context.run_store.open_run(state["run_id"])
+    budget = CallBudget(context.limits.max_matching_calls)
+    result = run_matching(
+        make_state_caller(state, context, folder), task, context.step_caches.matching, budget
+    )
+    suggestions, reasons = find_matching_suggestions(groups, result)
+    owned = {rule.key for rule in business_rules.fields if rule.matching_allowed}
+    updated = apply_suggestions(records, suggestions, owned, reasons)
+    update: StateUpdate = {"records": dump_records(updated)}
+    if result.is_skipped:
+        update["issues"] = add_run_issue(state, context, MATCHING_SKIPPED)
+    return update
+
+
+def naming_node(state: ProcessingState, context: ProcessingContext) -> StateUpdate:
+    """Suggest a name for each included record; never fails the run (skips with a warning)."""
+    business_rules = context.bundle.business_rules
+    records = read_records(state)
+    naming_records = build_naming_records(records, business_rules)
+    if not naming_records:
+        return {}
+    name_key = business_rules.record_name_field().key
+    task = NamingTask(
+        run_id=state["run_id"],
+        records=naming_records,
+        business_rules=business_rules,
+        template=context.bundle.prompts[NAMING_PROMPT],
+        model=read_model(context.client, "naming"),
+        taken_names=[
+            r.fields[name_key].output.value or "" for r in records if is_name_set(r, name_key)
+        ],
+    )
+    folder = context.run_store.open_run(state["run_id"])
+    budget = CallBudget(context.limits.max_naming_calls)
+    result = run_naming(
+        make_state_caller(state, context, folder), task, context.step_caches.naming, budget
+    )
+    suggestions = {(rid, name_key): suggestion for rid, suggestion in result.suggestions.items()}
+    reasons = {(rid, name_key): reason for rid, reason in result.no_name_reasons.items()}
+    log_dropped_names(state["run_id"], result.dropped)
+    updated = apply_suggestions(records, suggestions, [name_key], reasons)
+    update: StateUpdate = {"records": dump_records(updated)}
+    if result.is_skipped:
+        update["issues"] = add_run_issue(state, context, NAMING_SKIPPED)
+    return update
+
+
+def assembly_node(state: ProcessingState, context: ProcessingContext) -> StateUpdate:
+    """Write every field's output section from the normalized values (code only)."""
+    records = assemble_records(read_records(state), context.bundle.business_rules)
     return {"records": dump_records(records)}
 
 
@@ -233,7 +323,8 @@ def validation_node(state: ProcessingState, context: ProcessingContext) -> State
     if not records:
         previous.append(make_run_issue(context, NO_RECORDS_FOUND))
     folder = context.run_store.open_run(state["run_id"])
-    runner = make_judge_runner(context, make_state_caller(state, context, folder), state["run_id"])
+    caller = make_state_caller(state, context, folder)
+    runner = make_judge_runner(context, caller, state["run_id"])
     result = validate_run(
         records,
         make_validation_config(context.bundle, context.lookup_lists),
@@ -241,6 +332,7 @@ def validation_node(state: ProcessingState, context: ProcessingContext) -> State
         context.reference,
         read_processing_findings(state),
         previous,
+        make_plausibility_reviewer(context, caller, state["run_id"]),
     )
     return {"records": dump_records(result.records), "issues": dump_issues(result.issues)}
 
@@ -303,10 +395,30 @@ def read_processing_findings(state: ProcessingState) -> ProcessingFindings:
     )
 
 
+def add_run_issue(state: ProcessingState, context: ProcessingContext, code: str) -> list[Any]:
+    """Return the state's issues with one more run issue, as state JSON."""
+    return dump_issues([*read_issues(state), make_run_issue(context, code)])
+
+
+def is_name_set(record: StoredRecord, name_key: str) -> bool:
+    """Return True if the record already has a name (a person set it)."""
+    return bool(record.fields[name_key].output.value)
+
+
+def log_dropped_names(run_id: str, dropped: dict[str, str]) -> None:
+    """Log how many name suggestions failed the code checks, by reason (counts only)."""
+    if not dropped:
+        return
+    counts: dict[str, DetailValue] = {}
+    for reason in dropped.values():
+        counts[reason] = int(counts.get(reason, 0)) + 1
+    log_event("suggestions_dropped", level="WARNING", run_id=run_id, node="naming", details=counts)
+
+
 def make_run_issue(context: ProcessingContext, code: str) -> Issue:
     """Build a run issue the graph raises, from the catalogue."""
     bundle = context.bundle
-    return make_issue(IssueDraft(code=code), bundle.issue_catalogue, bundle.field_rules)
+    return make_issue(IssueDraft(code=code), bundle.issue_catalogue, bundle.business_rules)
 
 
 def fail_update(state: ProcessingState, context: ProcessingContext, code: str) -> StateUpdate:

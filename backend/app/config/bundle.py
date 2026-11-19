@@ -1,29 +1,57 @@
 """ConfigBundle: every client config file loaded, checked against each other, with versions.
 
-A run captures the bundle's versions at its start and keeps them for its whole life.
+A run captures the bundle's versions at its start and keeps them for its whole life. The loader
+fields are kept in the export template's column order, so every consumer sees one order.
 """
 
 from pathlib import Path
 
 from pydantic import BaseModel
 
-from app.config.dfd_template import DfdTemplate, load_dfd_template
+from app.assembly.derivations import find_derivation_problems
+from app.config.business_rules import FILE_NAME as BUSINESS_RULES_FILE
+from app.config.business_rules import BusinessRules
+from app.config.business_rules_checks import (
+    find_issue_code_problems,
+    find_lookup_list_problems,
+    find_lookup_value_problems,
+    load_business_rules,
+)
 from app.config.errors import ConfigError
-from app.config.field_rules import FieldRules, load_field_rules
+from app.config.export_template import FILE_NAME as EXPORT_TEMPLATE_FILE
+from app.config.export_template import (
+    ExportTemplate,
+    find_column_set_problems,
+    find_type_problems,
+    load_export_template,
+    order_fields,
+)
+from app.config.extraction_rules import FILE_NAME as EXTRACTION_RULES_FILE
+from app.config.extraction_rules import (
+    ExtractionRules,
+    find_coverage_problems,
+    find_shared_rule_id_problems,
+    load_extraction_rules,
+)
 from app.config.issue_catalogue import IssueCatalogue, load_issue_catalogue
 from app.config.lookup_lists import LookupLists, load_lookup_lists
 from app.config.prompts import FOLDER_NAME as PROMPTS_FOLDER
 from app.config.prompts import PromptTemplate, load_prompts
-from app.config.reference_mapping import ReferenceMapping, load_reference_mapping
+from app.config.reference_mapping import (
+    ReferenceMapping,
+    find_mapping_problems,
+    load_reference_mapping,
+)
 
 
 class ConfigVersions(BaseModel):
     """The version of each config file; prompts are versioned one by one."""
 
-    field_rules: str
+    business_rules: str
+    extraction_rules: str
     issue_catalogue: str
     lookup_lists: str
-    dfd_template: str
+    export_template: str
     reference_data_mapping: str
     prompts: dict[str, str]
 
@@ -32,20 +60,22 @@ class ConfigBundle(BaseModel):
     """All client config, loaded and validated."""
 
     config_dir: Path
-    field_rules: FieldRules
+    business_rules: BusinessRules
+    extraction_rules: ExtractionRules
     issue_catalogue: IssueCatalogue
     lookup_lists: LookupLists
-    dfd_template: DfdTemplate
+    export_template: ExportTemplate
     reference_mapping: ReferenceMapping
     prompts: dict[str, PromptTemplate]
 
     def versions(self) -> ConfigVersions:
         """Return the version of every config file in this bundle."""
         return ConfigVersions(
-            field_rules=self.field_rules.version,
+            business_rules=self.business_rules.version,
+            extraction_rules=self.extraction_rules.version,
             issue_catalogue=self.issue_catalogue.version,
             lookup_lists=self.lookup_lists.version,
-            dfd_template=self.dfd_template.version,
+            export_template=self.export_template.version,
             reference_data_mapping=self.reference_mapping.version,
             prompts={name: prompt.version for name, prompt in self.prompts.items()},
         )
@@ -59,66 +89,28 @@ def load_config_bundle(config_dir: Path) -> ConfigBundle:
         )
     bundle = ConfigBundle(
         config_dir=config_dir,
-        field_rules=load_field_rules(config_dir / "field_rules.yaml"),
+        business_rules=load_business_rules(config_dir / BUSINESS_RULES_FILE),
+        extraction_rules=load_extraction_rules(config_dir / EXTRACTION_RULES_FILE),
         issue_catalogue=load_issue_catalogue(config_dir / "issue_catalogue.yaml"),
         lookup_lists=load_lookup_lists(config_dir / "lookup_lists.xlsx"),
-        dfd_template=load_dfd_template(config_dir / "dfd_template.xlsx"),
+        export_template=load_export_template(config_dir / EXPORT_TEMPLATE_FILE),
         reference_mapping=load_reference_mapping(config_dir / "reference_data_mapping.yaml"),
         prompts=load_prompts(config_dir / PROMPTS_FOLDER),
     )
+    rules = bundle.business_rules
     problems = (
-        find_template_problems(bundle)
-        + find_lookup_problems(bundle)
-        + find_issue_code_problems(bundle)
+        find_column_set_problems(bundle.export_template, rules)
+        + find_type_problems(bundle.export_template, rules)
+        + find_coverage_problems(bundle.extraction_rules, rules)
+        + find_shared_rule_id_problems(bundle.extraction_rules, rules)
+        + find_lookup_list_problems(rules, bundle.lookup_lists)
+        + find_lookup_value_problems(rules, bundle.lookup_lists)
+        + find_issue_code_problems(rules, bundle.issue_catalogue)
+        + find_derivation_problems(rules)
+        + find_mapping_problems(bundle.reference_mapping, [field.key for field in rules.fields])
     )
     if problems:
         raise ConfigError(problems)
-    return bundle
-
-
-def find_template_problems(bundle: ConfigBundle) -> list[str]:
-    """Check the DFD template headers equal the field-rule columns, in the same order."""
-    columns = bundle.field_rules.columns()
-    headers = bundle.dfd_template.headers
-    if headers == columns:
-        return []
-    return [
-        "dfd_template.xlsx: the headers do not match the columns in field_rules.yaml "
-        f"(template has {len(headers)}, field rules have {len(columns)}). "
-        "They must be the same names in the same order."
-    ]
-
-
-def find_lookup_problems(bundle: ConfigBundle) -> list[str]:
-    """Check each lookup field's sheet exists and its default is one of the sheet's values."""
-    problems: list[str] = []
-    sheets = bundle.lookup_lists.sheets
-    for field in bundle.field_rules.fields:
-        if field.lookup_sheet is None:
-            continue
-        if field.lookup_sheet not in sheets:
-            problems.append(
-                f"lookup_lists.xlsx: the sheet '{field.lookup_sheet}' used by field "
-                f"'{field.key}' is missing."
-            )
-            continue
-        # A default that is not on the list would fail the lookup check on every record
-        if field.default is not None and field.default not in sheets[field.lookup_sheet]:
-            problems.append(
-                f"field_rules.yaml: the default of field '{field.key}' is not on the "
-                f"'{field.lookup_sheet}' lookup sheet."
-            )
-    return problems
-
-
-def find_issue_code_problems(bundle: ConfigBundle) -> list[str]:
-    """Check every issue code named in the field rules is a record issue in the catalogue."""
-    problems: list[str] = []
-    record_codes = bundle.issue_catalogue.record_issues
-    for group_name, group in bundle.field_rules.condition_groups.items():
-        if group.issue_code not in record_codes:
-            problems.append(
-                f"field_rules.yaml: condition group '{group_name}' uses issue code "
-                f"{group.issue_code}, which is not a record issue in issue_catalogue.yaml."
-            )
-    return problems
+    # The export template is the only source of column order (user decision 9)
+    ordered = order_fields(rules, bundle.export_template)
+    return bundle.model_copy(update={"business_rules": ordered})

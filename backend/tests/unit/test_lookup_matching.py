@@ -3,8 +3,8 @@
 Lists here are synthetic; client lookup values are only used through the config (test_transform).
 """
 
-from app.transform.lookup_matching import match_boolean_value, match_lookup_value
-from app.transform.notes import TransformNote
+from app.normalization.lookup_matching import match_boolean_value, match_lookup_value
+from app.normalization.notes import TransformNote
 
 SYNTHETIC_LIST = ["Synthetic Cold", "-5X", "Synthetic Tube 1 mL"]
 

@@ -13,6 +13,7 @@ columns:
   consumable_class: reagentclass   # optional
   active_flag: activeflag          # optional
   version_status: versionstatus    # optional
+  # catalog_no: <column>           # optional: the export's catalog number column (name not known yet)
 
 rules:
   # An exact name match is red even for inactive types:
@@ -20,3 +21,5 @@ rules:
   exact_match_ignores_active_flag: true
   # Number of similar existing types sent to the LLM duplicate judge
   shortlist_size: 10
+  # Add with the catalog_no column to shortlist existing types with the same catalog number:
+  # catalog_number_field: catalog_no

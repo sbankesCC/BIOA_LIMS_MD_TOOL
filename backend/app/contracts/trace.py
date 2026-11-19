@@ -5,7 +5,14 @@ from typing import Literal
 
 from app.contracts.base import ContractModel
 
-LlmNode = Literal["extraction", "extraction_verification", "duplicate_judge"]
+LlmNode = Literal[
+    "extraction",
+    "extraction_verification",
+    "matching",
+    "naming",
+    "plausibility",
+    "duplicate_judge",
+]
 TraceStatus = Literal["ok", "retry", "error", "schema_violation"]
 
 

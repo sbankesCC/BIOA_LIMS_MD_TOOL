@@ -3,7 +3,7 @@
 Against the reference data: an exact name match is EXISTS_IN_LABVANTAGE; a normalized match
 (case, spaces, degree sign) is POSSIBLE_DUPLICATE; otherwise similar names are shortlisted and
 the duplicate judge decides. The record name field and the fields the judge sees are flagged
-in the field rules (`is_record_name`, `sent_to_duplicate_judge`).
+in the business rules (`is_record_name`, `sent_to_duplicate_judge`).
 """
 
 from collections import defaultdict
@@ -12,19 +12,22 @@ from difflib import SequenceMatcher
 
 from pydantic import BaseModel, JsonValue
 
-from app.config.field_rules import FieldRule, FieldRules
+from app.config.business_rules import BusinessRules, FieldDefinition
 from app.config.reference_mapping import ReferenceRules
 from app.contracts.issue import DuplicateCandidate
 from app.contracts.judge import JudgeOutput
 from app.contracts.record import StoredRecord
 from app.contracts.reference import ReferenceData, ReferenceType
-from app.transform.lookup_matching import BOOLEAN_VALUES, normalize_for_match
+from app.normalization.lookup_matching import BOOLEAN_VALUES, normalize_for_match
 from app.validation import codes
 from app.validation.issues import IssueDraft
 from app.validation.judge_cache import JudgeRequest, JudgeRunner
 
 # How alike two normalized names must be (0 to 1, difflib ratio) to go on the judge's shortlist
 SIMILARITY_THRESHOLD = 0.6
+
+# The key of the name as the documents write it, in what the judge sees
+NAME_AS_WRITTEN = "name_as_written"
 
 # Judge verdicts that make a record a possible duplicate (CONTRACTS §3a)
 DUPLICATE_VERDICTS = ("same", "unsure")
@@ -40,12 +43,12 @@ class ReferenceCheck(BaseModel):
     is_judge_skipped: bool = False
 
 
-def find_name_rule(field_rules: FieldRules) -> FieldRule:
+def find_name_rule(business_rules: BusinessRules) -> FieldDefinition:
     """Return the field that names a record: the one flagged `is_record_name` in the config."""
-    return field_rules.record_name_field()
+    return business_rules.record_name_field()
 
 
-def read_name(record: StoredRecord, name_rule: FieldRule) -> str | None:
+def read_name(record: StoredRecord, name_rule: FieldDefinition) -> str | None:
     """Return the record's current name, or None if it is empty."""
     stored = record.fields.get(name_rule.key)
     if stored is None or not stored.output.value:
@@ -53,7 +56,29 @@ def read_name(record: StoredRecord, name_rule: FieldRule) -> str | None:
     return stored.output.value
 
 
-def find_run_duplicates(records: Sequence[StoredRecord], name_rule: FieldRule) -> list[IssueDraft]:
+def read_name_to_check(record: StoredRecord, name_rule: FieldDefinition) -> str | None:
+    """Return the name the reference check uses: the set name, else the Naming suggestion."""
+    name = read_name(record, name_rule)
+    if name is not None:
+        return name
+    stored = record.fields.get(name_rule.key)
+    if stored is not None and stored.suggestion is not None:
+        return stored.suggestion.value
+    return None
+
+
+def read_name_as_written(record: StoredRecord, name_rule: FieldDefinition) -> str | None:
+    """Return the name as the documents write it (the name field's extracted value), if any."""
+    stored = record.fields.get(name_rule.key)
+    extraction = stored.extraction if stored is not None else None
+    if extraction is None or not isinstance(extraction.value, str):
+        return None
+    return extraction.value or None
+
+
+def find_run_duplicates(
+    records: Sequence[StoredRecord], name_rule: FieldDefinition
+) -> list[IssueDraft]:
     """Return a DUPLICATE_IN_RUN issue on each record whose name another record also has."""
     records_by_name: dict[str, list[str]] = defaultdict(list)
     for record in records:
@@ -79,15 +104,25 @@ def find_run_duplicates(records: Sequence[StoredRecord], name_rule: FieldRule) -
     return drafts
 
 
-def find_identifying_values(record: StoredRecord, field_rules: FieldRules) -> dict[str, str | None]:
+def find_identifying_values(
+    record: StoredRecord, business_rules: BusinessRules
+) -> dict[str, str | None]:
     """Return the values of the fields flagged `sent_to_duplicate_judge`: what the judge sees.
 
-    The judge cache key is built from exactly these values. A field missing from the record is None.
+    While the name is not set, the name is the Naming suggestion, and the name as written is
+    added when it differs. The judge cache key is built from exactly these values. A field
+    missing from the record is None.
     """
     values: dict[str, str | None] = {}
-    for rule in field_rules.duplicate_judge_fields():
+    for rule in business_rules.duplicate_judge_fields():
         stored = record.fields.get(rule.key)
         values[rule.key] = stored.output.value if stored is not None else None
+    name_rule = find_name_rule(business_rules)
+    name = read_name_to_check(record, name_rule)
+    values[name_rule.key] = name
+    written = read_name_as_written(record, name_rule)
+    if written is not None and written != name:
+        values[NAME_AS_WRITTEN] = written
     return values
 
 
@@ -115,14 +150,18 @@ def build_shortlist(
 
 
 def make_name_issue(
-    code: str, record_id: str, name_rule: FieldRule, name: str, candidates: list[JsonValue]
+    code: str, record: StoredRecord, name_rule: FieldDefinition, candidates: list[JsonValue]
 ) -> IssueDraft:
-    """Return an issue on the record's name field listing the matching existing types."""
+    """Return an issue on the record's name field listing the matching existing types.
+
+    The issue is keyed by the name as it is set (None while it is not), so it keeps its ID when
+    a new Naming suggestion arrives.
+    """
     return IssueDraft(
         code=code,
-        record_id=record_id,
+        record_id=record.record_id,
         field=name_rule.key,
-        value=name,
+        value=read_name(record, name_rule),
         details={"candidates": candidates},
     )
 
@@ -147,49 +186,50 @@ def describe_candidate(existing: ReferenceType, match: str, reason: str | None) 
 
 def check_reference(
     record: StoredRecord,
-    field_rules: FieldRules,
+    business_rules: BusinessRules,
     reference: ReferenceData,
     rules: ReferenceRules,
     runner: JudgeRunner,
 ) -> ReferenceCheck:
     """Check one record's name against the existing Consumable Types."""
-    name_rule = find_name_rule(field_rules)
-    name = read_name(record, name_rule)
+    name_rule = find_name_rule(business_rules)
+    name = read_name_to_check(record, name_rule)
     if name is None:
         return ReferenceCheck()
-    record_id = record.record_id
     # An exact match is a hard stop: LabVantage will not accept the name again
     exact = [existing for existing in reference.types if is_exact_match(name, existing, rules)]
     if exact:
         candidates = [describe_candidate(existing, "exact", None) for existing in exact]
-        draft = make_name_issue(codes.EXISTS_IN_LABVANTAGE, record_id, name_rule, name, candidates)
+        draft = make_name_issue(codes.EXISTS_IN_LABVANTAGE, record, name_rule, candidates)
         return ReferenceCheck(drafts=[draft])
     # The same name apart from case, spaces or degree signs needs no judge
     normalized = normalize_for_match(name)
     close = [t for t in reference.types if normalize_for_match(t.name) == normalized]
     if close:
         candidates = [describe_candidate(existing, "normalized", None) for existing in close]
-        draft = make_name_issue(codes.POSSIBLE_DUPLICATE, record_id, name_rule, name, candidates)
+        draft = make_name_issue(codes.POSSIBLE_DUPLICATE, record, name_rule, candidates)
         return ReferenceCheck(drafts=[draft])
-    return judge_shortlist(record, field_rules, reference, rules, runner)
+    return judge_shortlist(record, business_rules, reference, rules, runner)
 
 
 def judge_shortlist(
     record: StoredRecord,
-    field_rules: FieldRules,
+    business_rules: BusinessRules,
     reference: ReferenceData,
     rules: ReferenceRules,
     runner: JudgeRunner,
 ) -> ReferenceCheck:
     """Ask the judge about similar existing types; same or unsure gives POSSIBLE_DUPLICATE."""
-    name_rule = find_name_rule(field_rules)
-    name = read_name(record, name_rule) or ""
+    name_rule = find_name_rule(business_rules)
+    name = read_name_to_check(record, name_rule) or ""
     shortlist = build_shortlist(name, reference.types, rules.shortlist_size)
+    # Existing types with the same catalog number are added, whatever their names look like
+    shortlist += find_catalog_matches(record, business_rules, reference.types, rules, shortlist)
     if not shortlist:
         return ReferenceCheck()
     request = JudgeRequest(
         record_id=record.record_id,
-        values=find_identifying_values(record, field_rules),
+        values=find_identifying_values(record, business_rules),
         candidates=shortlist,
     )
     output = runner.judge_record(request, reference.version)
@@ -198,8 +238,36 @@ def judge_shortlist(
     candidates = find_duplicate_candidates(output, shortlist)
     if not candidates:
         return ReferenceCheck()
-    draft = make_name_issue(codes.POSSIBLE_DUPLICATE, record.record_id, name_rule, name, candidates)
+    draft = make_name_issue(codes.POSSIBLE_DUPLICATE, record, name_rule, candidates)
     return ReferenceCheck(drafts=[draft])
+
+
+def find_catalog_matches(
+    record: StoredRecord,
+    business_rules: BusinessRules,
+    types: Sequence[ReferenceType],
+    rules: ReferenceRules,
+    shortlist: Sequence[ReferenceType],
+) -> list[ReferenceType]:
+    """Return existing types sharing a catalog number with the record, not already shortlisted."""
+    if rules.catalog_number_field is None:
+        return []
+    owner = business_rules.find_owner(rules.catalog_number_field)
+    stored = record.fields.get(owner.key)
+    if stored is None or not stored.output.value:
+        return []
+    # A multi-value field holds several catalog numbers; any of them can match
+    separator = owner.separator if isinstance(owner, FieldDefinition) else None
+    parts = stored.output.value.split(separator) if separator else [stored.output.value]
+    wanted = {normalize_for_match(part) for part in parts if part.strip()}
+    listed = {existing.candidate_id for existing in shortlist}
+    return [
+        existing
+        for existing in types
+        if existing.catalog_no
+        and existing.candidate_id not in listed
+        and normalize_for_match(existing.catalog_no) in wanted
+    ]
 
 
 def find_duplicate_candidates(

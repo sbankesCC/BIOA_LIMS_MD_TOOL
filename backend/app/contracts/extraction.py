@@ -1,14 +1,14 @@
 """Extraction output (CONTRACTS §2): what the extraction LLM returns, values copied as written.
 
-Field keys are not fixed here: they come from `field_rules.yaml`. `status_rules.py` checks the
-status table and the field set after parsing.
+Field and context attribute keys are not fixed here: they come from `business_rules.md`.
+`status_rules.py` checks the status table, the field set and the context set after parsing.
 """
 
 from typing import Literal
 
 from app.contracts.base import ContractModel
 
-FieldStatus = Literal["found", "conflicting", "not_found"]
+FieldStatus = Literal["found", "conflicting", "unclear", "not_found"]
 
 # A value is one string, or a list of strings for a `multi_value` field
 ExtractedValue = str | list[str]
@@ -29,23 +29,26 @@ class Alternative(ContractModel):
 
 
 class ExtractedField(ContractModel):
-    """One field of one record as the LLM returned it."""
+    """One field (or context attribute) of one record as the LLM returned it."""
 
     status: FieldStatus
     value: ExtractedValue | None = None
     evidence: list[Evidence] = []
     alternatives: list[Alternative] = []
-    allows_equivalent: bool = False
     warning: str | None = None
 
 
 class ExtractedRecord(ContractModel):
-    """One candidate Consumable Type; `record_ref` is temporary and replaced by a record ID."""
+    """One candidate Consumable Type; `record_ref` is temporary and replaced by a record ID.
+
+    `context` holds the context attributes (single values only); they are never exported.
+    """
 
     record_ref: str
     found_in: list[str]
     record_summary: str
     record_warning: str | None = None
+    context: dict[str, ExtractedField] = {}
     fields: dict[str, ExtractedField]
 
 

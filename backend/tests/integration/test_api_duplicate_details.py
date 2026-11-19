@@ -58,7 +58,7 @@ def apply_reference(api: ApiHarness, bundle: ConfigBundle, description: str) -> 
 def one_record_replies(bundle: ConfigBundle) -> dict[str, list[FakeReply]]:
     """Return fake replies for a run with one record and nothing else to report."""
     return {
-        "extraction": [extraction_reply(bundle.field_rules, [("R1", RECORD_ROW)])],
+        "extraction": [extraction_reply(bundle.business_rules, [("R1", RECORD_ROW)])],
         "extraction_verification": [verification_reply()],
     }
 

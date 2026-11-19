@@ -21,6 +21,11 @@ MESSAGE_PLACEHOLDERS = {
     "items",
     "count",
     "other",
+    "warning",
+    "choices",
+    "derived",
+    "check_id",
+    "reason",
 }
 PLACEHOLDER_PATTERN = re.compile(r"\{([a-z_]+)\}")
 CODE_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*$")

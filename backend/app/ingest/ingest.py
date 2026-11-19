@@ -62,7 +62,7 @@ def ingest_run(folder: RunFolder, bundle: ConfigBundle) -> IngestResult:
     """Read every uploaded document of a run, store the chunks and return them with run issues."""
     result = IngestResult(documents=[], chunks=[], issues=[])
     for document in folder.read_documents():
-        outcome = ingest_document(folder, document, bundle.dfd_template.headers)
+        outcome = ingest_document(folder, document, bundle.export_template.headers)
         updated = document.model_copy(
             update={"status": outcome.status, "page_count": outcome.page_count}
         )

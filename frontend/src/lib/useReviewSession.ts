@@ -139,27 +139,26 @@ export function useReviewSession(
     [client, runId, onChangesSaved],
   );
 
-  // Save the choice (if it changes anything), then go to the next open issue
+  // Save the choice (if it changes anything) and re-check at once so the row shows the new
+  // value; then the panel shows the next open issue
   const saveAndNext = useCallback(
     async (choice: IssueChoice) => {
       const current = selectionRef.current;
       if (view === null || current === null) return;
-      let saved = savedIssueIds;
-      let isPendingNow = hasPendingChanges;
       if (choice.kind === "change") {
         if (!(await submitChanges([choice.change]))) return;
-        isPendingNow = true;
-        // The saved issue waits for the re-check, so the arrows skip it
-        if (current.issueId !== null) {
-          saved = new Set([...savedIssueIds, current.issueId]);
-          setSavedIssueIds(saved);
-        }
+        // The next issue is found in the view before the re-check, skipping the current one;
+        // if the re-check resolves it too, the panel falls back to its record's first open issue
+        const skipped = current.issueId !== null ? new Set([...savedIssueIds, current.issueId]) : savedIssueIds;
+        const next = findNeighbourIssue(view, skipped, current.issueId, 1);
+        await recheckAndShow(next !== null ? selectionFor(next) : { ...current, issueId: null });
+        return;
       }
-      const next = findNeighbourIssue(view, saved, current.issueId, 1);
+      // Nothing to save: just move on (saved changes from earlier still re-check when leaving the record)
+      const next = findNeighbourIssue(view, savedIssueIds, current.issueId, 1);
       if (next !== null) {
-        await moveTo(selectionFor(next), isPendingNow);
-      } else if (isPendingNow) {
-        // No issue is left to move to: re-check now so the results show
+        await moveTo(selectionFor(next), hasPendingChanges);
+      } else if (hasPendingChanges) {
         await recheckAndShow({ ...current, issueId: null });
       }
     },

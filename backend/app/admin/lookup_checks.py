@@ -12,7 +12,7 @@ from openpyxl import Workbook, load_workbook
 from pydantic import BaseModel
 
 from app.admin.reports import UploadFinding, make_problem, make_warning
-from app.config.field_rules import FieldRules
+from app.config.business_rules import BusinessRules
 from app.config.lookup_lists import (
     HEADER,
     RESERVED_PREFIX,
@@ -20,6 +20,7 @@ from app.config.lookup_lists import (
     LookupMetadata,
     read_metadata,
 )
+from app.normalization.lookup_values import LARGE_LIST_SIZE, find_large_matching_lists
 from app.validation.field_checks import is_control_character
 
 # Finding codes (shown to the admin with the message; the API passes them through)
@@ -35,6 +36,7 @@ EXTRA_SPACES = "EXTRA_SPACES"
 DUPLICATE_VALUE = "DUPLICATE_VALUE"
 CASE_ONLY_DUPLICATE = "CASE_ONLY_DUPLICATE"
 TOO_LONG = "TOO_LONG"
+MATCHING_LIST_LARGE = "MATCHING_LIST_LARGE"
 
 # Which problem codes each passed check stands for (a check passes when none of them is found)
 PASSED_CHECKS: dict[str, tuple[str, ...]] = {
@@ -94,9 +96,17 @@ class LookupCheckResult(BaseModel):
 
 
 def check_lookup_upload(
-    file_name: str, content: bytes, field_rules: FieldRules, current: LookupLists
+    file_name: str,
+    content: bytes,
+    business_rules: BusinessRules,
+    current: LookupLists,
+    shortlist_size: int | None,
 ) -> LookupCheckResult:
-    """Check an uploaded lookup workbook against the field rules and the current version."""
+    """Check an uploaded lookup workbook against the business rules and the current version.
+
+    `shortlist_size` is the MATCHING_SHORTLIST_SIZE setting: a large Matching list it does not
+    cut is reported as a warning (it does not block the upload).
+    """
     workbook = open_workbook(content)
     if workbook is None:
         problem = make_problem(
@@ -110,11 +120,14 @@ def check_lookup_upload(
     findings: list[UploadFinding] = []
     metadata = check_metadata(workbook, current.version, findings)
     sheets = read_uploaded_sheets(workbook)
-    findings += check_used_sheets(sheets, field_rules)
-    limits = find_sheet_limits(field_rules)
+    findings += check_used_sheets(sheets, business_rules)
+    limits = find_sheet_limits(business_rules)
     for sheet in sheets:
         findings += check_sheet(sheet, limits.get(sheet.name))
     uploaded = {sheet.name: read_sheet_values(sheet) for sheet in sheets}
+    if metadata is not None:
+        uploaded_lists = LookupLists(metadata=metadata, sheets=uploaded)
+        findings += find_large_list_warnings(business_rules, uploaded_lists, shortlist_size)
     report = build_report(
         file_name, current, metadata, findings, diff_sheets(current.sheets, uploaded)
     )
@@ -123,6 +136,22 @@ def check_lookup_upload(
     if metadata is not None and not report.has_problems():
         lookup_lists = LookupLists(metadata=metadata, sheets=uploaded)
     return LookupCheckResult(report=report, lookup_lists=lookup_lists)
+
+
+def find_large_list_warnings(
+    business_rules: BusinessRules, lookup_lists: LookupLists, shortlist_size: int | None
+) -> list[UploadFinding]:
+    """Return a warning for each Matching-allowed list over the size threshold left whole."""
+    columns = {rule.key: rule.column for rule in business_rules.fields}
+    return [
+        make_warning(
+            MATCHING_LIST_LARGE,
+            f"The {columns[large.key]} list has {large.size} values (over {LARGE_LIST_SIZE}). "
+            "Matching sends the whole list with every item, so its cost grows with the list. "
+            "Set MATCHING_SHORTLIST_SIZE on purpose, or keep this field out of Matching.",
+        )
+        for large in find_large_matching_lists(business_rules, lookup_lists, shortlist_size)
+    ]
 
 
 def open_workbook(content: bytes) -> Workbook | None:
@@ -211,7 +240,7 @@ def is_blank(cell: object) -> bool:
 
 
 def check_used_sheets(
-    sheets: Sequence[UploadedSheet], field_rules: FieldRules
+    sheets: Sequence[UploadedSheet], business_rules: BusinessRules
 ) -> list[UploadFinding]:
     """Return a problem for each sheet a field uses that is missing (renamed or deleted)."""
     names = {sheet.name for sheet in sheets}
@@ -222,15 +251,15 @@ def check_used_sheets(
             "cannot be renamed or deleted. Put it back with its exact name and upload again.",
             sheet=rule.lookup_sheet,
         )
-        for rule in field_rules.fields
+        for rule in business_rules.fields
         if rule.lookup_sheet is not None and rule.lookup_sheet not in names
     ]
 
 
-def find_sheet_limits(field_rules: FieldRules) -> dict[str, int]:
+def find_sheet_limits(business_rules: BusinessRules) -> dict[str, int]:
     """Return the length limit of each lookup sheet (the smallest of the fields using it)."""
     limits: dict[str, int] = {}
-    for rule in field_rules.fields:
+    for rule in business_rules.fields:
         if rule.lookup_sheet is None or rule.max_length is None:
             continue
         limits[rule.lookup_sheet] = min(
