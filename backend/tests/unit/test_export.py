@@ -241,6 +241,20 @@ def test_control_characters_are_removed_so_the_export_does_not_crash(
     assert cell.value == "syntheticvalue"
 
 
+def test_noncharacter_from_pdf_text_is_removed_so_the_export_does_not_crash(
+    tmp_path: Path, bundle: ConfigBundle, context: ReviewContext, run_folder: RunFolder
+) -> None:
+    """U+FFFE (seen in a real PDF's "Anti-DISC<U+FFFE>0974") is outside XML and is dropped."""
+    rule = text_rule(bundle)
+    database = start_export_run(tmp_path, bundle, context)
+    text = "Anti-synthetic\ufffe0974\uffff"
+    save(database, context, set_value("chg_0002", rule.key, text, reason="edit"))
+    info = export(database, bundle, context, run_folder)
+    sheet = open_sheet(run_folder.resolve_ref(info.loader_file), bundle.export_template.sheet.name)
+    cell = sheet.cell(row=2, column=bundle.export_template.headers.index(rule.column) + 1)
+    assert cell.value == "Anti-synthetic0974"
+
+
 def test_loader_layout_comes_from_the_template(
     tmp_path: Path, bundle: ConfigBundle, context: ReviewContext, run_folder: RunFolder
 ) -> None:

@@ -9,12 +9,13 @@ Extracted, generated and derived fields are written; the fields the tool does no
 (`blank_for_now`, `system`) are exported blank.
 """
 
+import re
 from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
 
 from openpyxl import Workbook
-from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE, Cell, MergedCell
+from openpyxl.cell.cell import Cell, MergedCell
 from openpyxl.styles import Font
 from openpyxl.worksheet.worksheet import Worksheet
 
@@ -36,6 +37,11 @@ EXPORTED_ROLES = ("extracted", "generated", "derived")
 # openpyxl reads text starting with "=" as a formula; such values are forced to plain text
 FORMULA_START = "="
 TEXT_DATA_TYPE = "s"
+
+# Anything outside the XML 1.0 character set cannot be saved in an Excel file: tab, line feed,
+# carriage return, U+0020 to U+D7FF, U+E000 to U+FFFD and U+10000 to U+10FFFF are allowed.
+# This includes the noncharacters U+FFFE and U+FFFF that broken PDF text can give.
+NOT_XML_CHARACTER_RE = re.compile(r"[^\t\n\r\u0020-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]")
 
 # A loader cell value: text, a number, or blank
 LoaderValue = str | int | float | date | None
@@ -116,17 +122,17 @@ def find_cell(sheet: Worksheet, row: int, column: int) -> Cell:
 
 
 def remove_illegal_characters(value: LoaderValue) -> LoaderValue:
-    """Return text without the control characters an Excel file cannot hold."""
+    """Return text without the characters an Excel file cannot hold (outside XML 1.0)."""
     if isinstance(value, str):
-        return ILLEGAL_CHARACTERS_RE.sub("", value)
+        return NOT_XML_CHARACTER_RE.sub("", value)
     return value
 
 
 def write_cell(cell: Cell, value: LoaderValue) -> None:
     """Write a value to a cell, keeping text that starts with "=" as text, not a formula.
 
-    Every cell of the loader and the audit workbook goes through here, so a control character
-    (for example from PDF text) is removed at write time instead of crashing the export.
+    Every cell of the loader and the audit workbook goes through here, so a character
+    outside XML (for example U+FFFE from PDF text) is removed at write time, not a crash.
     """
     cell.value = remove_illegal_characters(value)
     if isinstance(value, str) and value.startswith(FORMULA_START):
